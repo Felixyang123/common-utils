@@ -24,7 +24,9 @@ public abstract class CacheSupport<T> implements Cache<T> {
         return cacheWrapper != null ? cacheWrapper.getData() : null;
     }
 
-    public T safetyGet(String key, long ttl, CacheLoader<T> loader) {
-        return delegate.loadAndCache(key, ttl, loader);
+    public abstract T load(String key);
+
+    public T safetyGet(String key, long ttl) {
+        return delegate.loadAndCache(key, ttl, this::load);
     }
 }
