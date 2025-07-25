@@ -37,10 +37,9 @@ public class CacheConfig {
 
         // 使用Jackson2JsonRedisSerializer来序列化和反序列化redis的value值
         ObjectMapper mapper = new ObjectMapper();
-//        mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(),
-//                ObjectMapper.DefaultTyping.NON_FINAL,
-//                JsonTypeInfo.As.PROPERTY);
+        // 取消Javabean转换
 //        mapper.deactivateDefaultTyping();
+        // 打开Javabean转换
         mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
         mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(),
                 ObjectMapper.DefaultTyping.NON_FINAL);
