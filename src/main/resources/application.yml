@@ -5,3 +5,6 @@ spring:
     url: jdbc:mysql://localhost:3306/utils?useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: root
     password: lifan1994
+  redis:
+    host: localhost
+    port: 6379

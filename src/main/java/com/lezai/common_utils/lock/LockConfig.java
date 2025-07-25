@@ -8,6 +8,11 @@ import org.springframework.context.annotation.Configuration;
 public class LockConfig {
 
     @Bean
+    public Lock reentrantLock() {
+        return new LocalReentrantLock();
+    }
+
+    @Bean
     public LockSupport lockSupport(Lock lock) {
         return new LockSupport(lock);
     }

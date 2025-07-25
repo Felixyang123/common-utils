@@ -14,7 +14,8 @@ public class CacheWrapper<T> {
 
     private Long expireTime;
 
-    public boolean isExpired() {
+//    @JsonIgnore
+    public Boolean expired() {
         return expireTime < System.currentTimeMillis();
     }
 }

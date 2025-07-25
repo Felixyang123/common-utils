@@ -19,7 +19,7 @@ public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
             return null;
         }
 
-        if (cacheWrapper.isExpired()) {
+        if (cacheWrapper.expired()) {
             if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key)) {
                 try {
                     T newData = loader.load(key);
