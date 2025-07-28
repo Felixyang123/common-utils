@@ -20,7 +20,8 @@ public class DefaultTokenManager implements TokenManager<DefaultTokenContext> {
 
     @Override
     public boolean checkToken(DefaultTokenContext ctx) {
-        return tokenStorage.deleteToken(ctx.getToken()) != null;
+        String token = tokenStorage.deleteToken(ctx.getToken());
+        return StringUtils.equals(ctx.getToken(), token);
     }
 
     @Override
