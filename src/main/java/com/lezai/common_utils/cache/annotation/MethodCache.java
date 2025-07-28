@@ -1,4 +1,4 @@
-package com.lezai.common_utils.cache;
+package com.lezai.common_utils.cache.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

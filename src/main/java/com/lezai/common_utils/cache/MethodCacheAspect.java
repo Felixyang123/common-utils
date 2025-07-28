@@ -1,5 +1,6 @@
 package com.lezai.common_utils.cache;
 
+import com.lezai.common_utils.cache.annotation.MethodCache;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -12,14 +13,12 @@ import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
 
 @Aspect
-@Component
 public class MethodCacheAspect {
     
     @Autowired

@@ -2,10 +2,7 @@ package com.lezai.common_utils.cache;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -15,11 +12,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializer;
-import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-
-import java.io.IOException;
 
 @Configuration
 @EnableAspectJAutoProxy
@@ -65,35 +58,8 @@ public class CacheConfig {
         return new MultiRemoteRedisCache<>(redisTemplate);
     }
 
-    // 自定义序列化器
-    public static class RedisObjectSerializer implements RedisSerializer<Object> {
-        private final ObjectMapper objectMapper = new ObjectMapper();
-
-        public RedisObjectSerializer() {
-            objectMapper.deactivateDefaultTyping();
-            objectMapper.registerModule(new JavaTimeModule());
-            objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        }
-
-        @Override
-        public byte[] serialize(Object o) throws SerializationException {
-            try {
-                return objectMapper.writeValueAsBytes(o);
-            } catch (JsonProcessingException e) {
-                throw new SerializationException("Could not serialize", e);
-            }
-        }
-
-        @Override
-        public Object deserialize(byte[] bytes) throws SerializationException {
-            if (bytes == null || bytes.length == 0) {
-                return null;
-            }
-            try {
-                return objectMapper.readValue(bytes, Object.class);
-            } catch (IOException e) {
-                throw new SerializationException("Could not deserialize", e);
-            }
-        }
+    @Bean
+    public MethodCacheAspect methodCacheAspect() {
+        return new MethodCacheAspect();
     }
 }

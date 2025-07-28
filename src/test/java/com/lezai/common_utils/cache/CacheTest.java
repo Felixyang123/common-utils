@@ -15,6 +15,9 @@ public class CacheTest {
     @Qualifier(value = "firstLevelCache")
     private MultiCache<Object> firstLevelCache;
 
+    @Autowired
+    private UserService userService;
+
     @Test
     void userCache_test() {
         UserCache.User user = userCache.safetyGet("3", System.currentTimeMillis() + 1000 * 60 * 30);
@@ -26,5 +29,15 @@ public class CacheTest {
         long ttl = System.currentTimeMillis() + 1000 * 60 * 30;
         Object user = firstLevelCache.loadAndCache("3", ttl, key -> new UserCache.User("aaa"));
         System.out.println(user);
+    }
+
+    @Test
+    void userService_test() {
+        UserCache.User user;
+        user = userService.getUserById("4");
+        System.out.println(user);
+
+        UserCache.User user1 = userService.getUserById("4");
+        System.out.println(user1==user);
     }
 }

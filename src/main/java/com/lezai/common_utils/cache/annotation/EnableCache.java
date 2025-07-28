@@ -1,5 +1,6 @@
-package com.lezai.common_utils.cache;
+package com.lezai.common_utils.cache.annotation;
 
+import com.lezai.common_utils.cache.CacheConfig;
 import org.springframework.context.annotation.Import;
 
 import java.lang.annotation.*;
