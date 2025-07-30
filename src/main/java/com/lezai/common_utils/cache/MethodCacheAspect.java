@@ -6,8 +6,9 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
@@ -19,15 +20,8 @@ import java.util.Arrays;
 import java.util.Objects;
 
 @Aspect
-public class MethodCacheAspect {
-    
-    @Autowired
-    @Qualifier("firstLevelCache")
-    private MultiCache<Object> firstLevelCache;
-    
-    @Autowired
-    @Qualifier("secondLevelCache")
-    private MultiCache<Object> secondLevelCache;
+public class MethodCacheAspect implements ApplicationContextAware {
+    private ApplicationContext applcationcontext;
     
     private final ExpressionParser parser = new SpelExpressionParser();
     private final DefaultParameterNameDiscoverer nameDiscoverer = new DefaultParameterNameDiscoverer();
@@ -38,7 +32,7 @@ public class MethodCacheAspect {
         String key = generateKey(joinPoint, methodCache);
         
         // 获取指定的缓存实例
-        MultiCache<Object> cache = getCacheByName(methodCache.cacheName());
+        MultiCache cache = applcationcontext.getBean(methodCache.cacheName().getName(), MultiCache.class);
         
         // 使用缓存加载数据
         return cache.loadAndCache(key, System.currentTimeMillis() + methodCache.ttl(), k -> {
@@ -73,7 +67,8 @@ public class MethodCacheAspect {
         return parser.parseExpression(keyExpression).getValue(context, String.class);
     }
     
-    private MultiCache<Object> getCacheByName(String cacheName) {
-        return cacheName.equals("secondLevelCache") ? secondLevelCache : firstLevelCache;
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applcationcontext = applicationContext;
     }
 }

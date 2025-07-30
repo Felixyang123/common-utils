@@ -1,5 +1,8 @@
 package com.lezai.common_utils.cache.annotation;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -21,5 +24,14 @@ public @interface MethodCache {
     /**
      * 指定使用的缓存实例名称
      */
-    String cacheName() default "firstLevelCache";
+    CacheNameEnum cacheName() default CacheNameEnum.FIRST_LEVEL_CACHE;
+
+    @AllArgsConstructor
+    @Getter
+    enum CacheNameEnum {
+        FIRST_LEVEL_CACHE("firstLevelCache"),
+        SECOND_LEVEL_CACHE("secondLevelCache");
+
+        private final String name;
+    }
 }
