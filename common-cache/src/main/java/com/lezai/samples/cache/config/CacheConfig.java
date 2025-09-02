@@ -78,7 +78,7 @@ public class CacheConfig {
     }
 
     @Bean
-    public MethodCacheAspect methodCacheAspect() {
-        return new MethodCacheAspect();
+    public MethodCacheAspect methodCacheAspect(CacheManager<Object> cacheManager) {
+        return new MethodCacheAspect(cacheManager);
     }
 }
