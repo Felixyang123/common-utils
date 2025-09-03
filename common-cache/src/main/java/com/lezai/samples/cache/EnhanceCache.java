@@ -4,12 +4,37 @@ import com.lezai.lock.LockSupport;
 
 public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
 
+    @Override
+    default void set(String key, CacheWrapper<T> value) {
+        if (value.getExpireTime() == null) {
+            value.setExpireTime(ttl() + System.currentTimeMillis());
+        }
+        put(key, value);
+    }
+
+    @Override
+    default void set(String key, CacheWrapper<T> value, Long ttl) {
+        if (value.getExpireTime() == null) {
+            ttl = ttl == null ? this.ttl() : ttl;
+            value.setExpireTime(ttl + System.currentTimeMillis());
+        }
+        put(key, value);
+    }
+
+    @Override
+    default String category() {
+        return "";
+    }
+
+    void put(String key, CacheWrapper<T> value);
+
     default T loadAndCache(String key, long ttl, CacheLoader<T> loader) {
         CacheWrapper<T> cacheWrapper = get(key);
+        long expireTime = System.currentTimeMillis() + ttl;
         if (cacheWrapper == null) {
             return LockSupport.lockAndExecuteOnce("CACHE_REFRESH_LOCK_" + key, () -> {
                 T data = loader.load(key);
-                set(key, CacheWrapper.<T>builder().data(data).expireTime(ttl).build());
+                set(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
                 return data;
             });
         }
@@ -23,8 +48,7 @@ public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
             if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key)) {
                 try {
                     T newData = loader.load(key);
-                    cacheWrapper = CacheWrapper.<T>builder().data(newData).expireTime(ttl).build();
-                    set(key, cacheWrapper);
+                    set(key, CacheWrapper.<T>builder().key(key).category(category()).data(newData).expireTime(expireTime).build());
                     return newData;
                 } finally {
                     LockSupport.getLock().release("CACHE_REFRESH_LOCK_" + key);

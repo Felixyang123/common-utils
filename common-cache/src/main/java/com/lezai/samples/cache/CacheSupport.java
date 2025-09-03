@@ -2,18 +2,21 @@ package com.lezai.samples.cache;
 
 public abstract class CacheSupport<T> implements Cache<T> {
     private final EnhanceCache<T> delegate;
+
     public CacheSupport(CacheManager cacheManager) {
         this.delegate = cacheManager.getCache(category());
     }
 
     @Override
     public void set(String key, T value) {
-        this.set(key, value, System.currentTimeMillis() + 1000 * 30);
+        this.set(key, value, ttl());
     }
 
     @Override
-    public void set(String key, T value, long ttl) {
-        CacheWrapper<T> cacheWrapper = CacheWrapper.<T>builder().data(value).expireTime(ttl).build();
+    public void set(String key, T value, Long ttl) {
+        ttl = ttl == null ? ttl() : ttl;
+        CacheWrapper<T> cacheWrapper = CacheWrapper.<T>builder().key(key).category(category())
+                .data(value).expireTime(ttl + System.currentTimeMillis()).build();
         delegate.set(key, cacheWrapper);
     }
 
@@ -24,8 +27,6 @@ public abstract class CacheSupport<T> implements Cache<T> {
     }
 
     public abstract T load(String key);
-
-    public abstract String category();
 
     public T safetyGet(String key, long ttl) {
         return delegate.loadAndCache(key, ttl, this::load);

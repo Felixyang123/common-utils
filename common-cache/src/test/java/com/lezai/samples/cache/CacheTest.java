@@ -1,11 +1,11 @@
 package com.lezai.samples.cache;
 
+import com.lezai.lock.LocalLock;
+import com.lezai.lock.LockSupport;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
 import com.lezai.samples.cache.impl.MultiHashMapCacheManager;
-import com.lezai.lock.LocalLock;
-import com.lezai.lock.LockSupport;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -14,9 +14,11 @@ public class CacheTest {
 
     @Test
     void HashMapCache_Prototype_Test() {
-        record User (String name, int age){}
-        HashMapCache<Object> cache = new HashMapCache<>(1000);
-        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
+        record User(String name, int age) {
+        }
+        long ttl = 60 * 1000;
+        HashMapCache<Object> cache = new HashMapCache<>(1000, ttl, "");
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000, ttl);
         CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
             @Override
             public User load(String key) {
@@ -26,6 +28,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "user";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -38,7 +45,8 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("xiaoming", user.name);
 
-        record Order (String orderId, String sku){}
+        record Order(String orderId, String sku) {
+        }
 
         CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
             @Override
@@ -49,6 +57,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "order";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -65,10 +78,11 @@ public class CacheTest {
     @Test
     void HashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
-        HashMapCache<Object> cache = new HashMapCache<>(1000);
-        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
-
-        record User (String name, int age){}
+        long ttl = 1000 * 60;
+        HashMapCache<Object> cache = new HashMapCache<>(1000, ttl, "");
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000, ttl);
+        record User(String name, int age) {
+        }
         CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
             @Override
             public User load(String key) {
@@ -78,6 +92,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -91,7 +110,8 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("xiaoming", user.name);
 
-        record Order (String orderId, String sku){}
+        record Order(String orderId, String sku) {
+        }
 
         CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
             @Override
@@ -102,6 +122,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -116,11 +141,14 @@ public class CacheTest {
         Assertions.assertNotNull(order);
         Assertions.assertEquals("No10001", order.orderId);
     }
+
     @Test
     void MultiHashMapCache_Prototype_Test() {
-        record User (String name, int age){}
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null);
-        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
+        record User(String name, int age) {
+        }
+        long ttl = 60 * 1000;
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, ttl, null, "");
+        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000, ttl);
         CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
             @Override
             public User load(String key) {
@@ -130,6 +158,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "user";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -142,7 +175,8 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("xiaoming", user.name);
 
-        record Order (String orderId, String sku){}
+        record Order(String orderId, String sku) {
+        }
 
         CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
             @Override
@@ -153,6 +187,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "order";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -169,9 +208,11 @@ public class CacheTest {
     @Test
     void MultiHashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null);
-        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
-        record User (String name, int age){}
+        long ttl = 60 * 1000;
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, ttl, null, "");
+        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000, ttl);
+        record User(String name, int age) {
+        }
         CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
             @Override
             public User load(String key) {
@@ -181,6 +222,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 
@@ -194,7 +240,8 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("xiaoming", user.name);
 
-        record Order (String orderId, String sku){}
+        record Order(String orderId, String sku) {
+        }
 
         CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
             @Override
@@ -205,6 +252,11 @@ public class CacheTest {
             @Override
             public String category() {
                 return "";
+            }
+
+            @Override
+            public Long ttl() {
+                return ttl;
             }
         };
 

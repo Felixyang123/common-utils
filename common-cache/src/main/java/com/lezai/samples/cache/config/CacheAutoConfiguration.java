@@ -3,6 +3,7 @@ package com.lezai.samples.cache.config;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.CacheManager;
 import com.lezai.samples.cache.EnhanceCache;
 import com.lezai.samples.cache.MethodCacheAspect;
@@ -27,20 +28,23 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 @EnableAspectJAutoProxy
 @EnableConfigurationProperties({CacheProperties.class})
-public class CacheConfig {
+@EnableLock
+public class CacheAutoConfiguration {
     @Autowired
     private CacheProperties cacheProperties;
 
     @Bean
     @ConditionalOnMissingBean(EnhanceCache.class)
     public EnhanceCache<Object> enhanceCache() {
-        return new HashMapCache<>(cacheProperties.getGlobalCfg().getLocalCacheSize());
+        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
+        return new HashMapCache<>(globalCfg.getLocalCacheSize(), globalCfg.getLocalCacheTtl(), "");
     }
 
     @Bean
     @ConditionalOnMissingBean(CacheManager.class)
     public CacheManager<Object> cacheManager(EnhanceCache<Object> enhanceCache) {
-        return new HashMapCacheManager(enhanceCache, cacheProperties.getHashMapCacheCfg().getCacheSize());
+        CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
+        return new HashMapCacheManager(enhanceCache, cfg.getCacheSize(), cfg.getTtl());
     }
 
     @ConditionalOnMissingBean(RedisTemplate.class)
@@ -68,13 +72,14 @@ public class CacheConfig {
 
     @Bean(name = "l1Cache")
     public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
-        return new MultiHashMapCache<>(cacheProperties.getGlobalCfg().getLocalCacheSize(), multiCache);
+        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
+        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), globalCfg.getLocalCacheTtl(), multiCache, "");
     }
 
     @Primary
     @Bean(name = "l2Cache")
     public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> redisTemplate) {
-        return new MultiRemoteRedisCache<>(redisTemplate);
+        return new MultiRemoteRedisCache<>(redisTemplate, cacheProperties.getGlobalCfg().getRedisCacheTtl());
     }
 
     @Bean

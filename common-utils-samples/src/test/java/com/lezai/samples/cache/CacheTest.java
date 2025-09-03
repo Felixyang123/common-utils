@@ -29,4 +29,11 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("1", user.getName());
     }
+
+    @Test
+    void userCacheSyncTest() {
+        UserCache.User user = userCache.safetyGet("bobo", 1000);
+        Assertions.assertNotNull(user);
+        Assertions.assertEquals("bobo", user.getName());
+    }
 }

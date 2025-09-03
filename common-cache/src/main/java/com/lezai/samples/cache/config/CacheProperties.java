@@ -12,10 +12,16 @@ public class CacheProperties {
     @Data
     public static class HashMapCacheCfg {
         private int cacheSize = 1000;
+
+        private long ttl = 60 * 1000;
     }
 
     @Data
     public static class GlobalCfg {
         private int localCacheSize = 1000;
+
+        private long localCacheTtl = 60 * 1000;
+
+        private long redisCacheTtl = 60 * 60 * 1000;
     }
 }

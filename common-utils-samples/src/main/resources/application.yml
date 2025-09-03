@@ -9,6 +9,11 @@ spring:
     host: localhost
     port: 6379
 
+logging:
+  level:
+    root: info
+    com.lezai.samples.*: debug
+
 cache:
   hashMapCacheCfg:
     cacheSize: 2000

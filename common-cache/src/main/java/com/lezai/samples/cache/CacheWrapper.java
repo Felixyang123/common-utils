@@ -10,11 +10,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class CacheWrapper<T> {
+    private String key;
+
+    private String category;
+
     private T data;
 
     private Long expireTime;
 
-//    @JsonIgnore
     public Boolean expired() {
         return expireTime < System.currentTimeMillis();
     }

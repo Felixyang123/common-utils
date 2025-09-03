@@ -4,7 +4,11 @@ public interface Cache<T> {
 
     void set(String key, T value);
 
-    void set(String key, T value, long ttl);
+    void set(String key, T value, Long ttl);
 
     T get(String key);
+
+    Long ttl();
+
+    String category();
 }

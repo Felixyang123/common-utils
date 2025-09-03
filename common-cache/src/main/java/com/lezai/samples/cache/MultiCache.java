@@ -1,6 +1,8 @@
 package com.lezai.samples.cache;
 
 import com.lezai.lock.LockSupport;
+import com.lezai.samples.cache.sync.CacheMessagePubSub;
+import com.lezai.samples.cache.sync.CacheSyncMessage;
 
 import java.util.List;
 
@@ -8,7 +10,19 @@ public interface MultiCache<T> extends EnhanceCache<T> {
 
     default T load(String key, long ttl, CacheLoader<T> loader) {
         MultiCache<T> nextLevelCache = nextLevelCache();
-        return nextLevelCache != null ? nextLevelCache.load(key, ttl, loader) : loader.load(key);
+        return nextLevelCache != null ? nextLevelCache.loadAndCache(key, ttl, loader) : loader.load(key);
+    }
+
+    @Override
+    default void set(String key, CacheWrapper<T> value) {
+        EnhanceCache.super.set(key, value);
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+    }
+
+    @Override
+    default void set(String key, CacheWrapper<T> value, Long ttl) {
+        EnhanceCache.super.set(key, value, ttl);
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
     }
 
     MultiCache<T> nextLevelCache();
@@ -21,12 +35,13 @@ public interface MultiCache<T> extends EnhanceCache<T> {
     default T loadAndCache(String key, long ttl, CacheLoader<T> loader) {
         CacheWrapper<T> cacheWrapper = get(key);
         String lockKey = "MULTI_CACHE_LOCK_" + key;
+        long expireTime = System.currentTimeMillis() + ttl;
         if (cacheWrapper == null) {
             return LockSupport.lockAndExecuteQueued(lockKey, () -> {
                 CacheWrapper<T> newCacheWrapper = get(key);
                 if (newCacheWrapper == null) {
                     T data = load(key, ttl, loader);
-                    set(key, CacheWrapper.<T>builder().data(data).expireTime(ttl).build());
+                    set(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
                     return data;
                 }
                 return newCacheWrapper.getData();
@@ -38,13 +53,13 @@ public interface MultiCache<T> extends EnhanceCache<T> {
                 CacheWrapper<T> newCacheWrapper = get(key);
                 if (newCacheWrapper == null) {
                     T data = load(key, ttl, loader);
-                    set(key, CacheWrapper.<T>builder().data(data).expireTime(ttl).build());
+                    set(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
                     return data;
                 }
 
                 if (newCacheWrapper.expired()) {
                     T data = load(key, ttl, loader);
-                    set(key, CacheWrapper.<T>builder().data(data).expireTime(ttl).build());
+                    set(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
                     return data;
                 }
                 return newCacheWrapper.getData();
