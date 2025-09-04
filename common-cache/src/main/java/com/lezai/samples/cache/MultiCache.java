@@ -16,19 +16,33 @@ public interface MultiCache<T> extends EnhanceCache<T> {
     @Override
     default void set(String key, CacheWrapper<T> value) {
         EnhanceCache.super.set(key, value);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        cascadeUpdateThenPublish(key, value);
     }
 
     @Override
     default void set(String key, CacheWrapper<T> value, Long ttl) {
         EnhanceCache.super.set(key, value, ttl);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        cascadeUpdateThenPublish(key, value);
+    }
+
+    private void cascadeUpdateThenPublish(String key, CacheWrapper<T> value) {
+        MultiCache<T> nextLevelCache = nextLevelCache();
+        if (nextLevelCache != null) {
+            nextLevelCache.set(key, value);
+        } else {
+            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        }
     }
 
     @Override
     default void remove(String key) {
         delete(key);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        MultiCache<T> nextLevelCache = nextLevelCache();
+        if (nextLevelCache != null) {
+            nextLevelCache.remove(key);
+        } else {
+            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        }
     }
 
 
