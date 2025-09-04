@@ -36,6 +36,11 @@ public class HashMapCache<T> implements EnhanceCache<T> {
     }
 
     @Override
+    public void delete(String key) {
+        cache.remove(key);
+    }
+
+    @Override
     public String category() {
         return this.category;
     }

@@ -41,12 +41,17 @@ public class CaffeineCache<T> implements EnhanceCache<T> {
     }
 
     @Override
+    public void delete(String key) {
+        cache.invalidate(key);
+    }
+
+    @Override
     public String category() {
         return this.category;
     }
 
     @Override
-    public T loadAndCache(String key, long ttl, CacheLoader<T> loader) {
+    public T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
         CacheWrapper<T> cacheWrapper = cache.get(key, k -> new CacheWrapper<>(key, category, loader.load(k), ttl));
         return cacheWrapper.getData();
     }

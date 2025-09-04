@@ -31,4 +31,9 @@ public class RemoteRedisCache<T> implements EnhanceCache<T> {
         Object value = redisTemplate.opsForValue().get(key);
         return value != null ? (CacheWrapper<T>) value : null;
     }
+
+    @Override
+    public void delete(String key) {
+        redisTemplate.delete(key);
+    }
 }

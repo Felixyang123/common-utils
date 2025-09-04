@@ -39,7 +39,7 @@ public class MethodCacheAspect {
         EnhanceCache<Object> cache = cacheManager.getCache(methodCache.category());
 
         // 使用缓存加载数据
-        return cache.loadAndCache(key, System.currentTimeMillis() + methodCache.ttl(), k -> {
+        return cache.loadAndCache(key, methodCache.ttl(), k -> {
             try {
                 return joinPoint.proceed();
             } catch (Throwable throwable) {

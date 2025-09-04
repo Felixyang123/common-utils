@@ -22,19 +22,27 @@ public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
     }
 
     @Override
+    default void remove(String key) {
+        delete(key);
+    }
+
+    @Override
     default String category() {
         return "";
     }
 
     void put(String key, CacheWrapper<T> value);
 
-    default T loadAndCache(String key, long ttl, CacheLoader<T> loader) {
+    void delete(String key);
+
+    default T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
         CacheWrapper<T> cacheWrapper = get(key);
+        ttl = ttl == null ? ttl() : ttl;
         long expireTime = System.currentTimeMillis() + ttl;
         if (cacheWrapper == null) {
             return LockSupport.lockAndExecuteOnce("CACHE_REFRESH_LOCK_" + key, () -> {
                 T data = loader.load(key);
-                set(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
+                put(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
                 return data;
             });
         }
@@ -48,7 +56,7 @@ public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
             if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key)) {
                 try {
                     T newData = loader.load(key);
-                    set(key, CacheWrapper.<T>builder().key(key).category(category()).data(newData).expireTime(expireTime).build());
+                    put(key, CacheWrapper.<T>builder().key(key).category(category()).data(newData).expireTime(expireTime).build());
                     return newData;
                 } finally {
                     LockSupport.getLock().release("CACHE_REFRESH_LOCK_" + key);

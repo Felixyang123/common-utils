@@ -8,6 +8,8 @@ public interface Cache<T> {
 
     T get(String key);
 
+    void remove(String key);
+
     Long ttl();
 
     String category();

@@ -70,10 +70,13 @@ public class RedisCacheMessageSub implements CacheMessageSub {
     private void process(CacheSyncMessage message) {
         Object data = redisTemplate.opsForValue().get(message.getKey());
         EnhanceCache<Object> enhanceCache = cacheManager.getCache(message.getCategory());
-        CacheWrapper<Object> cacheWrapper;
         if (data == null) {
-            cacheWrapper = new CacheWrapper<>(message.getKey(), message.getCategory(), null, 0L);
-        } else if (data instanceof CacheWrapper cache) {
+            enhanceCache.delete(message.getKey());
+            return;
+        }
+
+        CacheWrapper<Object> cacheWrapper;
+        if (data instanceof CacheWrapper cache) {
             cacheWrapper = cache;
         } else {
             cacheWrapper = new CacheWrapper<>(message.getKey(), message.getCategory(), data, enhanceCache.ttl() + System.currentTimeMillis());

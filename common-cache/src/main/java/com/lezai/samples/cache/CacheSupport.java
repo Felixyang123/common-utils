@@ -26,6 +26,21 @@ public abstract class CacheSupport<T> implements Cache<T> {
         return cacheWrapper != null ? cacheWrapper.getData() : null;
     }
 
+    @Override
+    public void remove(String key) {
+        delegate.remove(key);
+    }
+
+    @Override
+    public Long ttl() {
+        return 0L;
+    }
+
+    @Override
+    public String category() {
+        return "";
+    }
+
     public abstract T load(String key);
 
     public T safetyGet(String key, long ttl) {

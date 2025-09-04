@@ -35,5 +35,9 @@ public class CacheTest {
         UserCache.User user = userCache.safetyGet("bobo", 1000);
         Assertions.assertNotNull(user);
         Assertions.assertEquals("bobo", user.getName());
+
+        userCache.set("bobo", new UserCache.User("momo"));
+        user = userCache.get("bobo");
+        Assertions.assertEquals("momo", user.getName());
     }
 }
