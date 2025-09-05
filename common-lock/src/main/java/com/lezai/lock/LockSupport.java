@@ -34,7 +34,7 @@ public class LockSupport {
     }
 
     public static <T> T lockAndExecuteOnce(String key, Supplier<T> supplier) {
-        boolean locked = lock.tryLock(key);
+        boolean locked = lock.tryLock(key, 60000);
         if (!locked) {
             return null;
         }

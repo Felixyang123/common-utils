@@ -53,7 +53,7 @@ public interface EnhanceCache<T> extends Cache<CacheWrapper<T>> {
         }
 
         if (cacheWrapper.expired()) {
-            if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key)) {
+            if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key, 60000)) {
                 try {
                     T newData = loader.load(key);
                     put(key, CacheWrapper.<T>builder().key(key).category(category()).data(newData).expireTime(expireTime).build());
