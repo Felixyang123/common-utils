@@ -4,13 +4,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-@Component
 public class WatchDogExecutor implements SmartLifecycle {
     private final RedisTemplate<String, Object> redisTemplate;
     private final DelayQueue<LeaseTask> leaseTaskQueue;
