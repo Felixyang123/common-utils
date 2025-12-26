@@ -68,6 +68,10 @@ public class RedisCacheMessageSub implements CacheMessageSub {
     }
 
     private void process(CacheSyncMessage message) {
+        if (CacheSyncMessage.uniqueId.equalsIgnoreCase(message.getSourceId())) {
+            log.debug("Ignoring cache sync message from self: {}", message);
+            return;
+        }
         Object data = redisTemplate.opsForValue().get(message.getKey());
         EnhanceCache<Object> enhanceCache = cacheManager.getCache(message.getCategory());
         if (data == null) {

@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -15,13 +14,14 @@ public class UserCache extends CacheSupport<UserCache.User> {
 
     public UserCache(CacheManager<Object> cacheManager) {
         super(cacheManager);
-        users.put("1", new User("aaa"));
-        users.put("2", new User("bbb"));
+        users.put("1", new User("1","aaa"));
+        users.put("2", new User("2","bbb"));
+        users.put("3", new User("3","ccc"));
     }
 
     @Override
     public User load(String key) {
-        return Optional.ofNullable(users.get(key)).orElse(new User(key));
+        return users.get(key);
     }
 
     @Override
@@ -31,13 +31,14 @@ public class UserCache extends CacheSupport<UserCache.User> {
 
     @Override
     public Long ttl() {
-        return 2000L;
+        return 200000L;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class User {
+        private String id;
         private String name;
     }
 }

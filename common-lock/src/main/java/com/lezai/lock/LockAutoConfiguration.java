@@ -11,6 +11,12 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class LockAutoConfiguration {
 
     @Bean
+    public RedisDistributeLock redisDistributeLock(RedisTemplate<String, Object> redisTemplate, WatchDogExecutor watchDogExecutor) {
+        return new RedisDistributeLock(redisTemplate, watchDogExecutor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(Lock.class)
     public Lock reentrantLock() {
         return new LocalReentrantLock();
     }
@@ -36,8 +42,4 @@ public class LockAutoConfiguration {
         return new WatchDogExecutor(redisTemplate);
     }
 
-    @Bean
-    public RedisDistributeLock redisDistributeLock(RedisTemplate<String, Object> redisTemplate, WatchDogExecutor watchDogExecutor) {
-        return new RedisDistributeLock(redisTemplate, watchDogExecutor);
-    }
 }

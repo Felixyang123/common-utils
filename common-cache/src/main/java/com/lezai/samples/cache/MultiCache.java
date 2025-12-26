@@ -1,10 +1,9 @@
 package com.lezai.samples.cache;
 
 import com.lezai.lock.LockSupport;
-import com.lezai.samples.cache.sync.CacheMessagePubSub;
-import com.lezai.samples.cache.sync.CacheSyncMessage;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MultiCache<T> extends EnhanceCache<T> {
 
@@ -16,35 +15,20 @@ public interface MultiCache<T> extends EnhanceCache<T> {
     @Override
     default void set(String key, CacheWrapper<T> value) {
         EnhanceCache.super.set(key, value);
-        cascadeUpdateThenPublish(key, value);
+        Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.set(key, value));
     }
 
     @Override
     default void set(String key, CacheWrapper<T> value, Long ttl) {
         EnhanceCache.super.set(key, value, ttl);
-        cascadeUpdateThenPublish(key, value);
-    }
-
-    private void cascadeUpdateThenPublish(String key, CacheWrapper<T> value) {
-        MultiCache<T> nextLevelCache = nextLevelCache();
-        if (nextLevelCache != null) {
-            nextLevelCache.set(key, value);
-        } else {
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
-        }
+        Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.set(key, value));
     }
 
     @Override
     default void remove(String key) {
         delete(key);
-        MultiCache<T> nextLevelCache = nextLevelCache();
-        if (nextLevelCache != null) {
-            nextLevelCache.remove(key);
-        } else {
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
-        }
+        Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.remove(key));
     }
-
 
     MultiCache<T> nextLevelCache();
 

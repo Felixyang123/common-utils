@@ -3,10 +3,7 @@ package com.lezai.samples.controller;
 import com.lezai.samples.cache.UserCache;
 import com.lezai.samples.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/hello")
@@ -22,5 +19,10 @@ public class HelloController {
     @GetMapping("/user")
     public UserCache.User getUser(@RequestParam("userId") String userId) {
         return userService.getUserById(userId);
+    }
+
+    @PostMapping("/user")
+    public void updateUser(@RequestBody UserCache.User user) {
+        userService.updateUser(user);
     }
 }

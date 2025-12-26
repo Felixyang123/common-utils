@@ -19,3 +19,6 @@ cache:
     cacheSize: 2000
   globalCfg:
     localCacheSize: 5000
+
+server:
+  port: 8081
