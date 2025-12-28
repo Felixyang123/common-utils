@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentMap;
 public class UserCache extends CacheAdapter<UserCache.User> {
     private final ConcurrentMap<String, User> users = new ConcurrentHashMap<>();
 
-    public UserCache(CacheManager<Object> cacheManager) {
+    public UserCache(CacheManager cacheManager) {
         super(cacheManager, "USER");
         users.put("1", new User("1","aaa"));
         users.put("2", new User("2","bbb"));

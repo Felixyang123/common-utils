@@ -16,12 +16,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RedisCacheMessageSub implements CacheMessageSub {
     private final RedisTemplate<String, Object> redisTemplate;
     private final String channel;
-    private final CacheManager<Object> cacheManager;
+    private final CacheManager cacheManager;
     private final MessageListener messageListener;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public RedisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager<Object> cacheManager, String channel) {
+    public RedisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager cacheManager, String channel) {
         this.redisTemplate = redisTemplate;
         this.channel = channel;
         this.cacheManager = cacheManager;

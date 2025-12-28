@@ -13,10 +13,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class CaffeineCache<T> implements EnhanceCache<T> {
     private final Cache<String, CacheWrapper<T>> cache;
-    private final long ttl;
 
     public CaffeineCache(int cacheSize, long expireAfterAccess) {
-        this.ttl = expireAfterAccess;
         this.cache = Caffeine.newBuilder()
                 .maximumSize(cacheSize)
                 .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)

@@ -4,10 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezai.lock.annotation.EnableLock;
-import com.lezai.samples.cache.core.CacheManager;
-import com.lezai.samples.cache.core.EnhanceCache;
-import com.lezai.samples.cache.core.MethodCacheAspect;
-import com.lezai.samples.cache.core.MultiCache;
+import com.lezai.samples.cache.core.*;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
@@ -42,7 +39,7 @@ public class CacheAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager<Object> cacheManager(EnhanceCache<Object> enhanceCache) {
+    public CacheManager cacheManager(EnhanceCache<Object> enhanceCache) {
         CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
         return new HashMapCacheManager(enhanceCache, cfg.getCacheSize());
     }
@@ -83,7 +80,13 @@ public class CacheAutoConfiguration {
     }
 
     @Bean
-    public MethodCacheAspect methodCacheAspect(CacheManager<Object> cacheManager) {
+    public MethodCacheAspect methodCacheAspect(CacheManager cacheManager) {
         return new MethodCacheAspect(cacheManager);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CacheTemplate.class)
+    public CacheTemplate cacheTemplate(CacheManager cacheManager) {
+        return new CacheTemplate(cacheManager);
     }
 }

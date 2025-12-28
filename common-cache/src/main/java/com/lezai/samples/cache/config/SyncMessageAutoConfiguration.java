@@ -23,7 +23,7 @@ public class SyncMessageAutoConfiguration {
     }
 
     @Bean
-    public RedisCacheMessageSub redisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager<Object> cacheManager) {
+    public RedisCacheMessageSub redisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager cacheManager) {
         return new RedisCacheMessageSub(redisTemplate, cacheManager, cacheMessageSyncProperties.getRedisPubSub().getChannel());
     }
 

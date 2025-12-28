@@ -18,7 +18,6 @@ public class CacheTest {
     void HashMapCache_Prototype_Test() {
         record User(String name, int age) {
         }
-        long ttl = 60 * 1000;
         HashMapCache<Object> cache = new HashMapCache<>(1000);
         CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
         CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
@@ -60,7 +59,6 @@ public class CacheTest {
     @Test
     void HashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
-        long ttl = 1000 * 60;
         HashMapCache<Object> cache = new HashMapCache<>(1000);
         CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
         record User(String name, int age) {
@@ -108,7 +106,6 @@ public class CacheTest {
     void MultiHashMapCache_Prototype_Test() {
         record User(String name, int age) {
         }
-        long ttl = 60 * 1000;
         MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
         CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
         CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
@@ -150,9 +147,8 @@ public class CacheTest {
     @Test
     void MultiHashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
-        long ttl = 60 * 1000;
         MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
-        CacheManager<Object> cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
+        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
         record User(String name, int age) {
         }
         CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {

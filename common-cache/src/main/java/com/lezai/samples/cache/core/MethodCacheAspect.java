@@ -20,12 +20,12 @@ import java.util.Objects;
 @Aspect
 @Slf4j
 public class MethodCacheAspect {
-    private final CacheManager<Object> cacheManager;
+    private final CacheManager cacheManager;
 
     private final ExpressionParser parser = new SpelExpressionParser();
     private final DefaultParameterNameDiscoverer nameDiscoverer = new DefaultParameterNameDiscoverer();
 
-    public MethodCacheAspect(CacheManager<Object> cacheManager) {
+    public MethodCacheAspect(CacheManager cacheManager) {
         this.cacheManager = cacheManager;
     }
 

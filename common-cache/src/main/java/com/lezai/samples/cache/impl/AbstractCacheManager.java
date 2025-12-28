@@ -7,16 +7,16 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public abstract class AbstractCacheManager implements CacheManager<Object> {
-    private final ConcurrentMap<String, EnhanceCache<Object>> cacheMap = new ConcurrentHashMap<>();
-    private final EnhanceCache<Object> globalCache;
+public abstract class AbstractCacheManager implements CacheManager {
+    private final ConcurrentMap<String, EnhanceCache> cacheMap = new ConcurrentHashMap<>();
+    private final EnhanceCache globalCache;
 
-    public AbstractCacheManager(EnhanceCache<Object> globalCache) {
+    public AbstractCacheManager(EnhanceCache globalCache) {
         this.globalCache = globalCache;
     }
 
     @Override
-    public EnhanceCache<Object> getCache(String category) {
-        return StringUtils.isBlank(category) ? globalCache : cacheMap.computeIfAbsent(category, k -> createCache(category));
+    public EnhanceCache getCache(String category) {
+        return StringUtils.isBlank(category) ? globalCache : cacheMap.computeIfAbsent(category, this::createCache);
     }
 }
