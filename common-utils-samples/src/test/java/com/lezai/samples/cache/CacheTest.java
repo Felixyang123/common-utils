@@ -36,7 +36,7 @@ public class CacheTest {
         Assertions.assertNotNull(user);
         Assertions.assertEquals("bobo", user.getName());
 
-        userCache.set("bobo", new UserCache.User("momo"));
+        userCache.set("bobo", new UserCache.User("1", "momo"));
         user = userCache.get("bobo");
         Assertions.assertEquals("momo", user.getName());
     }

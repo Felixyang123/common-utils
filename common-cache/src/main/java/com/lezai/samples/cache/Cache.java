@@ -10,7 +10,4 @@ public interface Cache<T> {
 
     void remove(String key);
 
-    Long ttl();
-
-    String category();
 }

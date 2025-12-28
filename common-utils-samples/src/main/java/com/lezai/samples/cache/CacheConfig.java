@@ -16,6 +16,6 @@ public class CacheConfig {
     public MultiHashMapCacheManager cacheManager(@Qualifier(value = "l1Cache") MultiCache<Object> l1Cache,
                                                  @Qualifier(value = "l2Cache") MultiCache<Object> l2Cache) {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new MultiHashMapCacheManager(l1Cache, l2Cache, globalCfg.getLocalCacheSize(), globalCfg.getLocalCacheTtl());
+        return new MultiHashMapCacheManager(l1Cache, l2Cache, globalCfg.getLocalCacheSize());
     }
 }

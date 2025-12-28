@@ -10,19 +10,10 @@ import java.util.concurrent.ConcurrentMap;
 @Slf4j
 public class HashMapCache<T> implements EnhanceCache<T> {
     private final ConcurrentMap<String, CacheWrapper<T>> cache;
-    private final long ttl;
-    private final String category;
 
-    public HashMapCache(int cacheSize, long ttl, String category) {
+    public HashMapCache(int cacheSize) {
         this.cache = new ConcurrentHashMap<>(cacheSize);
-        this.ttl = ttl;
-        this.category = category;
         log.info("init HashMapCache with size: {}", cacheSize);
-    }
-
-    @Override
-    public Long ttl() {
-        return this.ttl;
     }
 
     @Override
@@ -38,10 +29,5 @@ public class HashMapCache<T> implements EnhanceCache<T> {
     @Override
     public void delete(String key) {
         cache.remove(key);
-    }
-
-    @Override
-    public String category() {
-        return this.category;
     }
 }

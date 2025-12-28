@@ -10,10 +10,13 @@ import lombok.extern.slf4j.Slf4j;
 public class MultiHashMapCache<T> extends HashMapCache<T> implements MultiCache<T> {
     private final MultiCache<T> multiCache;
 
-    public MultiHashMapCache(int cacheSize, long ttl, MultiCache<T> multiCache, String category) {
-        super(cacheSize, ttl, category);
+    private final String category;
+
+    public MultiHashMapCache(int cacheSize, MultiCache<T> multiCache, String category) {
+        super(cacheSize);
         this.multiCache = multiCache;
-        log.info("init MultiHashMapCache with size: {}, ttl: {}", cacheSize, ttl);
+        this.category = category;
+        log.info("init MultiHashMapCache with size: {}", cacheSize);
     }
 
     @Override
@@ -24,18 +27,18 @@ public class MultiHashMapCache<T> extends HashMapCache<T> implements MultiCache<
     @Override
     public void set(String key, CacheWrapper<T> value) {
         MultiCache.super.set(key, value);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, value.getExpireTime()), null);
     }
 
     @Override
     public void set(String key, CacheWrapper<T> value, Long ttl) {
         MultiCache.super.set(key, value, ttl);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, value.getExpireTime()), null);
     }
 
     @Override
     public void remove(String key) {
         MultiCache.super.remove(key);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category(), key), null);
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, null), null);
     }
 }

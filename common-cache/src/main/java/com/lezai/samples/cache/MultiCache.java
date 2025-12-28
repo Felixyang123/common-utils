@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface MultiCache<T> extends EnhanceCache<T> {
 
-    default T load(String key, long ttl, CacheLoader<T> loader) {
+    default T load(String key, Long ttl, CacheLoader<T> loader) {
         MultiCache<T> nextLevelCache = nextLevelCache();
         return nextLevelCache != null ? nextLevelCache.loadAndCache(key, ttl, loader) : loader.load(key);
     }
@@ -40,14 +40,13 @@ public interface MultiCache<T> extends EnhanceCache<T> {
     default T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
         CacheWrapper<T> cacheWrapper = get(key);
         String lockKey = "MULTI_CACHE_LOCK_" + key;
-        long curTtl = ttl == null ? ttl() : ttl;
-        long expireTime = System.currentTimeMillis() + curTtl;
+        Long expireTime = Optional.ofNullable(ttl).map(t -> System.currentTimeMillis() + t).orElse(null);
         if (cacheWrapper == null) {
             return LockSupport.lockAndExecuteQueued(lockKey, () -> {
                 CacheWrapper<T> newCacheWrapper = get(key);
                 if (newCacheWrapper == null) {
-                    T data = load(key, curTtl, loader);
-                    put(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
+                    T data = load(key, ttl, loader);
+                    put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
                     return data;
                 }
                 return newCacheWrapper.getData();
@@ -58,14 +57,14 @@ public interface MultiCache<T> extends EnhanceCache<T> {
             return LockSupport.lockAndExecuteOnce(lockKey, () -> {
                 CacheWrapper<T> newCacheWrapper = get(key);
                 if (newCacheWrapper == null) {
-                    T data = load(key, curTtl, loader);
+                    T data = load(key, ttl, loader);
                     put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
                     return data;
                 }
 
                 if (newCacheWrapper.expired()) {
-                    T data = load(key, curTtl, loader);
-                    put(key, CacheWrapper.<T>builder().key(key).category(category()).data(data).expireTime(expireTime).build());
+                    T data = load(key, ttl, loader);
+                    put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
                     return data;
                 }
                 return newCacheWrapper.getData();

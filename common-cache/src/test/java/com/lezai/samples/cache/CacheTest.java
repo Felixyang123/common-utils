@@ -17,22 +17,12 @@ public class CacheTest {
         record User(String name, int age) {
         }
         long ttl = 60 * 1000;
-        HashMapCache<Object> cache = new HashMapCache<>(1000, ttl, "");
-        CacheManager cacheManager = new HashMapCacheManager(cache, 1000, ttl);
-        CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
+        HashMapCache<Object> cache = new HashMapCache<>(1000);
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
+        CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
             @Override
             public User load(String key) {
                 return new User("xiaoming", 18);
-            }
-
-            @Override
-            public String category() {
-                return "user";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -48,20 +38,10 @@ public class CacheTest {
         record Order(String orderId, String sku) {
         }
 
-        CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<Order> orderCache = new CacheAdapter<>(cacheManager, "ORDER") {
             @Override
             public Order load(String key) {
                 return new Order("No10001", "sku10001");
-            }
-
-            @Override
-            public String category() {
-                return "order";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -79,24 +59,14 @@ public class CacheTest {
     void HashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
         long ttl = 1000 * 60;
-        HashMapCache<Object> cache = new HashMapCache<>(1000, ttl, "");
-        CacheManager cacheManager = new HashMapCacheManager(cache, 1000, ttl);
+        HashMapCache<Object> cache = new HashMapCache<>(1000);
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
         record User(String name, int age) {
         }
-        CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
             @Override
             public User load(String key) {
                 return new User("xiaoming", 18);
-            }
-
-            @Override
-            public String category() {
-                return "";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -113,20 +83,10 @@ public class CacheTest {
         record Order(String orderId, String sku) {
         }
 
-        CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<Order> orderCache = new CacheAdapter<>(cacheManager, "ORDER") {
             @Override
             public Order load(String key) {
                 return new Order("No10001", "sku10001");
-            }
-
-            @Override
-            public String category() {
-                return "";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -147,22 +107,12 @@ public class CacheTest {
         record User(String name, int age) {
         }
         long ttl = 60 * 1000;
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, ttl, null, "");
-        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000, ttl);
-        CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
+        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
+        CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
             @Override
             public User load(String key) {
                 return new User("xiaoming", 18);
-            }
-
-            @Override
-            public String category() {
-                return "user";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -178,20 +128,10 @@ public class CacheTest {
         record Order(String orderId, String sku) {
         }
 
-        CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<Order> orderCache = new CacheAdapter<>(cacheManager, "ORDER") {
             @Override
             public Order load(String key) {
                 return new Order("No10001", "sku10001");
-            }
-
-            @Override
-            public String category() {
-                return "order";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -209,24 +149,14 @@ public class CacheTest {
     void MultiHashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
         long ttl = 60 * 1000;
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, ttl, null, "");
-        CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000, ttl);
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
+        CacheManager<Object> cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
         record User(String name, int age) {
         }
-        CacheSupport<User> userCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
             @Override
             public User load(String key) {
                 return new User("xiaoming", 18);
-            }
-
-            @Override
-            public String category() {
-                return "";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 
@@ -243,20 +173,10 @@ public class CacheTest {
         record Order(String orderId, String sku) {
         }
 
-        CacheSupport<Order> orderCache = new CacheSupport<>(cacheManager) {
+        CacheAdapter<Order> orderCache = new CacheAdapter<>(cacheManager, "ORDER") {
             @Override
             public Order load(String key) {
                 return new Order("No10001", "sku10001");
-            }
-
-            @Override
-            public String category() {
-                return "";
-            }
-
-            @Override
-            public Long ttl() {
-                return ttl;
             }
         };
 

@@ -17,7 +17,6 @@ public class RedisCacheMessagePub implements CacheMessagePub {
     @Override
     public void publish(CacheSyncMessage message) {
         try {
-            // 使用convertAndSend方法发布消息到指定频道
             redisTemplate.convertAndSend(channel, message);
             log.debug("Published cache sync message: {}", message);
         } catch (Exception e) {

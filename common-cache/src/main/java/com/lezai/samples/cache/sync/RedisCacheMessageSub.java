@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.util.Assert;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -52,14 +53,17 @@ public class RedisCacheMessageSub implements CacheMessageSub {
 
     @Override
     public void subscribe() {
-        try {
-            redisTemplate.getConnectionFactory()
-                    .getConnection()
-                    .subscribe(messageListener, channel.getBytes());
-            log.info("Subscribed to channel: {}", channel);
-        } catch (Exception e) {
-            log.error("Failed to subscribe to channel: {}", channel, e);
-        }
+        Optional.ofNullable(redisTemplate.getConnectionFactory())
+                .ifPresentOrElse(connectionFactory -> {
+                    try {
+                        connectionFactory.getConnection().subscribe(messageListener, channel.getBytes());
+                        log.info("Subscribed to channel: {}", channel);
+                    } catch (Exception e) {
+                        log.error("Failed to subscribe to channel: {}", channel, e);
+                    }
+                }, () -> {
+                    throw new RuntimeException("Redis connection factory is null");
+                });
     }
 
     @Override
@@ -83,7 +87,7 @@ public class RedisCacheMessageSub implements CacheMessageSub {
         if (data instanceof CacheWrapper cache) {
             cacheWrapper = cache;
         } else {
-            cacheWrapper = new CacheWrapper<>(message.getKey(), message.getCategory(), data, enhanceCache.ttl() + System.currentTimeMillis());
+            cacheWrapper = new CacheWrapper<>(data, message.getExpireTime());
         }
         enhanceCache.put(message.getKey(), cacheWrapper);
     }

@@ -1,22 +1,23 @@
 package com.lezai.samples.cache;
 
-public abstract class CacheSupport<T> implements Cache<T> {
+import java.util.Optional;
+
+public abstract class CacheAdapter<T> implements Cache<T> {
     private final EnhanceCache<T> delegate;
 
-    public CacheSupport(CacheManager cacheManager) {
-        this.delegate = cacheManager.getCache(category());
+    public CacheAdapter(CacheManager cacheManager, String category) {
+        this.delegate = cacheManager.getCache(category);
     }
 
     @Override
     public void set(String key, T value) {
-        this.set(key, value, ttl());
+        this.set(key, value, null);
     }
 
     @Override
     public void set(String key, T value, Long ttl) {
-        ttl = ttl == null ? ttl() : ttl;
-        CacheWrapper<T> cacheWrapper = CacheWrapper.<T>builder().key(key).category(category())
-                .data(value).expireTime(ttl + System.currentTimeMillis()).build();
+        Long expireTime = Optional.ofNullable(ttl).map(t -> t + System.currentTimeMillis()).orElse(null);
+        CacheWrapper<T> cacheWrapper = CacheWrapper.<T>builder().data(value).expireTime(expireTime).build();
         delegate.set(key, cacheWrapper);
     }
 
@@ -29,16 +30,6 @@ public abstract class CacheSupport<T> implements Cache<T> {
     @Override
     public void remove(String key) {
         delegate.remove(key);
-    }
-
-    @Override
-    public Long ttl() {
-        return 0L;
-    }
-
-    @Override
-    public String category() {
-        return "";
     }
 
     public abstract T load(String key);

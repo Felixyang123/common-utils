@@ -6,8 +6,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 @Slf4j
 public class MultiRemoteRedisCache<T> extends RemoteRedisCache<T> implements MultiCache<T> {
-    public MultiRemoteRedisCache(RedisTemplate<String, Object> redisTemplate, long ttl) {
-        super(redisTemplate, ttl);
+    public MultiRemoteRedisCache(RedisTemplate<String, Object> redisTemplate) {
+        super(redisTemplate);
         log.info("init MultiRemoteRedisCache");
     }
 

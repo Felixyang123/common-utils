@@ -37,14 +37,14 @@ public class CacheAutoConfiguration {
     @ConditionalOnMissingBean(EnhanceCache.class)
     public EnhanceCache<Object> enhanceCache() {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new HashMapCache<>(globalCfg.getLocalCacheSize(), globalCfg.getLocalCacheTtl(), "");
+        return new HashMapCache<>(globalCfg.getLocalCacheSize());
     }
 
     @Bean
     @ConditionalOnMissingBean(CacheManager.class)
     public CacheManager<Object> cacheManager(EnhanceCache<Object> enhanceCache) {
         CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
-        return new HashMapCacheManager(enhanceCache, cfg.getCacheSize(), cfg.getTtl());
+        return new HashMapCacheManager(enhanceCache, cfg.getCacheSize());
     }
 
     @ConditionalOnMissingBean(RedisTemplate.class)
@@ -73,13 +73,13 @@ public class CacheAutoConfiguration {
     @Bean(name = "l1Cache")
     public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), globalCfg.getLocalCacheTtl(), multiCache, "");
+        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache, "");
     }
 
     @Primary
     @Bean(name = "l2Cache")
     public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> redisTemplate) {
-        return new MultiRemoteRedisCache<>(redisTemplate, cacheProperties.getGlobalCfg().getRedisCacheTtl());
+        return new MultiRemoteRedisCache<>(redisTemplate);
     }
 
     @Bean

@@ -7,27 +7,21 @@ import com.lezai.samples.cache.CacheWrapper;
 import com.lezai.samples.cache.EnhanceCache;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class CaffeineCache<T> implements EnhanceCache<T> {
     private final Cache<String, CacheWrapper<T>> cache;
     private final long ttl;
-    private final String category;
 
-    public CaffeineCache(int cacheSize, long expireAfterAccess, String category) {
+    public CaffeineCache(int cacheSize, long expireAfterAccess) {
         this.ttl = expireAfterAccess;
-        this.category = category;
         this.cache = Caffeine.newBuilder()
                 .maximumSize(cacheSize)
                 .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
                 .build();
         log.info("CaffeineCache init, cacheSize: {}, expireAfterAccess: {}", cacheSize, expireAfterAccess);
-    }
-
-    @Override
-    public Long ttl() {
-        return this.ttl;
     }
 
     @Override
@@ -46,13 +40,9 @@ public class CaffeineCache<T> implements EnhanceCache<T> {
     }
 
     @Override
-    public String category() {
-        return this.category;
-    }
-
-    @Override
     public T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
-        CacheWrapper<T> cacheWrapper = cache.get(key, k -> new CacheWrapper<>(key, category, loader.load(k), ttl));
+        Long expireTime = Optional.ofNullable(ttl).map(t -> t + System.currentTimeMillis()).orElse(null);
+        CacheWrapper<T> cacheWrapper = cache.get(key, k -> new CacheWrapper<>(loader.load(k), expireTime));
         return cacheWrapper.getData();
     }
 }

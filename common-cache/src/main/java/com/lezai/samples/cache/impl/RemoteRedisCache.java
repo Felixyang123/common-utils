@@ -8,22 +8,15 @@ import org.springframework.data.redis.core.RedisTemplate;
 @Slf4j
 public class RemoteRedisCache<T> implements EnhanceCache<T> {
     private final RedisTemplate<String, Object> redisTemplate;
-    private final long ttl;
 
-    public RemoteRedisCache(RedisTemplate<String, Object> redisTemplate, long ttl) {
+    public RemoteRedisCache(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
-        this.ttl = ttl;
         log.info("init remote redis cache");
     }
 
     @Override
     public void put(String key, CacheWrapper<T> value) {
         redisTemplate.opsForValue().set(key, value);
-    }
-
-    @Override
-    public Long ttl() {
-        return this.ttl;
     }
 
     @Override

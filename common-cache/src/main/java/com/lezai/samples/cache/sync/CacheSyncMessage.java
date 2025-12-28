@@ -19,13 +19,15 @@ public class CacheSyncMessage implements Serializable {
 
     private String key;
 
+    private Long expireTime;
     /**
      * 来源客户端 ID
      */
     private String sourceId = CacheSyncMessage.uniqueId;
 
-    public CacheSyncMessage(String category, String key) {
+    public CacheSyncMessage(String category, String key, Long expireTime) {
         this.category = category;
         this.key = key;
+        this.expireTime = expireTime;
     }
 }
