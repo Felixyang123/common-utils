@@ -1,7 +1,7 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.CacheWrapper;
-import com.lezai.samples.cache.EnhanceCache;
+import com.lezai.samples.cache.core.CacheWrapper;
+import com.lezai.samples.cache.core.EnhanceCache;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ConcurrentHashMap;

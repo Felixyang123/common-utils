@@ -1,4 +1,4 @@
-package com.lezai.samples.cache;
+package com.lezai.samples.cache.core;
 
 import java.util.Optional;
 

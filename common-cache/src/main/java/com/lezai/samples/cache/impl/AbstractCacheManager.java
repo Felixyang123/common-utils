@@ -1,7 +1,7 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.CacheManager;
-import com.lezai.samples.cache.EnhanceCache;
+import com.lezai.samples.cache.core.CacheManager;
+import com.lezai.samples.cache.core.EnhanceCache;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.concurrent.ConcurrentHashMap;

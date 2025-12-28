@@ -1,6 +1,6 @@
 package com.lezai.samples.cache.config;
 
-import com.lezai.samples.cache.CacheManager;
+import com.lezai.samples.cache.core.CacheManager;
 import com.lezai.samples.cache.sync.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

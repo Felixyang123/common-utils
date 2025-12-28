@@ -1,7 +1,7 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.EnhanceCache;
-import com.lezai.samples.cache.MultiCache;
+import com.lezai.samples.cache.core.EnhanceCache;
+import com.lezai.samples.cache.core.MultiCache;
 
 public class MultiHashMapCacheManager extends AbstractCacheManager {
     private final MultiCache<Object> multiCache;

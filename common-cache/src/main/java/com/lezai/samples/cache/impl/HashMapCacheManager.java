@@ -1,6 +1,6 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.EnhanceCache;
+import com.lezai.samples.cache.core.EnhanceCache;
 
 public class HashMapCacheManager extends AbstractCacheManager {
     private final int cacheSize;

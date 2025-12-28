@@ -1,5 +1,7 @@
 package com.lezai.samples.cache;
 
+import com.lezai.samples.cache.core.CacheAdapter;
+import com.lezai.samples.cache.core.CacheManager;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

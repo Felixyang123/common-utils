@@ -1,6 +1,7 @@
 package com.lezai.samples.cache;
 
 import com.lezai.samples.cache.config.CacheProperties;
+import com.lezai.samples.cache.core.MultiCache;
 import com.lezai.samples.cache.impl.MultiHashMapCacheManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;

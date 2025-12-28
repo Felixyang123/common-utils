@@ -1,4 +1,4 @@
-package com.lezai.samples.cache;
+package com.lezai.samples.cache.core;
 
 import com.lezai.samples.cache.annotation.MethodCache;
 import lombok.extern.slf4j.Slf4j;

@@ -1,8 +1,8 @@
 package com.lezai.samples.cache.sync;
 
-import com.lezai.samples.cache.CacheManager;
-import com.lezai.samples.cache.CacheWrapper;
-import com.lezai.samples.cache.EnhanceCache;
+import com.lezai.samples.cache.core.CacheManager;
+import com.lezai.samples.cache.core.CacheWrapper;
+import com.lezai.samples.cache.core.EnhanceCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;

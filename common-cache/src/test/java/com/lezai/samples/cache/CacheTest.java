@@ -2,6 +2,8 @@ package com.lezai.samples.cache;
 
 import com.lezai.lock.LocalLock;
 import com.lezai.lock.LockSupport;
+import com.lezai.samples.cache.core.CacheAdapter;
+import com.lezai.samples.cache.core.CacheManager;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
 import com.lezai.samples.cache.impl.MultiHashMapCache;

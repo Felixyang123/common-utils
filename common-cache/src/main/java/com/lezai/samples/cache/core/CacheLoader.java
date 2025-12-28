@@ -1,4 +1,4 @@
-package com.lezai.samples.cache;
+package com.lezai.samples.cache.core;
 
 @FunctionalInterface
 public interface CacheLoader<T> {

@@ -1,6 +1,6 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.MultiCache;
+import com.lezai.samples.cache.core.MultiCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 

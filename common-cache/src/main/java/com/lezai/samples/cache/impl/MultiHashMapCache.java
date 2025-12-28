@@ -1,7 +1,7 @@
 package com.lezai.samples.cache.impl;
 
-import com.lezai.samples.cache.CacheWrapper;
-import com.lezai.samples.cache.MultiCache;
+import com.lezai.samples.cache.core.CacheWrapper;
+import com.lezai.samples.cache.core.MultiCache;
 import com.lezai.samples.cache.sync.CacheMessagePubSub;
 import com.lezai.samples.cache.sync.CacheSyncMessage;
 import lombok.extern.slf4j.Slf4j;
