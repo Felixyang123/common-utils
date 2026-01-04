@@ -2,10 +2,9 @@ package com.lezai.samples.cache.core;
 
 import com.lezai.lock.LockSupport;
 
-import java.util.List;
 import java.util.Optional;
 
-public interface MultiCache<T> extends EnhanceCache<T> {
+public interface MultiCache<T> extends Cache<T> {
 
     default T load(String key, Long ttl, CacheLoader<T> loader) {
         MultiCache<T> nextLevelCache = nextLevelCache();
@@ -13,40 +12,34 @@ public interface MultiCache<T> extends EnhanceCache<T> {
     }
 
     @Override
-    default void set(String key, CacheWrapper<T> value) {
-        EnhanceCache.super.set(key, value);
+    default void set(String key, T value) {
         Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.set(key, value));
+        Cache.super.set(key, value);
     }
 
     @Override
-    default void set(String key, CacheWrapper<T> value, Long ttl) {
-        EnhanceCache.super.set(key, value, ttl);
-        Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.set(key, value));
+    default void set(String key, T value, Long ttl) {
+        Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.set(key, value, ttl));
+        Cache.super.set(key, value, ttl);
     }
 
     @Override
     default void remove(String key) {
-        delete(key);
         Optional.ofNullable(nextLevelCache()).ifPresent(cache -> cache.remove(key));
     }
 
     MultiCache<T> nextLevelCache();
 
-    default Iterable<T> loadBatch(List<String> keys) {
-        throw new UnsupportedOperationException();
-    }
-
     @Override
     default T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
-        CacheWrapper<T> cacheWrapper = get(key);
+        CacheWrapper<T> cacheWrapper = innerGet(key);
         String lockKey = "MULTI_CACHE_LOCK_" + key;
-        Long expireTime = Optional.ofNullable(ttl).map(t -> System.currentTimeMillis() + t).orElse(null);
         if (cacheWrapper == null) {
             return LockSupport.lockAndExecuteQueued(lockKey, () -> {
-                CacheWrapper<T> newCacheWrapper = get(key);
+                CacheWrapper<T> newCacheWrapper = innerGet(key);
                 if (newCacheWrapper == null) {
                     T data = load(key, ttl, loader);
-                    put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
+                    innerSet(key, CacheWrapper.of(data, ttl));
                     return data;
                 }
                 return newCacheWrapper.getData();
@@ -55,16 +48,16 @@ public interface MultiCache<T> extends EnhanceCache<T> {
 
         if (cacheWrapper.expired()) {
             return LockSupport.lockAndExecuteOnce(lockKey, () -> {
-                CacheWrapper<T> newCacheWrapper = get(key);
+                CacheWrapper<T> newCacheWrapper = innerGet(key);
                 if (newCacheWrapper == null) {
                     T data = load(key, ttl, loader);
-                    put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
+                    innerSet(key, CacheWrapper.of(data, ttl));
                     return data;
                 }
 
                 if (newCacheWrapper.expired()) {
                     T data = load(key, ttl, loader);
-                    put(key, CacheWrapper.<T>builder().data(data).expireTime(expireTime).build());
+                    innerSet(key, CacheWrapper.of(data, ttl));
                     return data;
                 }
                 return newCacheWrapper.getData();

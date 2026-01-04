@@ -9,8 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.List;
-
 @Configuration
 @EnableConfigurationProperties({CacheMessageSyncProperties.class})
 public class SyncMessageAutoConfiguration {
@@ -28,9 +26,9 @@ public class SyncMessageAutoConfiguration {
     }
 
     @Bean
-    public CacheMessagePubSub cacheMessagePubSub(@Autowired(required = false) List<CacheMessagePub> pubs,
-                                                 @Autowired(required = false) List<CacheMessageSub> subs) {
-        return new CacheMessagePubSub(pubs, subs);
+    public CacheMessagePubSub cacheMessagePubSub(@Autowired(required = false) CacheMessagePub cacheMessagePub,
+                                                 @Autowired(required = false) CacheMessageSub cacheMessageSub) {
+        return new CacheMessagePubSub(cacheMessagePub, cacheMessageSub);
     }
 
     @Bean

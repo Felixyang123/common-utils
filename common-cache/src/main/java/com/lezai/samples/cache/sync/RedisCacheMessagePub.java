@@ -23,4 +23,9 @@ public class RedisCacheMessagePub implements CacheMessagePub {
             log.error("Failed to publish cache sync message: {}", message, e);
         }
     }
+
+    @Override
+    public void registerNodeInfo(CacheNodeRegisterInfo nodeInfo) {
+        //TODO
+    }
 }

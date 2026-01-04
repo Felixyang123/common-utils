@@ -4,14 +4,13 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lezai.samples.cache.core.CacheLoader;
 import com.lezai.samples.cache.core.CacheWrapper;
-import com.lezai.samples.cache.core.EnhanceCache;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public class CaffeineCache<T> implements EnhanceCache<T> {
+public class CaffeineCache<T> implements com.lezai.samples.cache.core.Cache<T> {
     private final Cache<String, CacheWrapper<T>> cache;
 
     public CaffeineCache(int cacheSize, long expireAfterAccess) {
@@ -23,24 +22,23 @@ public class CaffeineCache<T> implements EnhanceCache<T> {
     }
 
     @Override
-    public void put(String key, CacheWrapper<T> value) {
-        cache.put(key, value);
-    }
-
-    @Override
-    public CacheWrapper<T> get(String key) {
-        return cache.getIfPresent(key);
-    }
-
-    @Override
-    public void delete(String key) {
+    public void remove(String key) {
         cache.invalidate(key);
     }
 
     @Override
+    public void innerSet(String key, CacheWrapper<T> cacheWrapper) {
+        cache.put(key, cacheWrapper);
+    }
+
+    @Override
+    public CacheWrapper<T> innerGet(String key) {
+        return cache.getIfPresent(key);
+    }
+
+    @Override
     public T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
-        Long expireTime = Optional.ofNullable(ttl).map(t -> t + System.currentTimeMillis()).orElse(null);
-        CacheWrapper<T> cacheWrapper = cache.get(key, k -> new CacheWrapper<>(loader.load(k), expireTime));
-        return cacheWrapper.getData();
+        CacheWrapper<T> cacheWrapper = cache.get(key, k -> CacheWrapper.of(loader.load(k), ttl));
+        return Optional.ofNullable(cacheWrapper).map(CacheWrapper::getData).orElse(null);
     }
 }

@@ -106,7 +106,7 @@ public class CacheTest {
     void MultiHashMapCache_Prototype_Test() {
         record User(String name, int age) {
         }
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null);
         CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
         CacheAdapter<User> userCache = new CacheAdapter<>(cacheManager, "USER") {
             @Override
@@ -147,7 +147,7 @@ public class CacheTest {
     @Test
     void MultiHashMapCache_Single_Test() {
         // 因为是单例模式，所以cache取消泛型限制
-        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null, "");
+        MultiHashMapCache<Object> cache = new MultiHashMapCache<>(1000, null);
         CacheManager cacheManager = new MultiHashMapCacheManager(cache, null, 1000);
         record User(String name, int age) {
         }

@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Optional;
 import java.util.UUID;
 
 @Data
@@ -25,9 +26,9 @@ public class CacheSyncMessage implements Serializable {
      */
     private String sourceId = CacheSyncMessage.uniqueId;
 
-    public CacheSyncMessage(String category, String key, Long expireTime) {
+    public CacheSyncMessage(String category, String key, Long ttl) {
         this.category = category;
         this.key = key;
-        this.expireTime = expireTime;
+        this.expireTime = Optional.ofNullable(ttl).map(t -> t + System.currentTimeMillis()).orElse(null);
     }
 }

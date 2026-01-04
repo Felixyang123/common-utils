@@ -36,7 +36,7 @@ public class MethodCacheAspect {
         log.info("Cache Key: {}", key);
 
         // 获取指定的缓存实例
-        EnhanceCache<Object> cache = cacheManager.getCache(methodCache.category());
+        Cache<Object> cache = cacheManager.getCache(methodCache.category());
 
         // 使用缓存加载数据
         return cache.loadAndCache(key, methodCache.ttl(), k -> {

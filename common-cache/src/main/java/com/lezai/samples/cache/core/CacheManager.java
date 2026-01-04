@@ -1,7 +1,7 @@
 package com.lezai.samples.cache.core;
 
 public interface CacheManager {
-    <T> EnhanceCache<T> createCache(String category);
+    <T> Cache<T> createCache(String category);
 
-    <T> EnhanceCache<T> getCache(String category);
+    <T> Cache<T> getCache(String category);
 }

@@ -15,4 +15,10 @@ public class MultiRemoteRedisCache<T> extends RemoteRedisCache<T> implements Mul
     public MultiCache<T> nextLevelCache() {
         return null;
     }
+
+    @Override
+    public void remove(String key) {
+        MultiCache.super.remove(key);
+        super.remove(key);
+    }
 }

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Optional;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -17,5 +19,10 @@ public class CacheWrapper<T> {
 
     public Boolean expired() {
         return this.expireTime != null && this.expireTime <= System.currentTimeMillis();
+    }
+
+    public static <T> CacheWrapper<T> of(T data, Long ttl) {
+        Long expireTime = Optional.ofNullable(ttl).map(t -> t + System.currentTimeMillis()).orElse(null);
+        return CacheWrapper.<T>builder().data(data).expireTime(expireTime).build();
     }
 }

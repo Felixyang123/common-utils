@@ -31,17 +31,17 @@ public class CacheAutoConfiguration {
     private CacheProperties cacheProperties;
 
     @Bean
-    @ConditionalOnMissingBean(EnhanceCache.class)
-    public EnhanceCache<Object> enhanceCache() {
+    @ConditionalOnMissingBean(Cache.class)
+    public Cache<Object> globalCache() {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
         return new HashMapCache<>(globalCfg.getLocalCacheSize());
     }
 
     @Bean
     @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager cacheManager(EnhanceCache<Object> enhanceCache) {
+    public CacheManager cacheManager(Cache<Object> globalCache) {
         CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
-        return new HashMapCacheManager(enhanceCache, cfg.getCacheSize());
+        return new HashMapCacheManager(globalCache, cfg.getCacheSize());
     }
 
     @ConditionalOnMissingBean(RedisTemplate.class)
@@ -70,7 +70,7 @@ public class CacheAutoConfiguration {
     @Bean(name = "l1Cache")
     public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache, "");
+        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache);
     }
 
     @Primary

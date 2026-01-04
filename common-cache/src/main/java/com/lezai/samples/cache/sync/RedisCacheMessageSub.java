@@ -1,8 +1,8 @@
 package com.lezai.samples.cache.sync;
 
+import com.lezai.samples.cache.core.Cache;
 import com.lezai.samples.cache.core.CacheManager;
 import com.lezai.samples.cache.core.CacheWrapper;
-import com.lezai.samples.cache.core.EnhanceCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -77,18 +77,18 @@ public class RedisCacheMessageSub implements CacheMessageSub {
             return;
         }
         Object data = redisTemplate.opsForValue().get(message.getKey());
-        EnhanceCache<Object> enhanceCache = cacheManager.getCache(message.getCategory());
+        Cache<Object> cache = cacheManager.getCache(message.getCategory());
         if (data == null) {
-            enhanceCache.delete(message.getKey());
+            cache.remove(message.getKey());
             return;
         }
 
         CacheWrapper<Object> cacheWrapper;
-        if (data instanceof CacheWrapper cache) {
-            cacheWrapper = cache;
+        if (data instanceof CacheWrapper cacheData) {
+            cacheWrapper = cacheData;
         } else {
             cacheWrapper = new CacheWrapper<>(data, message.getExpireTime());
         }
-        enhanceCache.put(message.getKey(), cacheWrapper);
+        cache.innerSet(message.getKey(), cacheWrapper);
     }
 }

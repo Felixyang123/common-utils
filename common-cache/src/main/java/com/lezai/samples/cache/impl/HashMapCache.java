@@ -17,17 +17,17 @@ public class HashMapCache<T> implements EnhanceCache<T> {
     }
 
     @Override
-    public void put(String key, CacheWrapper<T> value) {
+    public void innerSet(String key, CacheWrapper<T> value) {
         cache.put(key, value);
     }
 
     @Override
-    public CacheWrapper<T> get(String key) {
+    public CacheWrapper<T> innerGet(String key) {
         return cache.get(key);
     }
 
     @Override
-    public void delete(String key) {
+    public void remove(String key) {
         cache.remove(key);
     }
 }

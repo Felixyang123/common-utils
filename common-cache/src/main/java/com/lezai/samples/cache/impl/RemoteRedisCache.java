@@ -15,18 +15,18 @@ public class RemoteRedisCache<T> implements EnhanceCache<T> {
     }
 
     @Override
-    public void put(String key, CacheWrapper<T> value) {
+    public void innerSet(String key, CacheWrapper<T> value) {
         redisTemplate.opsForValue().set(key, value);
     }
 
     @Override
-    public CacheWrapper<T> get(String key) {
+    public CacheWrapper<T> innerGet(String key) {
         Object value = redisTemplate.opsForValue().get(key);
-        return value != null ? (CacheWrapper<T>) value : null;
+        return (CacheWrapper<T>) value;
     }
 
     @Override
-    public void delete(String key) {
+    public void remove(String key) {
         redisTemplate.delete(key);
     }
 }
