@@ -15,7 +15,7 @@ public class RedisCacheMessagePub implements CacheMessagePub {
     }
 
     @Override
-    public void publish(CacheSyncMessage message) {
+    public void publish(CacheSyncMessageImpl message) {
         try {
             redisTemplate.convertAndSend(channel, message);
             log.debug("Published cache sync message: {}", message);

@@ -5,7 +5,7 @@ import com.lezai.samples.cache.core.CacheLoader;
 import com.lezai.samples.cache.core.CacheWrapper;
 import com.lezai.samples.cache.sync.CacheMessagePubSub;
 import com.lezai.samples.cache.sync.CacheNodeRegisterInfo;
-import com.lezai.samples.cache.sync.CacheSyncMessage;
+import com.lezai.samples.cache.sync.CacheSyncMessageImpl;
 import lombok.RequiredArgsConstructor;
 
 import java.util.function.Supplier;
@@ -21,7 +21,7 @@ public class DistributeCache<T> implements Cache<T> {
     public void set(String key, T value) {
         registerAndExecute(key, () -> {
             delegate.set(key, value);
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, null));
+            CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, null));
             return null;
         });
     }
@@ -30,7 +30,7 @@ public class DistributeCache<T> implements Cache<T> {
     public void set(String key, T value, Long ttl) {
         registerAndExecute(key, () -> {
             delegate.set(key, value, ttl);
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, ttl));
+            CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, ttl));
             return null;
         });
 
@@ -44,7 +44,7 @@ public class DistributeCache<T> implements Cache<T> {
     @Override
     public void remove(String key) {
         delegate.remove(key);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessage(category, key, null));
+        CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, null));
     }
 
     @Override

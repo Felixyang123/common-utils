@@ -4,6 +4,7 @@ import com.lezai.samples.cache.core.Cache;
 import com.lezai.samples.cache.core.CacheManager;
 import com.lezai.samples.cache.core.CacheWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -33,7 +34,7 @@ public class RedisCacheMessageSub implements CacheMessageSub {
                 Object messageObj = valueSerializer.deserialize(message.getBody());
                 Assert.notNull(messageObj, "Cache sync message cannot be null");
                 log.debug("Received cache sync message: {}", messageObj);
-                if (messageObj instanceof CacheSyncMessage cacheSyncMessage) {
+                if (messageObj instanceof CacheSyncMessageImpl cacheSyncMessage) {
                     try {
                         process(cacheSyncMessage);
                         log.debug("Processed cache sync message: {}", cacheSyncMessage);
@@ -71,8 +72,8 @@ public class RedisCacheMessageSub implements CacheMessageSub {
         this.running.set(false);
     }
 
-    private void process(CacheSyncMessage message) {
-        if (CacheSyncMessage.uniqueId.equalsIgnoreCase(message.getSourceId())) {
+    private void process(CacheSyncMessageImpl message) {
+        if (StringUtils.equalsIgnoreCase(message.uniqueId(), message.getSourceId())) {
             log.debug("Ignoring cache sync message from self: {}", message);
             return;
         }

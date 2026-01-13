@@ -21,7 +21,7 @@ public class CacheMessagePubSub implements SmartLifecycle {
         pub.registerNodeInfo(registerInfo);
     }
 
-    public void publish(CacheSyncMessage message) {
+    public void publish(CacheSyncMessageImpl message) {
         pub.publish(message);
     }
 
