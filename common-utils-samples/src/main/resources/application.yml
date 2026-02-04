@@ -2,7 +2,7 @@ spring:
   application:
     name: common-utils
   datasource:
-    url: jdbc:mysql://localhost:3306/utils?useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/task?useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: root
     password: lifan1994
   redis:
@@ -13,6 +13,7 @@ logging:
   level:
     root: info
     com.lezai.samples.*: debug
+    com.lezai.taskflow: debug
 
 cache:
   hashMapCacheCfg:
@@ -22,3 +23,7 @@ cache:
 
 server:
   port: 8081
+
+
+taskflow:
+  storage: mysql
