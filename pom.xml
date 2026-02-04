@@ -19,6 +19,8 @@
         <module>common-lock</module>
         <module>common-token-generator</module>
         <module>common-utils-samples</module>
+        <module>common-task-flow</module>
+        <module>spring-boot-samples</module>
     </modules>
     <scm>
         <connection/>
@@ -40,7 +42,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-parent</artifactId>
+                <artifactId>spring-boot-dependencies</artifactId>
                 <version>3.5.3</version>
                 <type>pom</type>
                 <scope>import</scope>
@@ -54,6 +56,21 @@
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>2.0.43</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>3.5.7</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis-spring</artifactId>
+                <version>3.0.3</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
