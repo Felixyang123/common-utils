@@ -39,8 +39,6 @@ public class SyncMessageAutoConfiguration {
         executor.setMaxPoolSize(cfg.getMaxPoolSize());
         executor.setQueueCapacity(cfg.getQueueCapacity());
         executor.setThreadNamePrefix("cache-message-sync-");
-        executor.setVirtualThreads(true);
-        executor.initialize();
         return executor;
     }
 

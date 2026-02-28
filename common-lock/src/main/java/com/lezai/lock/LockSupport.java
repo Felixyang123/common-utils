@@ -1,7 +1,7 @@
 package com.lezai.lock;
 
 import lombok.Getter;
-import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.function.Supplier;
@@ -21,7 +21,7 @@ public class LockSupport {
         } finally {
             // 如果有事务，事务完成后再释放锁
             if (TransactionSynchronizationManager.isActualTransactionActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCompletion(int status) {
                         lock.release(key);
@@ -43,7 +43,7 @@ public class LockSupport {
         } finally {
             // 如果有事务，事务完成后再释放锁
             if (TransactionSynchronizationManager.isActualTransactionActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCompletion(int status) {
                         lock.release(key);
