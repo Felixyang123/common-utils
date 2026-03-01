@@ -22,7 +22,7 @@ public class QwenImageEdit {
 
     // 新加坡和北京地域的API Key不同。获取API Key：https://help.aliyun.com/zh/model-studio/get-api-key
     // 若没有配置环境变量，请用百炼 API Key 将下行替换为：apiKey="sk-xxx"
-    static String apiKey = "sk-d2a21e42d631478baed17eb3d09d04bf";
+    static String apiKey = "sk-xxx";
 
     public static void call() throws ApiException, NoApiKeyException, UploadFileException, IOException {
 
@@ -46,8 +46,7 @@ public class QwenImageEdit {
 
         MultiModalConversationParam param = MultiModalConversationParam.builder()
                 .apiKey(apiKey)
-//                .model("qwen-image-edit-max")
-                .model("qwen-image-edit-plus")
+                .model("qwen-image-edit-max")
                 .messages(Collections.singletonList(userMessage))
                 .parameters(parameters)
                 .build();

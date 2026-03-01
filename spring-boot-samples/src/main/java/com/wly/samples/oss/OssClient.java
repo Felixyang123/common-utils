@@ -19,11 +19,10 @@ public class OssClient {
 
     public static void main(String[] args) throws Exception {
         // Endpoint以华东1（杭州）为例，其它Region请按实际情况填写。
-        String endpoint = "https://oss-cn-hangzhou.aliyuncs.com";
-//        "https://ac-sugon-mall.oss-cn-hangzhou.aliyuncs.com/20260208/qrcode002.png?Expires=1770543061&OSSAccessKeyId=LTAI5tFwCJUveEh4dyGz4F2s&Signature=lmogZx7PTVeP6hM2qrg4SMUoOOY%3D"
+        String endpoint = "https://oss.aliyuncs.com";
         // 从环境变量中获取访问凭证。运行本代码示例之前，请确保已设置环境变量OSS_ACCESS_KEY_ID和OSS_ACCESS_KEY_SECRET。
         // 填写Bucket名称，例如examplebucket。
-        String bucketName = "ac-sugon-mall";
+        String bucketName = "examplebucket";
         // 填写Object完整路径，完整路径中不能包含Bucket名称，例如exampledir/exampleobject.txt。
         String objectName = "20260208/qrcode002.png";
         // 填写Bucket所在地域。以华东1（杭州）为例，Region填写为cn-hangzhou。
@@ -31,7 +30,7 @@ public class OssClient {
 
         String path = "D:\\code\\common-utils\\spring-boot-samples\\src\\main\\resources\\statics\\qrcode-oss.png";
         // 创建凭证提供者
-        DefaultCredentialProvider provider = new DefaultCredentialProvider("LTAI5tFwCJUveEh4dyGz4F2s", "eJD9TPBys3IxiFhxA0orSiRPOKNXr3");
+        DefaultCredentialProvider provider = new DefaultCredentialProvider("", "");
 
         // 创建OSSClient实例。
         // 当OSSClient实例不再使用时，调用shutdown方法以释放资源。
@@ -45,8 +44,8 @@ public class OssClient {
         try {
             // 填写字符串。
 
-            FileInputStream inputStream = new FileInputStream("D:\\code\\common-utils\\spring-boot-samples\\src\\main\\resources\\statics\\qrcode.png");
-            URL url = new URL("https://dashscope-result-hz.oss-cn-hangzhou.aliyuncs.com/7d/bb/20260209/45af8005/5f2cf806-163c-4185-a2bb-ad66fd655aa9-1.png?Expires=1771230543&OSSAccessKeyId=LTAI5tKPD3TMqf2Lna1fASuh&Signature=7QReMn3Ytt9OPWNwBKvW5Eq0UvY%3D");
+            FileInputStream inputStream = new FileInputStream(path);
+            URL url = new URL("");
             // 创建PutObjectRequest对象。
             PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, objectName, url.openStream());
 

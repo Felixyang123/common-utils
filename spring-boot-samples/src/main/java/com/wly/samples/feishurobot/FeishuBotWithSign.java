@@ -17,8 +17,8 @@ import java.time.Instant;
 import java.util.Map;
 
 public class FeishuBotWithSign {
-    private static final String WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/ad683ec8-6bb8-4658-bae9-0c68da473888";
-    private static final String SECRET = "mqEeO0nPssgD8nUb4nxzV"; // 从配置或环境变量读取！
+    private static final String WEBHOOK_URL = "";
+    private static final String SECRET = ""; // 从配置或环境变量读取！
 
     public static void main(String[] args) throws Exception {
         sendTextMessage("图生图\n总数：4\n成功：0\n失败：0\n运行中：4\n");
