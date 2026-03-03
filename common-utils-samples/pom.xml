@@ -34,5 +34,11 @@
             <artifactId>common-task-flow</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.lezai</groupId>
+            <artifactId>anti-duplicate</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
     </dependencies>
 </project>
