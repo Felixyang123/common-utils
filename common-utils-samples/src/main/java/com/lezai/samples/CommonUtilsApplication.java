@@ -1,5 +1,6 @@
 package com.lezai.samples;
 
+import com.lezai.anti.duplicate.annotation.EnableAntiDuplicate;
 import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.annotation.EnableCache;
 import com.lezai.taskflow.config.TaskFlowAutoConfiguration;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication
 @EnableCache
 @EnableLock
+@EnableAntiDuplicate
 @Import(TaskFlowAutoConfiguration.class)
 public class CommonUtilsApplication {
 

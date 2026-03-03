@@ -27,3 +27,12 @@ server:
 
 taskflow:
   storage: mysql
+
+antidup:
+  strategy: jdbc
+  url-patterns:
+    # 匹配所有 /api/v1/order/** 路径
+    - path: "/api/v1/order/**"
+      timeout: 10
+    # 仅对 /api/v1/pay/** 需要防重
+#    - path: "/api/v1/pay/**"

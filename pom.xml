@@ -21,6 +21,7 @@
         <module>common-utils-samples</module>
         <module>common-task-flow</module>
         <module>spring-boot-samples</module>
+        <module>anti-duplicate</module>
     </modules>
     <scm>
         <connection/>
@@ -72,6 +73,11 @@
                 <artifactId>mybatis-spring</artifactId>
                 <version>3.0.3</version>
             </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.16.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
@@ -79,11 +85,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
