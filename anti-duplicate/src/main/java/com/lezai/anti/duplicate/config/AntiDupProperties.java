@@ -1,8 +1,5 @@
 package com.lezai.anti.duplicate.config;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -23,10 +20,5 @@ public class AntiDupProperties {
         private String path;
         private int timeout = -1; // -1 表示使用默认
         private boolean enabled = true;
-    }
-
-    @PostConstruct
-    public void print() throws JsonProcessingException {
-        System.out.println("AntiDupProperties: " + new ObjectMapper().writeValueAsString(this));
     }
 }
