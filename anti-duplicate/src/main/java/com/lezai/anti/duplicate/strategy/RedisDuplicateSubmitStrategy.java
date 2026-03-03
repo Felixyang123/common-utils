@@ -17,9 +17,4 @@ public class RedisDuplicateSubmitStrategy implements DuplicateSubmitStrategy {
     public boolean tryLock(String key, int expireSeconds) {
         return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, UUID.randomUUID().toString(), expireSeconds, TimeUnit.SECONDS));
     }
-
-    @Override
-    public void unlock(String key) {
-        // Redis 通常不主动解锁，由 TTL 自动清理
-    }
 }

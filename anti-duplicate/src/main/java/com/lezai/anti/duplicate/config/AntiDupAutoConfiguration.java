@@ -4,6 +4,7 @@ import com.lezai.anti.duplicate.interceptor.DuplicateSubmitFilter;
 import com.lezai.anti.duplicate.interceptor.DuplicateSubmitInterceptor;
 import com.lezai.anti.duplicate.resolver.*;
 import com.lezai.anti.duplicate.strategy.DuplicateSubmitStrategy;
+import com.lezai.anti.duplicate.strategy.JdbcDuplicateSubmitStrategy;
 import com.lezai.anti.duplicate.strategy.LocalDuplicateSubmitStrategy;
 import com.lezai.anti.duplicate.strategy.RedisDuplicateSubmitStrategy;
 import jakarta.servlet.Filter;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -64,6 +66,12 @@ public class AntiDupAutoConfiguration implements WebMvcConfigurer {
     @ConditionalOnProperty(name = "antidup.strategy", havingValue = "local")
     public DuplicateSubmitStrategy localDuplicateSubmitStrategy() {
         return new LocalDuplicateSubmitStrategy();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "antidup.strategy", havingValue = "jdbc")
+    public DuplicateSubmitStrategy jdbcDuplicateSubmitStrategy(JdbcTemplate jdbcTemplate) {
+        return new JdbcDuplicateSubmitStrategy(jdbcTemplate);
     }
 
     @Bean

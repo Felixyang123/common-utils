@@ -29,7 +29,7 @@ taskflow:
   storage: mysql
 
 antidup:
-  strategy: "LOCAL"
+  strategy: jdbc
   url-patterns:
     # 匹配所有 /api/v1/order/** 路径
     - path: "/api/v1/order/**"

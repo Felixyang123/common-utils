@@ -1,0 +1,10 @@
+CREATE TABLE `duplicate_submit_lock` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `request_key` VARCHAR(255) NOT NULL COMMENT 'SHA1 请求标识',
+  `expire_time` DATETIME NOT NULL COMMENT '过期时间',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE KEY `uk_request_key` (`request_key`),
+  INDEX `idx_expire_time` (`expire_time`)
+) ENGINE=InnoDB;

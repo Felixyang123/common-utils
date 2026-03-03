@@ -24,9 +24,4 @@ public class LocalDuplicateSubmitStrategy implements DuplicateSubmitStrategy {
         });
         return locked.get();
     }
-
-    @Override
-    public void unlock(String key) {
-
-    }
 }
