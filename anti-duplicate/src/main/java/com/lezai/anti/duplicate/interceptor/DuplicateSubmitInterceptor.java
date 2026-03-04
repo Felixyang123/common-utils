@@ -75,10 +75,7 @@ public class DuplicateSubmitInterceptor implements HandlerInterceptor {
     }
 
     private boolean skip(PreventDuplicateSubmit methodAnnotation, PreventDuplicateSubmit classAnnotation) {
-        if (methodAnnotation == null) {
-            return !classAnnotation.enabled();
-        }
-        return !methodAnnotation.enabled();
+        return methodAnnotation == null ? !classAnnotation.enabled() : !methodAnnotation.enabled();
     }
 
     private PreventDuplicateSubmit getMethodAnnotation(Object handler) {
