@@ -22,6 +22,7 @@
         <module>common-task-flow</module>
         <module>spring-boot-samples</module>
         <module>anti-duplicate</module>
+        <module>ratelimit</module>
     </modules>
     <scm>
         <connection/>
@@ -78,6 +79,12 @@
                 <artifactId>commons-codec</artifactId>
                 <version>1.16.0</version>
             </dependency>
+
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>32.1.3-jre</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
@@ -100,6 +107,9 @@
                 <configuration>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
+                    <compilerArgs>
+                        <arg>-parameters</arg> <!-- 保留参数名 -->
+                    </compilerArgs>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <annotationProcessorPaths>
                         <path>
