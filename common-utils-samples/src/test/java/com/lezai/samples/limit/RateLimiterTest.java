@@ -60,33 +60,36 @@ public class RateLimiterTest {
     @DisplayName("测试单机版滑动窗口算法")
     @SneakyThrows
     void testSlidingWindow() {
-        AtomicInteger success = new AtomicInteger(0);
         RateLimiter rateLimiter = RateLimiterFactory.get(RateLimiterStrategyEnum.SLIDING_WINDOW.getName());
         try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
-                    () -> {
-                        for (int j = 0; j < 10; j++) {
-                            if (rateLimiter.tryAcquire("test_sliding_window", 1)) {
-                                success.addAndGet(1);
+            for (int x = 0; x < 10; x++) {
+                String key = "test_sliding_window_" + x;
+                AtomicInteger success = new AtomicInteger(0);
+                List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
+                        () -> {
+                            for (int j = 0; j < 10; j++) {
+                                if (rateLimiter.tryAcquire(key, 1)) {
+                                    success.addAndGet(1);
+                                }
                             }
-                        }
-                    }, executorService)).toList();
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            assertEquals(10, success.get());
+                        }, executorService)).toList();
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                assertEquals(10, success.get());
 
-            Thread.sleep(1000);
+                Thread.sleep(1000);
 
-            success.set(0);
-            futures = IntStream.range(0, 15).mapToObj(i -> CompletableFuture.runAsync(
-                    () -> {
-                        for (int j = 0; j < 10; j++) {
-                            if (rateLimiter.tryAcquire("test_sliding_window", 1)) {
-                                success.addAndGet(1);
+                success.set(0);
+                futures = IntStream.range(0, 15).mapToObj(i -> CompletableFuture.runAsync(
+                        () -> {
+                            for (int j = 0; j < 10; j++) {
+                                if (rateLimiter.tryAcquire(key, 1)) {
+                                    success.addAndGet(1);
+                                }
                             }
-                        }
-                    }, executorService)).toList();
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            assertEquals(10, success.get());
+                        }, executorService)).toList();
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                assertEquals(10, success.get());
+            }
         }
     }
 

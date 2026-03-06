@@ -28,9 +28,9 @@ public class SlidingWindowRateLimiter implements RateLimiter {
                 window = new Window();
             }
 
-            long now = System.currentTimeMillis();
+            long now = System.currentTimeMillis() / 1000;
             // 移除过期的请求
-            window.requests.removeIf(request -> request < now - windowSize * 1000L);
+            window.requests.removeIf(request -> request <= now - windowSize);
 
             if (window.requests.size() + permits <= maxRequests) {
                 acquired.set(true);
