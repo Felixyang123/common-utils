@@ -23,14 +23,14 @@ public class RateLimiterServiceTest {
             } catch (Exception e) {
             }
         }
-        Assertions.assertEquals(10, testService.getSuccess().get());
+        Assertions.assertEquals(15, testService.getSuccess().get());
     }
 
     @Test
     @DisplayName("测试限流API超限被拦截")
     void overLimitTest() {
         String key = "overLimitTest";
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 15; i++) {
             testService.test(key);
         }
         Assertions.assertThrows(RateLimitExceededException.class, () -> testService.test(key));

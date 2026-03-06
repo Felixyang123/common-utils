@@ -36,7 +36,7 @@ public class RateLimiterAutoConfiguration {
     public SlidingWindowRateLimiter slidingWindowRateLimiter() {
         return new SlidingWindowRateLimiter(
                 propConfig.getSlidingWindow().getWindowSize(),
-                propConfig.getSlidingWindow().getCapacity());
+                propConfig.getSlidingWindow().getRate());
     }
 
     @Bean
@@ -66,7 +66,7 @@ public class RateLimiterAutoConfiguration {
     public RedisSlidingWindowRateLimiter redisSlidingWindowRateLimiter(RedisTemplate<String, String> redisTemplate) {
         return new RedisSlidingWindowRateLimiter(
                 redisTemplate,
-                propConfig.getRedisSlidingWindow().getCapacity(),
+                propConfig.getRedisSlidingWindow().getRate(),
                 propConfig.getRedisSlidingWindow().getWindowSize());
     }
 

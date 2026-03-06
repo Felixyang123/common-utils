@@ -1,6 +1,7 @@
 package com.lezai.ratelimit.strategy;
 
 import com.lezai.ratelimit.enumeration.RateLimiterStrategyEnum;
+import com.lezai.ratelimit.exception.RateLimitExceededException;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
@@ -21,17 +22,24 @@ public class LeakyBucketRateLimiterPlus implements RateLimiter {
 
     @Override
     public boolean tryAcquire(String key, int permits) {
+        return tryAcquire(key, capacity, rate, permits);
+    }
+
+    @Override
+    public boolean tryAcquire(String key, int cap, int rate, int permits) throws RateLimitExceededException {
+        int c = cap <= 0 ? this.capacity : cap;
+        int r = rate <= 0 ? this.rate : rate;
         AtomicBoolean acquired = new AtomicBoolean(false);
         BUCKETS.compute(key, (k, bucket) -> {
             if (bucket == null) {
-                bucket = new Bucket(capacity, rate);
+                bucket = new Bucket(c, r);
             }
 
             long now = System.currentTimeMillis();
             long last = bucket.getLastLeakTime();
 
             // 计算已漏水
-            long leaked = (now - last) * rate / 1000;
+            long leaked = (now - last) * r / 1000;
 
             // 更新水位
             long currentWater = bucket.getWater();
@@ -39,7 +47,7 @@ public class LeakyBucketRateLimiterPlus implements RateLimiter {
 
             // 尝试加水
             newWater += permits;
-            if (newWater <= capacity) {
+            if (newWater <= c) {
                 acquired.set(true);
                 // 更新水位和时间
                 bucket.setWater(newWater);
@@ -58,7 +66,7 @@ public class LeakyBucketRateLimiterPlus implements RateLimiter {
 
     @Data
     @RequiredArgsConstructor
-    public static class Bucket {
+    private static class Bucket {
         private long water = 0;
         private long lastLeakTime = System.currentTimeMillis();
         private final int capacity; // 桶容量

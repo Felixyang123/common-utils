@@ -15,11 +15,20 @@ public abstract class RedisRateLimiter implements RateLimiter {
     protected static final String REDIS_KEY_PREFIX = "ratelimit:";
     protected final RedisTemplate<String, String> redisTemplate;
     protected final RedisScript<Boolean> script;
+    protected final int capacity;
+    protected final int rate;
 
-    public RedisRateLimiter(RedisTemplate<String, String> redisTemplate, String scriptPath) {
+    public RedisRateLimiter(RedisTemplate<String, String> redisTemplate, String scriptPath, int cap, int rate) {
         this.redisTemplate = redisTemplate;
         this.script = loadScript(scriptPath);
+        this.capacity = cap;
+        this.rate = rate;
         RateLimiterFactory.register(this);
+    }
+
+    @Override
+    public boolean tryAcquire(String key, int permits) throws RateLimitExceededException {
+        return tryAcquire(key, this.capacity, this.rate, permits);
     }
 
     private RedisScript<Boolean> loadScript(String scriptPath) {

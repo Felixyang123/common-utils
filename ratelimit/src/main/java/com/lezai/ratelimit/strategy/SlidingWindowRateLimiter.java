@@ -22,6 +22,12 @@ public class SlidingWindowRateLimiter implements RateLimiter {
 
     @Override
     public boolean tryAcquire(String key, int permits) throws RateLimitExceededException {
+        return tryAcquire(key, -1, maxRequests, permits);
+    }
+
+    @Override
+    public boolean tryAcquire(String key, int cap, int rate, int permits) throws RateLimitExceededException {
+        int r = rate <= 0 ? this.maxRequests : rate;
         AtomicBoolean acquired = new AtomicBoolean(false);
         windows.compute(key, (k, window) -> {
             if (window == null) {
@@ -32,7 +38,7 @@ public class SlidingWindowRateLimiter implements RateLimiter {
             // 移除过期的请求
             window.requests.removeIf(request -> request <= now - windowSize);
 
-            if (window.requests.size() + permits <= maxRequests) {
+            if (window.requests.size() + permits <= r) {
                 acquired.set(true);
                 for (int i = 0; i < permits; i++) {
                     window.requests.add(now);

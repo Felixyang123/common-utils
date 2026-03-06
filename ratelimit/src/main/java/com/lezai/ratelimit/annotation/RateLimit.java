@@ -7,5 +7,10 @@ import java.lang.annotation.*;
 @Documented
 public @interface RateLimit {
     String key() default "default";
+
     String strategy() default "tokenBucket";
+
+    int cap() default 10;
+
+    int rate() default 10;
 }

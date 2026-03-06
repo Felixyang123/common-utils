@@ -7,23 +7,19 @@ import java.util.Arrays;
 import java.util.List;
 
 public class RedisLeakyBucketRateLimiter extends RedisRateLimiter {
-    private final int rate;
-    private final int capacity;
 
     public RedisLeakyBucketRateLimiter(RedisTemplate<String, String> redisTemplate, int rate, int capacity) {
-        super(redisTemplate, "classpath:redis/leaky_bucket.lua");
-        this.rate = rate;
-        this.capacity = capacity;
+        super(redisTemplate, "classpath:redis/leaky_bucket.lua", capacity, rate);
     }
 
     @Override
-    public boolean tryAcquire(String key, int permits) {
+    public boolean tryAcquire(String key, int cap, int rate, int permits) {
         long now = System.currentTimeMillis() / 1000; // 秒级时间戳
         List<String> args = Arrays.asList(
                 String.valueOf(rate),
-                String.valueOf(capacity),
+                String.valueOf(cap),
                 String.valueOf(now),
-                String.valueOf(permits) // 1 request
+                String.valueOf(permits)
         );
 
         return redisTemplate.execute(script, List.of(REDIS_KEY_PREFIX + key), args.toArray());

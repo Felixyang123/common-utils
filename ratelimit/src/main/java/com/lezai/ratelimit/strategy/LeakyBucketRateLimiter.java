@@ -1,6 +1,7 @@
 package com.lezai.ratelimit.strategy;
 
 import com.lezai.ratelimit.enumeration.RateLimiterStrategyEnum;
+import com.lezai.ratelimit.exception.RateLimitExceededException;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -19,6 +20,13 @@ public class LeakyBucketRateLimiter implements RateLimiter {
 
     @Override
     public boolean tryAcquire(String key, int permits) {
+        return tryAcquire(key, this.capacity, this.rate, permits);
+    }
+
+    @Override
+    public boolean tryAcquire(String key, int cap, int rate, int permits) throws RateLimitExceededException {
+        cap = cap <= 0 ? this.capacity : cap;
+        rate = rate <= 0 ? this.rate : rate;
         long now = System.currentTimeMillis();
         long last = lastLeakTime.get();
 
@@ -37,7 +45,7 @@ public class LeakyBucketRateLimiter implements RateLimiter {
         lastLeakTime.set(now);
 
         // 尝试加水
-        if (water.addAndGet(permits) <= capacity) {
+        if (water.addAndGet(permits) <= cap) {
             return true;
         }
         water.addAndGet(-permits);
