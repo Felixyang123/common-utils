@@ -11,7 +11,8 @@ public enum RateLimiterStrategyEnum {
     SLIDING_WINDOW("slidingWindow"),
     REDIS_TOKEN_BUCKET("redisTokenBucket"),
     REDIS_LEAKY_BUCKET("redisLeakyBucket"),
-    REDIS_SLIDING_WINDOW("redisSlidingWindow");
+    REDIS_SLIDING_WINDOW("redisSlidingWindow"),
+    LEAKY_BUCKET_PLUS("leakyBucketPlus");
 
     private final String name;
 }

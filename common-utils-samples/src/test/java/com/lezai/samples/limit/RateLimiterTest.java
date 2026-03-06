@@ -29,8 +29,8 @@ public class RateLimiterTest {
         AtomicInteger success = new AtomicInteger(0);
         RateLimiter rateLimiter = RateLimiterFactory.get(RateLimiterStrategyEnum.LEAKY_BUCKET.getName());
         try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
-                    () -> {
+            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i ->
+                    CompletableFuture.runAsync(() -> {
                         for (int j = 0; j < 10; j++) {
                             if (rateLimiter.tryAcquire("test_leaky_bucket", 1)) {
                                 success.addAndGet(1);
@@ -65,8 +65,8 @@ public class RateLimiterTest {
             for (int x = 0; x < 10; x++) {
                 String key = "test_sliding_window_" + x;
                 AtomicInteger success = new AtomicInteger(0);
-                List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
-                        () -> {
+                List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i ->
+                        CompletableFuture.runAsync(() -> {
                             for (int j = 0; j < 10; j++) {
                                 if (rateLimiter.tryAcquire(key, 1)) {
                                     success.addAndGet(1);
@@ -100,8 +100,8 @@ public class RateLimiterTest {
         RateLimiter rateLimiter = RateLimiterFactory.get(RateLimiterStrategyEnum.REDIS_SLIDING_WINDOW.getName());
         AtomicInteger success = new AtomicInteger(0);
         try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
-                    () -> {
+            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i ->
+                    CompletableFuture.runAsync(() -> {
                         for (int j = 0; j < 10; j++) {
                             if (rateLimiter.tryAcquire("test_redis_sliding_window", 1)) {
                                 success.addAndGet(1);
@@ -137,8 +137,8 @@ public class RateLimiterTest {
                 String key = "test_redis_token_bucket_" + i;
                 AtomicInteger success = new AtomicInteger(0);
                 long start = System.currentTimeMillis();
-                List<CompletableFuture<Void>> futures = IntStream.range(0, 100).mapToObj(x -> CompletableFuture.runAsync(
-                        () -> {
+                List<CompletableFuture<Void>> futures = IntStream.range(0, 100).mapToObj(x ->
+                        CompletableFuture.runAsync(() -> {
                             for (int j = 0; j < 10; j++) {
                                 if (rateLimiter.tryAcquire(key, 1)) {
                                     success.addAndGet(1);
@@ -159,8 +159,8 @@ public class RateLimiterTest {
         RateLimiter rateLimiter = RateLimiterFactory.get(RateLimiterStrategyEnum.REDIS_LEAKY_BUCKET.getName());
         AtomicInteger success = new AtomicInteger(0);
         try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
-            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i -> CompletableFuture.runAsync(
-                    () -> {
+            List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i ->
+                    CompletableFuture.runAsync(() -> {
                         for (int j = 0; j < 10; j++) {
                             if (rateLimiter.tryAcquire("test_redis_leaky_bucket", 1)) {
                                 success.addAndGet(1);
@@ -183,6 +183,43 @@ public class RateLimiterTest {
                     }, executorService)).toList();
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             assertEquals(10, success.get());
+        }
+    }
+
+    @Test
+    @DisplayName("测试增强单机版漏斗算法")
+    @SneakyThrows
+    void testLeakyBucketPlus() {
+        RateLimiter rateLimiter = RateLimiterFactory.get(RateLimiterStrategyEnum.LEAKY_BUCKET_PLUS.getName());
+        try (ExecutorService executorService = Executors.newFixedThreadPool(10)) {
+            for (int x = 0; x < 10; x++) {
+                String key = "test_leaky_bucket_plus_" + x;
+                AtomicInteger success = new AtomicInteger(0);
+                List<CompletableFuture<Void>> futures = IntStream.range(0, 10).mapToObj(i ->
+                        CompletableFuture.runAsync(() -> {
+                            for (int j = 0; j < 10; j++) {
+                                if (rateLimiter.tryAcquire(key, 1)) {
+                                    success.addAndGet(1);
+                                }
+                            }
+                        }, executorService)).toList();
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                assertEquals(10, success.get());
+
+                Thread.sleep(1000);
+
+                success.set(0);
+                futures = IntStream.range(0, 15).mapToObj(i -> CompletableFuture.runAsync(
+                        () -> {
+                            for (int j = 0; j < 10; j++) {
+                                if (rateLimiter.tryAcquire(key, 1)) {
+                                    success.addAndGet(1);
+                                }
+                            }
+                        }, executorService)).toList();
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                assertEquals(10, success.get());
+            }
         }
     }
 }

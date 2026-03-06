@@ -4,6 +4,7 @@ import com.lezai.ratelimit.enumeration.RateLimiterStrategyEnum;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+@Deprecated
 public class LeakyBucketRateLimiter implements RateLimiter {
     private final AtomicLong water = new AtomicLong(0);
     private final AtomicLong lastLeakTime = new AtomicLong(System.currentTimeMillis());

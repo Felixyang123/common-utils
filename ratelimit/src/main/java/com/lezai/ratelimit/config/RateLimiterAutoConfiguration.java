@@ -3,6 +3,7 @@ package com.lezai.ratelimit.config;
 import com.lezai.ratelimit.aspect.RateLimiterAspect;
 import com.lezai.ratelimit.service.RateLimitService;
 import com.lezai.ratelimit.strategy.LeakyBucketRateLimiter;
+import com.lezai.ratelimit.strategy.LeakyBucketRateLimiterPlus;
 import com.lezai.ratelimit.strategy.SlidingWindowRateLimiter;
 import com.lezai.ratelimit.strategy.TokenBucketRateLimiter;
 import com.lezai.ratelimit.strategy.redis.RedisLeakyBucketRateLimiter;
@@ -81,5 +82,12 @@ public class RateLimiterAutoConfiguration {
     @Bean
     public RateLimitService rateLimitService() {
         return new RateLimitService();
+    }
+
+    @Bean
+    public LeakyBucketRateLimiterPlus leakyBucketRateLimiterPlus() {
+        return new LeakyBucketRateLimiterPlus(
+                propConfig.getLeakyBucket().getCapacity(),
+                propConfig.getLeakyBucket().getRate());
     }
 }
