@@ -3,7 +3,8 @@ package com.lezai.lock;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.util.Collections;
@@ -18,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @RequiredArgsConstructor
 public class RedisDistributeLock implements Lock {
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     private final WatchDogExecutor watchDogExecutor;
 
@@ -53,7 +54,10 @@ public class RedisDistributeLock implements Lock {
 
     @Override
     public void lock(String key) {
-        lock(key, timeout, leaseTime);
+        boolean locked = tryLock(key, timeout, leaseTime);
+        if (!locked) {
+            throw new RuntimeException("Lock timeout: " + key);
+        }
     }
 
     @Override
@@ -75,6 +79,11 @@ public class RedisDistributeLock implements Lock {
         } else {
             lockCntMap.put(key, lockCnt);
         }
+    }
 
+    @Override
+    public boolean heldByCurrentThread(String key) {
+        String val = redisTemplate.opsForValue().get(key);
+        return StringUtils.equals(val, instanceId + ":" + Thread.currentThread().threadId());
     }
 }

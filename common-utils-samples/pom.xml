@@ -46,5 +46,11 @@
             <artifactId>ratelimit</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.lezai</groupId>
+            <artifactId>idempotent</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
     </dependencies>
 </project>

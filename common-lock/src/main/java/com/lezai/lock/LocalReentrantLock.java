@@ -2,6 +2,7 @@ package com.lezai.lock;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
@@ -19,16 +20,32 @@ public class LocalReentrantLock implements Lock {
 
     @Override
     public boolean tryLock(String key, long leaseTime) {
-        return delegate.tryLock();
+        try {
+            return delegate.tryLock(timeout, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Lock acquisition interrupted for key: {}", key);
+            return false;
+        }
     }
 
     @Override
     public void lock(String key) {
-        lock(key, this.timeout, 0);
+        boolean locked = tryLock(key, this.timeout, -1);
+        if (!locked) {
+            throw new RuntimeException("Lock timeout: " + key);
+        }
     }
 
     @Override
     public void release(String key) {
-        delegate.unlock();
+        if (delegate.isHeldByCurrentThread()) {
+            delegate.unlock();
+        }
+    }
+
+    @Override
+    public boolean heldByCurrentThread(String key) {
+        return delegate.isHeldByCurrentThread();
     }
 }
