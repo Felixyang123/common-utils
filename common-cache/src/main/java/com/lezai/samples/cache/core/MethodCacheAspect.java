@@ -15,7 +15,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Objects;
+import java.util.Optional;
 
 @Aspect
 @Slf4j
@@ -61,12 +61,12 @@ public class MethodCacheAspect {
         }
 
         // 使用SpEL解析key表达式
-        String[] paramNames = nameDiscoverer.getParameterNames(method);
         EvaluationContext context = new MethodBasedEvaluationContext(null, method, args, nameDiscoverer);
-
-        for (int i = 0; i < Objects.requireNonNull(paramNames).length; i++) {
-            context.setVariable(paramNames[i], args[i]);
-        }
+        Optional.ofNullable(nameDiscoverer.getParameterNames(method)).ifPresent(parameters -> {
+            for (int i = 0; i < parameters.length; i++) {
+                context.setVariable(parameters[i], args[i]);
+            }
+        });
 
         return parser.parseExpression(keyExpression).getValue(context, String.class);
     }
