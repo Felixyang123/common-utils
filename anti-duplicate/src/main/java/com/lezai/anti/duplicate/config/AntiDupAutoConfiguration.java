@@ -14,7 +14,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -57,8 +56,8 @@ public class AntiDupAutoConfiguration implements WebMvcConfigurer {
     }
 
     @Bean
-    @ConditionalOnMissingBean(RedisTemplate.class)
-    public StringRedisTemplate redisTemplate(RedisConnectionFactory factory) {
+    @ConditionalOnMissingBean(name = "dupRedisTemplate")
+    public StringRedisTemplate dupRedisTemplate(RedisConnectionFactory factory) {
         return new StringRedisTemplate(factory);
     }
 
@@ -76,8 +75,8 @@ public class AntiDupAutoConfiguration implements WebMvcConfigurer {
 
     @Bean
     @ConditionalOnMissingBean(DuplicateSubmitStrategy.class)
-    public DuplicateSubmitStrategy redisDuplicateSubmitStrategy(StringRedisTemplate redisTemplate) {
-        return new RedisDuplicateSubmitStrategy(redisTemplate);
+    public DuplicateSubmitStrategy redisDuplicateSubmitStrategy(StringRedisTemplate dupRedisTemplate) {
+        return new RedisDuplicateSubmitStrategy(dupRedisTemplate);
     }
 
     @Bean

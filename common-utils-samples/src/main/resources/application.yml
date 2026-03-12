@@ -16,6 +16,7 @@ logging:
     root: info
     com.lezai.samples.*: debug
     com.lezai.taskflow: debug
+    com.lezai.idempotent: debug
 
 cache:
   hashMapCacheCfg:
@@ -38,3 +39,7 @@ antidup:
       timeout: 10
     # 仅对 /api/v1/pay/** 需要防重
 #    - path: "/api/v1/pay/**"
+
+idempotent:
+  storage: jdbc
+

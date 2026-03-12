@@ -8,19 +8,21 @@ public interface Lock {
 
     void release(String key);
 
-    default void lock(String key, long timeout, long leaseTime) {
+    boolean heldByCurrentThread(String key);
+
+    default boolean tryLock(String key, long timeout, long leaseTime) {
         long start = System.currentTimeMillis();
         while (!tryLock(key, leaseTime)) {
-            if (timeout >= 0 && System.currentTimeMillis() - start > timeout) {
-                throw new RuntimeException("Lock timeout: " + key);
+            if (timeout >= 0 && System.currentTimeMillis() - start >= timeout) {
+               return false;
             }
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                if (Thread.interrupted()) {
-                    Thread.currentThread().interrupt();
-                }
+                Thread.currentThread().interrupt();
+                return false;
             }
         }
+        return true;
     }
 }

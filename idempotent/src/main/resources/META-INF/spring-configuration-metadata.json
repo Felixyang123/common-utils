@@ -1,0 +1,53 @@
+{
+  "groups": [
+    {
+      "name": "idempotent",
+      "type": "com.lezai.idempotent.config.IdempotentProperties",
+      "sourceType": "com.lezai.idempotent.config.IdempotentProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "idempotent.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用幂等性控制",
+      "defaultValue": true
+    },
+    {
+      "name": "idempotent.storage",
+      "type": "com.lezai.idempotent.enums.StorageStrategy",
+      "description": "默认存储策略",
+      "defaultValue": "LOCAL"
+    },
+    {
+      "name": "idempotent.lock",
+      "type": "com.lezai.idempotent.enums.LockStrategy",
+      "description": "默认锁策略",
+      "defaultValue": "LOCAL"
+    },
+    {
+      "name": "idempotent.expire-time",
+      "type": "java.lang.Long",
+      "description": "默认过期时间（秒）",
+      "defaultValue": 3600
+    },
+    {
+      "name": "idempotent.local.max-size",
+      "type": "java.lang.Integer",
+      "description": "本地存储最大缓存数量",
+      "defaultValue": 10000
+    },
+    {
+      "name": "idempotent.jdbc.table-name",
+      "type": "java.lang.String",
+      "description": "JDBC存储表名",
+      "defaultValue": "idempotent_record"
+    },
+    {
+      "name": "idempotent.jdbc.auto-create-table",
+      "type": "java.lang.Boolean",
+      "description": "是否自动创建表",
+      "defaultValue": true
+    }
+  ]
+}

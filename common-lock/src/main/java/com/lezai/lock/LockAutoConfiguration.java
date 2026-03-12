@@ -4,15 +4,22 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 @Configuration
 @EnableAspectJAutoProxy
 public class LockAutoConfiguration {
+    @Bean
+    @ConditionalOnMissingBean(name = "lockRedisTemplate")
+    public StringRedisTemplate lockRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        return new StringRedisTemplate(redisConnectionFactory);
+    }
 
     @Bean
-    public RedisDistributeLock redisDistributeLock(RedisTemplate<String, Object> redisTemplate, WatchDogExecutor watchDogExecutor) {
-        return new RedisDistributeLock(redisTemplate, watchDogExecutor);
+    public RedisDistributeLock redisDistributeLock(StringRedisTemplate lockRedisTemplate, WatchDogExecutor watchDogExecutor) {
+        return new RedisDistributeLock(lockRedisTemplate, watchDogExecutor);
     }
 
     @Bean

@@ -44,9 +44,9 @@ public class CacheAutoConfiguration {
         return new HashMapCacheManager(globalCache, cfg.getCacheSize());
     }
 
-    @ConditionalOnMissingBean(RedisTemplate.class)
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+    @ConditionalOnMissingBean(name = "cacheRedisTemplate")
+    public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
 
@@ -75,8 +75,8 @@ public class CacheAutoConfiguration {
 
     @Primary
     @Bean(name = "l2Cache")
-    public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> redisTemplate) {
-        return new MultiRemoteRedisCache<>(redisTemplate);
+    public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> cacheRedisTemplate) {
+        return new MultiRemoteRedisCache<>(cacheRedisTemplate);
     }
 
     @Bean
