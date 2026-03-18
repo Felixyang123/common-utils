@@ -17,8 +17,7 @@ public class CacheConfig {
 
     @Bean(name = {"lockRedisTemplate", "idempotentRedisTemplate", "dupRedisTemplate", "rateLimitRedisTemplate"})
     public StringRedisTemplate redisTemplate(RedisConnectionFactory redisConnectionFactory) {
-        StringRedisTemplate template = new StringRedisTemplate(redisConnectionFactory);
-        return template;
+        return new StringRedisTemplate(redisConnectionFactory);
     }
 
     @Bean

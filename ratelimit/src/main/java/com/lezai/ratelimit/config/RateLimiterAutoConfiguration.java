@@ -47,34 +47,34 @@ public class RateLimiterAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(RedisTemplate.class)
-    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+    @ConditionalOnMissingBean(name = "rateLimitRedisTemplate")
+    public RedisTemplate<String, String> rateLimitRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         return new StringRedisTemplate(redisConnectionFactory);
     }
 
     @Bean
     @ConditionalOnBean(RedisTemplate.class)
-    public RedisTokenBucketRateLimiter redisTokenBucketRateLimiter(RedisTemplate<String, String> redisTemplate) {
+    public RedisTokenBucketRateLimiter redisTokenBucketRateLimiter(RedisTemplate<String, String> rateLimitRedisTemplate) {
         return new RedisTokenBucketRateLimiter(
-                redisTemplate,
+                rateLimitRedisTemplate,
                 propConfig.getRedisTokenBucket().getRate(),
                 propConfig.getRedisTokenBucket().getCapacity());
     }
 
     @Bean
     @ConditionalOnBean(RedisTemplate.class)
-    public RedisSlidingWindowRateLimiter redisSlidingWindowRateLimiter(RedisTemplate<String, String> redisTemplate) {
+    public RedisSlidingWindowRateLimiter redisSlidingWindowRateLimiter(RedisTemplate<String, String> rateLimitRedisTemplate) {
         return new RedisSlidingWindowRateLimiter(
-                redisTemplate,
+                rateLimitRedisTemplate,
                 propConfig.getRedisSlidingWindow().getRate(),
                 propConfig.getRedisSlidingWindow().getWindowSize());
     }
 
     @Bean
     @ConditionalOnBean(RedisTemplate.class)
-    public RedisLeakyBucketRateLimiter redisLeakyBucketRateLimiter(RedisTemplate<String, String> redisTemplate) {
+    public RedisLeakyBucketRateLimiter redisLeakyBucketRateLimiter(RedisTemplate<String, String> rateLimitRedisTemplate) {
         return new RedisLeakyBucketRateLimiter(
-                redisTemplate,
+                rateLimitRedisTemplate,
                 propConfig.getRedisLeakyBucket().getRate(),
                 propConfig.getRedisLeakyBucket().getCapacity());
     }

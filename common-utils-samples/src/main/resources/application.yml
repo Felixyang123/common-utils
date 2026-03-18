@@ -40,6 +40,6 @@ antidup:
     # 仅对 /api/v1/pay/** 需要防重
 #    - path: "/api/v1/pay/**"
 
-idempotent:
-  storage: jdbc
+#idempotent:
+#  storage: jdbc
 
