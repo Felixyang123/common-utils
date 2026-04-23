@@ -24,6 +24,7 @@
         <module>anti-duplicate</module>
         <module>ratelimit</module>
         <module>idempotent</module>
+        <module>common-thread-pool</module>
     </modules>
     <scm>
         <connection/>
@@ -39,6 +40,7 @@
         <caffeine.version>3.1.6</caffeine.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
+        <okhttp.version>4.12.0</okhttp.version>
     </properties>
 
     <dependencyManagement>

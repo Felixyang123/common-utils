@@ -1,0 +1,350 @@
+package com.lezai.threadpool.storage;
+
+import com.alibaba.fastjson2.JSON;
+import com.lezai.threadpool.bean.ThreadPoolAppConfig;
+import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.enums.ChangeType;
+import com.lezai.threadpool.enums.StorageType;
+import com.lezai.threadpool.exception.StorageException;
+import com.lezai.threadpool.storage.base.AbstractLocalFileStorage;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.CollectionUtils;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+/**
+ * 本地文件配置存储实现
+ * 保留原有业务逻辑，使用基类的文件操作方法
+ */
+@Slf4j
+public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileConfigStorage.ThreadPoolConfigFile>
+        implements ConfigStorage {
+
+    private static final String FILE_SUFFIX = "_threadpool.json";
+    private final Map<String, List<ConfigChangeListener>> changeListeners;
+    private final ExecutorService listenerExecutor;
+    private final ConfigHistoryStorage historyStorage;
+
+    public LocalFileConfigStorage(String configDir) {
+        this(configDir, null);
+    }
+
+    public LocalFileConfigStorage(String configDir, ConfigHistoryStorage historyStorage) {
+        super(configDir);
+        this.changeListeners = new HashMap<>();
+        this.listenerExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "config-listener-thread");
+            t.setDaemon(true);
+            return t;
+        });
+        this.historyStorage = historyStorage;
+    }
+
+    @Override
+    protected String getFileSuffix() {
+        return FILE_SUFFIX;
+    }
+
+    @Override
+    protected String getStorageType() {
+        return StorageType.THREAD_POOL_CONFIG.getDescription();
+    }
+
+    @Override
+    protected void loadFile(Path path) {
+        ThreadPoolConfigFile poolConfigFile = readFile(path, ThreadPoolConfigFile.class);
+        if (poolConfigFile != null && StringUtils.isNotBlank(poolConfigFile.getAppId())) {
+            putToCache(poolConfigFile.getAppId(), poolConfigFile);
+            log.info("Loaded config for appId: {}", poolConfigFile.getAppId());
+        }
+    }
+
+    @Override
+    public void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
+        for (ThreadPoolConfig config : configs) {
+            saveConfig(appId, config);
+        }
+    }
+
+    @Override
+    public void saveConfig(String appId, ThreadPoolConfig config) {
+        AtomicReference<ThreadPoolConfigFile> oldConfigRef = new AtomicReference<>();
+        compute(appId, (k, oldConfig) -> {
+            oldConfigRef.set(oldConfig);
+            Path path = getStoragePath(appId);
+            try {
+                ThreadPoolConfigFile configFile = getOrBuildFile(appId, path);
+
+                configFile.getConfigs().put(config.getPoolName(), config);
+                configFile.setVersion(configFile.getVersion() + 1);
+                writeFile(path, configFile);
+
+                notifyListeners(configFile);
+                return configFile;
+            } catch (IOException e) {
+                throw new StorageException("Failed to save config for appId: " + appId + ", pool: " + config.getPoolName(), e);
+            }
+        });
+
+        if (historyStorage != null) {
+            Map<String, ThreadPoolConfig> configMap = Optional.ofNullable(oldConfigRef.get())
+                    .map(ThreadPoolConfigFile::getConfigs).orElse(null);
+            ThreadPoolConfig oldConfig = Optional.ofNullable(configMap).map(map ->
+                    map.get(config.getPoolName())).orElse(null);
+            ChangeType changeType = (oldConfig == null) ? ChangeType.CREATE : ChangeType.UPDATE;
+            historyStorage.recordChange(appId, config.getPoolName(), changeType, oldConfig, config);
+        }
+    }
+
+    private static ThreadPoolConfigFile getOrBuildFile(String appId, Path path) throws IOException {
+        ThreadPoolConfigFile configFile;
+        if (Files.exists(path)) {
+            String content = Files.readString(path);
+            if (StringUtils.isNotBlank(content)) {
+                configFile = JSON.parseObject(content, ThreadPoolConfigFile.class);
+            } else {
+                configFile = new ThreadPoolConfigFile(appId, 0, new HashMap<>());
+            }
+        } else {
+            configFile = new ThreadPoolConfigFile(appId, 0, new HashMap<>());
+        }
+
+        if (configFile.getConfigs() == null) {
+            configFile.setConfigs(new HashMap<>());
+        }
+        return configFile;
+    }
+
+    @Override
+    public List<ThreadPoolConfig> getConfigs(String appId) {
+        ThreadPoolConfigFile file = getFromCache(appId);
+        if (file == null) {
+            return null;
+        }
+        return file.getConfigs().values().stream().toList();
+    }
+
+    @Override
+    public ThreadPoolConfig getConfig(String appId, String poolName) {
+        ThreadPoolConfigFile file = getFromCache(appId);
+        if (file == null) {
+            return null;
+        }
+        return Optional.ofNullable(file.getConfigs()).map(map -> map.get(poolName))
+                .orElse(null);
+    }
+
+    @Override
+    public void deleteConfigs(String appId) {
+        AtomicReference<ThreadPoolConfigFile> oldConfigsRef = new AtomicReference<>();
+        compute(appId, (k, configFile) -> {
+            oldConfigsRef.set(configFile);
+            Path path = getStoragePath(appId);
+            deleteFile(path);
+            changeListeners.remove(appId);
+            return null;
+        });
+
+        if (historyStorage != null && oldConfigsRef.get() != null) {
+            Optional.ofNullable(oldConfigsRef.get().getConfigs()).map(Map::values).ifPresent(
+                    configs -> configs.forEach(config ->
+                            historyStorage.recordChange(appId, config.getPoolName(), ChangeType.DELETE, config, null)));
+        }
+        log.info("Deleted configs for appId: {}", appId);
+    }
+
+    @Override
+    public void deleteConfig(String appId, String poolName) {
+        AtomicReference<ThreadPoolConfig> oldConfigRef = new AtomicReference<>();
+        compute(appId, (k, configFile) -> {
+            Path path = getStoragePath(appId);
+            try {
+                if (Files.exists(path)) {
+                    String content = Files.readString(path);
+                    if (StringUtils.isBlank(content)) {
+                        deleteFile(path);
+                        return null;
+                    }
+
+                    configFile = JSON.parseObject(content, ThreadPoolConfigFile.class);
+
+                    if (configFile.getConfigs() == null) {
+                        deleteFile(path);
+                        return null;
+                    }
+
+                    ThreadPoolConfig oldConfig = configFile.getConfigs().remove(poolName);
+                    oldConfigRef.set(oldConfig);
+
+                    if (configFile.getConfigs().isEmpty()) {
+                        deleteFile(path);
+                        return null;
+                    } else {
+                        configFile.setVersion(configFile.getVersion() + 1);
+                        writeFile(path, configFile);
+                        return configFile;
+                    }
+                }
+                return null;
+            } catch (IOException e) {
+                throw new StorageException("Failed to delete config for appId: " + appId + ", pool: " + poolName, e);
+            }
+        });
+
+        if (historyStorage != null && oldConfigRef.get() != null) {
+            historyStorage.recordChange(appId, poolName, ChangeType.DELETE, oldConfigRef.get(), null);
+        }
+    }
+
+    @Override
+    public Map<String, List<ThreadPoolConfig>> getAllConfigs() {
+        Map<String, ThreadPoolConfigFile> cacheCopy = new HashMap<>(cache);
+        return cacheCopy.entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().getConfigs().values().stream().toList()
+        ));
+    }
+
+    @Override
+    public long getConfigVersion(String appId) {
+        ThreadPoolConfigFile file = getFromCache(appId);
+        return file != null ? file.getVersion() : 0L;
+    }
+
+    @Override
+    public void registerChangeListener(String appId, ConfigChangeListener listener) {
+        changeListeners.computeIfAbsent(appId, k -> new CopyOnWriteArrayList<>()).add(listener);
+        log.info("Registered config change listener for appId: {}", appId);
+    }
+
+    @Override
+    public ThreadPoolAppConfig getAppConfig(String appId) {
+        ThreadPoolConfigFile file = getFromCache(appId);
+        if (file == null) {
+            return null;
+        }
+        return ThreadPoolAppConfig.builder()
+                .appId(appId)
+                .configVersion(file.getVersion())
+                .configs(file.getConfigs().values().stream().toList())
+                .build();
+    }
+
+    @Override
+    public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
+        AtomicBoolean added = new AtomicBoolean(false);
+
+        ThreadPoolConfigFile file = compute(appId, (k, configFile) -> {
+            Path path = getStoragePath(appId);
+            try {
+                configFile = getOrBuildFile(appId, path);
+
+                configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
+                    if (oldConfig != null) {
+                        return oldConfig;
+                    } else {
+                        added.set(true);
+                        return config;
+                    }
+                });
+
+                if (added.get()) {
+                    configFile.setVersion(configFile.getVersion() + 1);
+                    writeFile(path, configFile);
+                    notifyListeners(configFile);
+                    log.info("Config added for appId: {}, pool: {}", appId, config.getPoolName());
+                }
+                return configFile;
+            } catch (IOException e) {
+                throw new StorageException("Failed to add config for appId: " + appId + ", pool: " + config.getPoolName(), e);
+            }
+        });
+
+        if (added.get() && historyStorage != null) {
+            historyStorage.recordChange(appId, config.getPoolName(), ChangeType.CREATE, null, config);
+        }
+
+        return file.getConfigs().get(config.getPoolName());
+    }
+
+    @Override
+    public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
+        List<ThreadPoolConfig> addedConfigs = new ArrayList<>();
+        AtomicBoolean added = new AtomicBoolean(false);
+
+        compute(appId, (k, configFile) -> {
+            Path path = getStoragePath(appId);
+            try {
+                configFile = getOrBuildFile(appId, path);
+
+                for (ThreadPoolConfig config : configs) {
+                    configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
+                        if (oldConfig != null) {
+                            return oldConfig;
+                        } else {
+                            added.compareAndSet(false, true);
+                            addedConfigs.add(config);
+                            return config;
+                        }
+                    });
+                }
+
+                if (added.get()) {
+                    configFile.setVersion(configFile.getVersion() + 1);
+                    writeFile(path, configFile);
+                    notifyListeners(configFile);
+                    log.info("Configs added for appId: {}, count: {}", appId, addedConfigs.size());
+                }
+                return configFile;
+            } catch (IOException e) {
+                throw new StorageException("Failed to add configs for appId: " + appId, e);
+            }
+        });
+
+        if (historyStorage != null) {
+            for (ThreadPoolConfig config : addedConfigs) {
+                historyStorage.recordChange(appId, config.getPoolName(), ChangeType.CREATE, null, config);
+            }
+        }
+
+        return addedConfigs.stream().toList();
+    }
+
+    private void notifyListeners(ThreadPoolConfigFile file) {
+        List<ConfigChangeListener> listeners = changeListeners.get(file.getAppId());
+        if (!CollectionUtils.isEmpty(listeners)) {
+            for (ConfigChangeListener listener : listeners) {
+                listenerExecutor.execute(() -> {
+                    try {
+                        List<ThreadPoolConfig> configs = file.getConfigs().values().stream().toList();
+                        listener.onConfigChanged(file.getAppId(), configs, file.getVersion());
+                    } catch (Exception e) {
+                        log.error("Error notifying config change listener for appId: {}", file.getAppId(), e);
+                    }
+                });
+            }
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ThreadPoolConfigFile {
+        private String appId;
+        private long version;
+        private Map<String, ThreadPoolConfig> configs;
+    }
+}
