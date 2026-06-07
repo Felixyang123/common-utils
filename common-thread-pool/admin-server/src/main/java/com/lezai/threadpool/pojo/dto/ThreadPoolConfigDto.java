@@ -1,4 +1,4 @@
-package com.lezai.threadpool.pojo.cmd;
+package com.lezai.threadpool.pojo.dto;
 
 import com.lezai.threadpool.enumeration.QueueType;
 import com.lezai.threadpool.enumeration.RejectPolicyType;
@@ -7,8 +7,7 @@ import lombok.Data;
 import java.util.concurrent.TimeUnit;
 
 @Data
-public class ThreadPoolConfigUpsertCmd {
-    private Long id;
+public class ThreadPoolConfigDto {
 
     /**
      * 线程池名称

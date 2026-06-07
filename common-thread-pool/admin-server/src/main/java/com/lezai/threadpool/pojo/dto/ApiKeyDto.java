@@ -1,9 +1,7 @@
-package com.lezai.threadpool.dao.entity;
+package com.lezai.threadpool.pojo.dto;
 
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+import lombok.Data;
 
-import java.io.Serial;
 import java.time.LocalDateTime;
 
 /**
@@ -11,14 +9,9 @@ import java.time.LocalDateTime;
  * 用于存储和管理应用访问 admin-server Open API 的认证信息
  */
 @Data
-@EqualsAndHashCode(callSuper = true)
-@SuperBuilder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApiKeyEntity extends BaseEntity {
-    @Serial
-    private static final long serialVersionUID = -8427733888707075983L;
+public class ApiKeyDto {
 
+    private Long id;
     /**
      * 应用ID（唯一标识）
      */
@@ -37,8 +30,7 @@ public class ApiKeyEntity extends BaseEntity {
     /**
      * 是否启用
      */
-    @Builder.Default
-    private Boolean enabled = Boolean.TRUE;
+    private Boolean enabled;
 
     /**
      * 创建时间
@@ -59,25 +51,4 @@ public class ApiKeyEntity extends BaseEntity {
      * 描述信息
      */
     private String description;
-
-    /**
-     * 检查 API Key 是否已过期
-     *
-     * @return true 如果已过期
-     */
-    public boolean isExpired() {
-        if (expireTime == null) {
-            return false;
-        }
-        return LocalDateTime.now().isAfter(expireTime);
-    }
-
-    /**
-     * 检查 API Key 是否有效（启用且未过期）
-     *
-     * @return true 如果有效
-     */
-    public boolean isValid() {
-        return enabled && !isExpired();
-    }
 }

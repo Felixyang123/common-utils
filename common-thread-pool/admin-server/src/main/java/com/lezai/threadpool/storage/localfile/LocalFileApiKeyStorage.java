@@ -1,11 +1,12 @@
-package com.lezai.threadpool.storage;
+package com.lezai.threadpool.storage.localfile;
 
 import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.enums.StorageType;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.ValidationException;
-import com.lezai.threadpool.storage.base.AbstractLocalFileStorage;
+import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
+import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -89,7 +90,7 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
 
     @Override
     public Optional<ApiKey> getApiKey(String appId) {
-        return Optional.ofNullable(getFromCache(appId));
+        return getFromCache(appId);
     }
 
     @Override
@@ -98,7 +99,7 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
             return false;
         }
 
-        ApiKey storedKey = getFromCache(appId);
+        ApiKey storedKey = getFromCache(appId).orElse(null);
         if (storedKey == null) {
             log.warn("API key not found for appId: {}", appId);
             return false;
@@ -114,8 +115,7 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
             return false;
         }
 
-        String providedHash = ApiKeyUtils.hashApiKey(apiKey);
-        boolean valid = providedHash.equals(storedKey.getApiKeyHash());
+        boolean valid = ApiKeyUtils.validateApiKey(apiKey, storedKey.getApiKeyHash());
 
         if (!valid) {
             log.warn("API key validation failed for appId: {}", appId);
@@ -144,43 +144,6 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
     @Override
     public List<ApiKey> listAllApiKeys() {
         return new ArrayList<>(cache.values());
-    }
-
-    @Override
-    public ApiKey updateApiKey(ApiKey apiKey) {
-        if (apiKey == null || StringUtils.isBlank(apiKey.getAppId())) {
-            throw new ValidationException("ApiKey and appId cannot be null");
-        }
-
-        return compute(apiKey.getAppId(), (k, existing) -> {
-            if (existing == null) {
-                throw new ConfigNotFoundException("ApiKey not found for appId: " + apiKey.getAppId());
-            }
-
-            ApiKey updateValue = copyApiKey(existing);
-
-            if (apiKey.getAppName() != null) {
-                updateValue.setAppName(apiKey.getAppName());
-            }
-            if (apiKey.getDescription() != null) {
-                updateValue.setDescription(apiKey.getDescription());
-            }
-            updateValue.setEnabled(apiKey.isEnabled());
-            if (apiKey.getExpireTime() != null) {
-                updateValue.setExpireTime(apiKey.getExpireTime());
-            }
-            updateValue.setUpdateTime(LocalDateTime.now());
-
-            Path path = getStoragePath(apiKey.getAppId());
-            writeFile(path, updateValue);
-
-            if (historyStorage != null) {
-                historyStorage.recordChange(apiKey.getAppId(), ChangeType.UPDATE, existing, updateValue);
-            }
-
-            log.info("Updated API key for appId: {}", apiKey.getAppId());
-            return updateValue;
-        });
     }
 
     @Override

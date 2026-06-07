@@ -1,11 +1,13 @@
 package com.lezai.threadpool.utils;
 
-import org.springframework.util.DigestUtils;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.Base64;
 
 public class ApiKeyUtils {
+
+    private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
     /**
      * 生成随机 API Key
@@ -23,9 +25,24 @@ public class ApiKeyUtils {
     }
 
     /**
-     * 计算 API Key 的 hash
+     * 计算 API Key 的 BCrypt 哈希
+     * 相比 MD5，BCrypt 具有盐值和计算成本，能有效抵抗彩虹表攻击
      */
     public static String hashApiKey(String apiKey) {
-        return DigestUtils.md5DigestAsHex(apiKey.getBytes(StandardCharsets.UTF_8));
+        return ENCODER.encode(apiKey);
+    }
+
+    /**
+     * 验证 API Key 是否匹配哈希值
+     *
+     * @param rawApiKey 原始 API Key
+     * @param hashedApiKey 存储的哈希值
+     * @return 是否匹配
+     */
+    public static boolean validateApiKey(String rawApiKey, String hashedApiKey) {
+        if (rawApiKey == null || hashedApiKey == null) {
+            return false;
+        }
+        return ENCODER.matches(rawApiKey, hashedApiKey);
     }
 }

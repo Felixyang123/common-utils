@@ -2,6 +2,10 @@ package com.lezai.threadpool.bean;
 
 import com.lezai.threadpool.enumeration.QueueType;
 import com.lezai.threadpool.enumeration.RejectPolicyType;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
@@ -18,21 +22,28 @@ public class ThreadPoolConfig {
     /**
      * 线程池名称
      */
+    @NotBlank(message = "poolName不能为空")
+    @Size(max = 128, message = "poolName长度不能超过128")
     private String poolName;
 
     /**
      * 核心线程数
      */
+    @Min(value = 1, message = "corePoolSize不能小于1")
+    @Max(value = 1024, message = "corePoolSize不能超过1024")
     private int corePoolSize;
 
     /**
      * 最大线程数
      */
+    @Min(value = 1, message = "maximumPoolSize不能小于1")
+    @Max(value = 1024, message = "maximumPoolSize不能超过1024")
     private int maximumPoolSize;
 
     /**
      * 空闲线程存活时间
      */
+    @Min(value = 0, message = "keepAliveTime不能为负数")
     private long keepAliveTime;
 
     /**
@@ -48,6 +59,8 @@ public class ThreadPoolConfig {
     /**
      * 队列容量
      */
+    @Min(value = 0, message = "queueCapacity不能为负数")
+    @Max(value = 100000, message = "queueCapacity不能超过100000")
     private int queueCapacity;
 
     /**
@@ -63,6 +76,7 @@ public class ThreadPoolConfig {
     /**
      * 线程工厂名称前缀
      */
+    @Size(max = 64, message = "threadNamePrefix长度不能超过64")
     private String threadNamePrefix;
 
     /**

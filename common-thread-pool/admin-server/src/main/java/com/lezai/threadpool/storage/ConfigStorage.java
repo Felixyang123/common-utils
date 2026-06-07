@@ -2,9 +2,11 @@ package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 配置存储接口
@@ -15,7 +17,7 @@ public interface ConfigStorage {
     /**
      * 保存应用的所有线程池配置
      *
-     * @param appId  应用 ID
+     * @param appId   应用 ID
      * @param configs 配置列表
      */
     void saveConfigs(String appId, List<ThreadPoolConfig> configs);
@@ -39,11 +41,11 @@ public interface ConfigStorage {
     /**
      * 获取单个线程池配置
      *
-     * @param appId 应用 ID
+     * @param appId    应用 ID
      * @param poolName 线程池名称
      * @return 配置
      */
-    ThreadPoolConfig getConfig(String appId, String poolName);
+    Optional<ThreadPoolConfig> getConfig(String appId, String poolName);
 
     /**
      * 删除应用的所有配置
@@ -55,7 +57,7 @@ public interface ConfigStorage {
     /**
      * 删除单个线程池配置
      *
-     * @param appId 应用 ID
+     * @param appId    应用 ID
      * @param poolName 线程池名称
      */
     void deleteConfig(String appId, String poolName);
@@ -85,13 +87,15 @@ public interface ConfigStorage {
 
     /**
      * 获取应用完整配置
+     *
      * @param appId
      * @return
      */
-    ThreadPoolAppConfig getAppConfig(String appId);
+    Optional<ThreadPoolAppConfig> getAppConfig(String appId);
 
     /**
      * 添加配置，不存在则保存
+     *
      * @param appId
      * @param config
      * @return
@@ -100,23 +104,10 @@ public interface ConfigStorage {
 
     /**
      * 批量添加配置，不存在则保存
+     *
      * @param appId
      * @param configs 新增的配置
      * @return
      */
     List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs);
-
-    /**
-     * 配置变更监听器接口
-     */
-    interface ConfigChangeListener {
-        /**
-         * 配置变更回调
-         *
-         * @param appId      应用 ID
-         * @param configs    新配置列表
-         * @param version    新版本号
-         */
-        void onConfigChanged(String appId, List<ThreadPoolConfig> configs, long version);
-    }
 }

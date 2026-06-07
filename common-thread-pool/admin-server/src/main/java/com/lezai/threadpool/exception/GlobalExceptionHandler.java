@@ -2,6 +2,7 @@ package com.lezai.threadpool.exception;
 
 import com.lezai.threadpool.bean.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -44,6 +45,20 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleValidation(ValidationException e) {
         log.warn("Validation error: {}", e.getMessage(), e);
         return ApiResponse.error(e.getCode(), e.getMessage());
+    }
+
+    /**
+     * 处理 Bean Validation 校验异常
+     * 返回 HTTP 200，业务码 400
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ApiResponse<Void> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .reduce((a, b) -> a + "; " + b)
+                .orElse("参数校验失败");
+        log.warn("Validation error: {}", message);
+        return ApiResponse.error(400, message);
     }
 
     /**

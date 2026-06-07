@@ -1,28 +1,14 @@
-package com.lezai.threadpool.dao.entity;
+package com.lezai.threadpool.pojo.dto;
 
-import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import lombok.experimental.SuperBuilder;
 
-import java.io.Serial;
 import java.time.LocalDateTime;
 
 /**
- * 统计信息实体类
- * 对应数据库表 stats_storage
+ * 统计信息DTO
  */
 @Data
-@EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
-@AllArgsConstructor
-@SuperBuilder
-@TableName(value = "thread_pool_stats", autoResultMap = true)
-public class ThreadPoolStatsEntity extends BaseEntity {
-    @Serial
-    private static final long serialVersionUID = -2361825035543745660L;
+public class ThreadPoolStatsDto {
 
     private String appId;
 
@@ -105,8 +91,4 @@ public class ThreadPoolStatsEntity extends BaseEntity {
      */
     private LocalDateTime collectTime;
 
-    /**
-     * 统计信息JSON序列化字段（存储历史统计信息）
-     */
-    private String statsJson;
 }

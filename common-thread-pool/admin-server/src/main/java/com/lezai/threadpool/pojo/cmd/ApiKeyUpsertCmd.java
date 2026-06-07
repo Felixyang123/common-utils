@@ -1,9 +1,6 @@
-package com.lezai.threadpool.bean;
+package com.lezai.threadpool.pojo.cmd;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -12,10 +9,9 @@ import java.time.LocalDateTime;
  * 用于存储和管理应用访问 admin-server Open API 的认证信息
  */
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApiKey {
+public class ApiKeyUpsertCmd {
+
+    private Long id; // 更新时需要传入 ID
 
     /**
      * 应用ID（唯一标识）
@@ -35,13 +31,7 @@ public class ApiKey {
     /**
      * 是否启用
      */
-    @Builder.Default
-    private boolean enabled = true;
-
-    /**
-     * 创建时间
-     */
-    private LocalDateTime createTime;
+    private boolean enabled;
 
     /**
      * 过期时间（null 表示永不过期）
@@ -49,33 +39,7 @@ public class ApiKey {
     private LocalDateTime expireTime;
 
     /**
-     * 最后更新时间
-     */
-    private LocalDateTime updateTime;
-
-    /**
      * 描述信息
      */
     private String description;
-
-    /**
-     * 检查 API Key 是否已过期
-     *
-     * @return true 如果已过期
-     */
-    public boolean isExpired() {
-        if (expireTime == null) {
-            return false;
-        }
-        return LocalDateTime.now().isAfter(expireTime);
-    }
-
-    /**
-     * 检查 API Key 是否有效（启用且未过期）
-     *
-     * @return true 如果有效
-     */
-    public boolean isValid() {
-        return enabled && !isExpired();
-    }
 }

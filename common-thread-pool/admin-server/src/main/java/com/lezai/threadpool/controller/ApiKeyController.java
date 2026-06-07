@@ -2,11 +2,18 @@ package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ChangeLogEntry;
 import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.pojo.cmd.CreateApiKeyCmd;
+import com.lezai.threadpool.pojo.cmd.UpdateApiKeyCmd;
+import com.lezai.threadpool.pojo.resp.ApiKeyInfoResponse;
+import com.lezai.threadpool.pojo.resp.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.resp.RegenerateApiKeyResponse;
+import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
-import lombok.Data;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +33,7 @@ import java.util.stream.Collectors;
 public class ApiKeyController {
 
     private final ApiKeyStorage apiKeyStorage;
+    private final ApiKeyHistoryStorage historyStorage;
 
     /**
      * 创建 API Key
@@ -34,7 +42,7 @@ public class ApiKeyController {
      * @return 包含明文 API Key 的响应
      */
     @PostMapping
-    public ApiResponse<CreateApiKeyResponse> createApiKey(@RequestBody CreateApiKeyRequest request) {
+    public ApiResponse<CreateApiKeyResponse> createApiKey(@Valid @RequestBody CreateApiKeyCmd request) {
         log.info("Creating API key for appId: {}", request.getAppId());
 
         // 检查 appId 是否已存在
@@ -130,9 +138,9 @@ public class ApiKeyController {
      * @return 更新后的 API Key 信息
      */
     @PutMapping("/{appId}")
-    public ApiResponse<ApiKeyInfoResponse> updateApiKey(
+    public ApiResponse<Void> updateApiKey(
             @PathVariable String appId,
-            @RequestBody UpdateApiKeyRequest request) {
+            @Valid @RequestBody UpdateApiKeyCmd request) {
         log.info("Updating API key for appId: {}", appId);
 
         if (!apiKeyStorage.exists(appId)) {
@@ -146,9 +154,9 @@ public class ApiKeyController {
         apiKey.setExpireTime(request.getExpireTime());
         apiKey.setDescription(request.getDescription());
 
-        apiKey = apiKeyStorage.updateApiKey(apiKey);
+        apiKeyStorage.saveApiKey(apiKey);
 
-        return ApiResponse.success(toApiKeyInfo(apiKey));
+        return ApiResponse.success();
     }
 
     /**
@@ -170,7 +178,6 @@ public class ApiKeyController {
         RegenerateApiKeyResponse response = new RegenerateApiKeyResponse();
         response.setAppId(appId);
         response.setApiKey(newApiKey);
-        response.setMessage("API key regenerated successfully. Please save the new key securely.");
 
         return ApiResponse.success(response);
     }
@@ -192,52 +199,30 @@ public class ApiKeyController {
         return info;
     }
 
-    // ============== 请求/响应 DTO ==============
+    /**
+     * 获取 API Key 变更历史
+     *
+     * @param appId 应用 ID
+     * @param limit 限制条数（可选，默认返回全部）
+     * @return 变更历史列表
+     */
+    @GetMapping("/{appId}/history")
+    public ApiResponse<List<ChangeLogEntry<ApiKey>>> getApiKeyHistory(
+            @PathVariable String appId,
+            @RequestParam(required = false) Integer limit) {
+        log.info("Getting API key history for appId: {}, limit: {}", appId, limit);
 
-    @Data
-    public static class CreateApiKeyRequest {
-        private String appId;
-        private String appName;
-        private String description;
-        private LocalDateTime expireTime;
-    }
+        if (!apiKeyStorage.exists(appId)) {
+            throw new ConfigNotFoundException("API key not found for appId: " + appId);
+        }
 
-    @Data
-    public static class CreateApiKeyResponse {
-        private String appId;
-        private String apiKey; // 明文 API Key，仅创建时返回
-        private String appName;
-        private boolean enabled;
-        private LocalDateTime createTime;
-        private LocalDateTime expireTime;
-        private String description;
-    }
+        List<ChangeLogEntry<ApiKey>> history;
+        if (limit != null && limit > 0) {
+            history = historyStorage.getHistory(appId, limit);
+        } else {
+            history = historyStorage.getHistory(appId);
+        }
 
-    @Data
-    public static class UpdateApiKeyRequest {
-        private String appName;
-        private boolean enabled;
-        private String description;
-        private LocalDateTime expireTime;
-    }
-
-    @Data
-    public static class ApiKeyInfoResponse {
-        private String appId;
-        private String appName;
-        private boolean enabled;
-        private boolean expired;
-        private boolean valid;
-        private LocalDateTime createTime;
-        private LocalDateTime expireTime;
-        private LocalDateTime updateTime;
-        private String description;
-    }
-
-    @Data
-    public static class RegenerateApiKeyResponse {
-        private String appId;
-        private String apiKey; // 新的明文 API Key
-        private String message;
+        return ApiResponse.success(history);
     }
 }

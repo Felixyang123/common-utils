@@ -50,14 +50,6 @@ public interface ApiKeyStorage {
     List<ApiKey> listAllApiKeys();
 
     /**
-     * 更新 API Key
-     *
-     * @param apiKey API Key 对象
-     * @return 更新后的 ApiKey
-     */
-    ApiKey updateApiKey(ApiKey apiKey);
-
-    /**
      * 检查 appId 是否已存在
      *
      * @param appId 应用 ID

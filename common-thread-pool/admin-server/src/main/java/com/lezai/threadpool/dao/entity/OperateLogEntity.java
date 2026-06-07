@@ -1,89 +1,78 @@
-package com.lezai.threadpool.bean;
+package com.lezai.threadpool.dao.entity;
 
-import com.lezai.threadpool.enums.ChangeType;
+import com.alibaba.fastjson2.JSON;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.lezai.threadpool.enums.BizType;
+import com.lezai.threadpool.enums.OperateType;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
-import java.time.LocalDateTime;
+import java.io.Serial;
+import java.util.Optional;
 
 /**
- * 变更记录条目
- * 泛型类，支持存储不同类型实体的变更历史
+ * 操作日志条目
  *
- * @param <T> 变更实体的类型
  */
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChangeLogEntry<T> {
+@SuperBuilder
+@TableName(value = "operate_log", autoResultMap = true)
+public class OperateLogEntity extends BaseEntity {
+    @Serial
+    private static final long serialVersionUID = 6336354883029529725L;
 
     /**
-     * 变更版本号
-     * 每次变更递增，用于排序和追踪
+     * 日志 ID
+     * logType=APIKEY, logId=APIKEY_ID
+     * logType=THREADPOOL, logId=THREADPOOL_CONFIG_ID
      */
-    private long version;
+    private String bizId;
+
+    /**
+     * 日志类型
+     *
+     * @see BizType
+     */
+    private String bizType;
 
     /**
      * 变更类型
+     *
+     * @see com.lezai.threadpool.enums.OperateType
      */
-    private ChangeType changeType;
+    private String operateType;
 
     /**
      * 变更前的值（可选）
      * DELETE 和 UPDATE 操作时包含
      */
-    private T oldValue;
+    private String content;
 
     /**
-     * 变更后的值
-     * CREATE, UPDATE, REGENERATE 操作时包含
-     */
-    private T newValue;
-
-    /**
-     * 变更时间戳
-     */
-    private LocalDateTime timestamp;
-
-    /**
-     * 操作人（预留字段，用于未来扩展）
+     * 操作人
      */
     private String operator;
 
     /**
      * 创建新的变更记录
      *
-     * @param version    版本号
-     * @param changeType 变更类型
-     * @param oldValue   旧值
-     * @param newValue   新值
-     * @param operator   操作人
+     * @param operateType 变更类型
+     * @param operator    操作人
      * @return 变更记录条目
      */
-    public static <T> ChangeLogEntry<T> of(long version, ChangeType changeType, T oldValue, T newValue, String operator) {
-        return ChangeLogEntry.<T>builder()
-                .version(version)
-                .changeType(changeType)
-                .oldValue(oldValue)
-                .newValue(newValue)
-                .timestamp(LocalDateTime.now())
+    public static <T> OperateLogEntity of(OperateType operateType, T obj, String operator, String bizId, String bizType) {
+        return OperateLogEntity.builder()
+                .bizId(bizId)
+                .bizType(bizType)
+                .operateType(operateType.name())
+                .content(Optional.ofNullable(obj).map(JSON::toJSONString).orElse(""))
                 .operator(operator)
                 .build();
-    }
-
-    /**
-     * 创建新的变更记录（无操作人）
-     *
-     * @param version    版本号
-     * @param changeType 变更类型
-     * @param oldValue   旧值
-     * @param newValue   新值
-     * @return 变更记录条目
-     */
-    public static <T> ChangeLogEntry<T> of(long version, ChangeType changeType, T oldValue, T newValue) {
-        return of(version, changeType, oldValue, newValue, null);
     }
 }

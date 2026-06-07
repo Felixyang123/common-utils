@@ -1,6 +1,7 @@
 package com.lezai.threadpool.core;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolStats;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +25,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     private final AtomicReference<ThreadPoolConfig> configRef;
     private final AtomicLong completedTaskCount = new AtomicLong(0);
     private final AtomicLong submittedTaskCount = new AtomicLong(0);
+    private final AtomicLong errorTaskCount = new AtomicLong(0);
 
     public DynamicThreadPoolWrapper(ThreadPoolConfig config) {
         super(
@@ -87,6 +89,9 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         completedTaskCount.incrementAndGet();
+        if (t != null) {
+            errorTaskCount.incrementAndGet();
+        }
     }
 
     /**
@@ -179,6 +184,13 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     }
 
     /**
+     * 获取异常任务数
+     */
+    public long getErrorTaskCount() {
+        return errorTaskCount.get();
+    }
+
+    /**
      * 获取线程池统计信息
      */
     public ThreadPoolStats getStats() {
@@ -194,6 +206,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                 .queueRemainingCapacity(getQueueRemainingCapacity())
                 .completedTaskCount(getCompletedTaskCount())
                 .submittedTaskCount(getSubmittedTaskCount())
+                .errorTaskCount(getErrorTaskCount())
                 .largestPoolSize(getLargestPoolSize())
                 .taskCount(getTaskCount())
                 .isShutdown(isShutdown())

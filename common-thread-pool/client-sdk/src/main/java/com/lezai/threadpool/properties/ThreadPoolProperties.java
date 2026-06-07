@@ -139,6 +139,16 @@ public class ThreadPoolProperties {
              * 短轮询间隔时间（毫秒）
              */
             private long pullIntervalMs;
+
+            /**
+             * 是否启用统计信息上报
+             */
+            private boolean reportEnabled = true;
+
+            /**
+             * 统计信息上报间隔（毫秒），默认60秒
+             */
+            private long reportIntervalMs = 60000L;
         }
     }
 

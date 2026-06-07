@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: thread-pool-admin-server
+  datasource:
+    url: jdbc:mysql://localhost:3306/threadpool_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 打印 SQL 日志（开发用）
+#    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl  # 打印 SQL 日志（生产用）
+  global-config:
+    db-config:
+      id-type: auto  # 主键自增策略
+      logic-delete-field: deleted  # 全局逻辑删除字段名
+      logic-not-delete-value: 0    # 未删除值
+      logic-delete-value: 1        # 已删除值

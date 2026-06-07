@@ -1,0 +1,9 @@
+threadpool:
+  admin:
+    storage:
+      type: local
+    api-key-storage-path: ${java.io.tmpdir}/threadpool-test/api-keys
+    config-storage-path: ${java.io.tmpdir}/threadpool-test/configs
+    stats-storage-path: ${java.io.tmpdir}/threadpool-test/stats
+    auth-enabled: true
+    history-max-size: 50

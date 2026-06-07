@@ -1,6 +1,6 @@
 package com.lezai.threadpool.enums;
 
-public enum LogType {
+public enum BizType {
     /**
      * api key
      */

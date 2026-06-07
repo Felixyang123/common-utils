@@ -1,10 +1,9 @@
 package com.lezai.threadpool.enums;
 
 /**
- * 变更类型枚举
- * 用于标识 API Key 和线程池配置的变更操作类型
+ * 操作日志类型枚举
  */
-public enum ChangeType {
+public enum OperateType {
     /**
      * 创建操作
      */
@@ -23,5 +22,10 @@ public enum ChangeType {
     /**
      * API Key 重新生成操作
      */
-    REGENERATE
+    REGENERATE,
+
+    /**
+     * 插入或更新操作
+     */
+    UPSERT
 }

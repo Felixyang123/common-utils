@@ -1,15 +1,21 @@
-package com.lezai.threadpool.core;
+package com.lezai.threadpool.bean;
 
 import lombok.Builder;
 import lombok.Data;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 线程池统计信息
  */
 @Data
 @Builder
-public class ThreadPoolStats {
+public class ThreadPoolStats implements Serializable {
 
+    @Serial
+    private static final long serialVersionUID = 199119351219877335L;
     /**
      * 线程池名称
      */
@@ -61,6 +67,11 @@ public class ThreadPoolStats {
     private long submittedTaskCount;
 
     /**
+     * 异常任务数
+     */
+    private long errorTaskCount;
+
+    /**
      * 历史最大线程数
      */
     private int largestPoolSize;
@@ -79,6 +90,11 @@ public class ThreadPoolStats {
      * 是否已终止
      */
     private boolean isTerminated;
+
+    /**
+     * 统计信息收集时间
+     */
+    private LocalDateTime collectTime;
 
     /**
      * 线程池负载率（活跃线程数/最大线程数）

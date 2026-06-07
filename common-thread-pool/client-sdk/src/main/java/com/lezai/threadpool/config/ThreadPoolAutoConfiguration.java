@@ -3,6 +3,7 @@ package com.lezai.threadpool.config;
 import com.lezai.threadpool.aspect.CreateThreadPoolAspect;
 import com.lezai.threadpool.aspect.ThreadPoolAspect;
 import com.lezai.threadpool.client.RemoteConfigSourceDetector;
+import com.lezai.threadpool.client.ThreadPoolStatsReporter;
 import com.lezai.threadpool.init.ThreadPoolInitializer;
 import com.lezai.threadpool.manager.RemoteConfigSourcePoolManager;
 import com.lezai.threadpool.manager.ThreadPoolManager;
@@ -78,6 +79,40 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     public CreateThreadPoolAspect createThreadPoolAspect(ThreadPoolManager threadPoolManager) {
         return new CreateThreadPoolAspect(threadPoolManager);
+    }
+
+    // ==================== 统计上报组件 ====================
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.server.enabled")
+    public ThreadPoolStatsReporter threadPoolStatsReporter(ThreadPoolManager threadPoolManager) {
+        ThreadPoolProperties.RemoteServerConfig.ClientConfig client = properties.getRemote().getClient();
+        ThreadPoolProperties.RemoteServerConfig.ServerConfig server = properties.getRemote().getServer();
+
+        if (!client.isReportEnabled()) {
+            log.info("ThreadPoolStatsReporter is disabled");
+            return null;
+        }
+
+        ThreadPoolStatsReporter reporter = new ThreadPoolStatsReporter(
+                server.getServerUrl(),
+                client.getAppId(),
+                client.getApiKey(),
+                client.getReportIntervalMs(),
+                threadPoolManager
+        );
+        reporter.start();
+        log.info("Initialized ThreadPoolStatsReporter, interval: {}ms", client.getReportIntervalMs());
+        return reporter;
+    }
+
+    @Bean
+    public ApplicationListener<ContextClosedEvent> reporterDestroyListener(ThreadPoolStatsReporter reporter) {
+        return event -> {
+            if (reporter != null) {
+                reporter.stop();
+            }
+        };
     }
 
     // ==================== 初始化器 ====================

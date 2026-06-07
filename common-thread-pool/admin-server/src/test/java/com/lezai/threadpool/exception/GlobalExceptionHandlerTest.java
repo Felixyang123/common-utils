@@ -1,0 +1,72 @@
+package com.lezai.threadpool.exception;
+
+import com.lezai.threadpool.bean.ApiResponse;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class GlobalExceptionHandlerTest {
+
+    private GlobalExceptionHandler handler;
+
+    @BeforeEach
+    void setUp() {
+        handler = new GlobalExceptionHandler();
+    }
+
+    @Test
+    @DisplayName("handleConfigNotFound returns code 404")
+    void handleConfigNotFound() {
+        ConfigNotFoundException ex = new ConfigNotFoundException("not found");
+        ApiResponse<Void> response = handler.handleConfigNotFound(ex);
+        assertThat(response.getCode()).isEqualTo(404);
+        assertThat(response.getMessage()).isEqualTo("not found");
+    }
+
+    @Test
+    @DisplayName("handleConfigAlreadyExists returns code 409")
+    void handleConfigAlreadyExists() {
+        ConfigAlreadyExistsException ex = new ConfigAlreadyExistsException("already exists");
+        ApiResponse<Void> response = handler.handleConfigAlreadyExists(ex);
+        assertThat(response.getCode()).isEqualTo(409);
+        assertThat(response.getMessage()).isEqualTo("already exists");
+    }
+
+    @Test
+    @DisplayName("handleValidation returns code 400")
+    void handleValidation() {
+        ValidationException ex = new ValidationException("invalid input");
+        ApiResponse<Void> response = handler.handleValidation(ex);
+        assertThat(response.getCode()).isEqualTo(400);
+        assertThat(response.getMessage()).isEqualTo("invalid input");
+    }
+
+    @Test
+    @DisplayName("handleStorage returns generic message, not internal details")
+    void handleStorage() {
+        StorageException ex = new StorageException("disk failure details");
+        ApiResponse<Void> response = handler.handleStorage(ex);
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("Internal server error");
+    }
+
+    @Test
+    @DisplayName("handleBusinessException uses exception code and message")
+    void handleBusinessException() {
+        BusinessException ex = new BusinessException(503, "service unavailable");
+        ApiResponse<Void> response = handler.handleBusinessException(ex);
+        assertThat(response.getCode()).isEqualTo(503);
+        assertThat(response.getMessage()).isEqualTo("service unavailable");
+    }
+
+    @Test
+    @DisplayName("handleException returns generic 500 message")
+    void handleException() {
+        Exception ex = new RuntimeException("unexpected null pointer");
+        ApiResponse<Void> response = handler.handleException(ex);
+        assertThat(response.getCode()).isEqualTo(500);
+        assertThat(response.getMessage()).isEqualTo("Internal server error");
+    }
+}

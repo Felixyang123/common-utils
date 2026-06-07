@@ -1,4 +1,7 @@
 package com.lezai.threadpool.dao.mapper;
 
-public interface ThreadPoolConfigAppMapper {
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
+
+public interface ThreadPoolConfigAppMapper extends BaseMapper<ThreadPoolConfigAppEntity> {
 }

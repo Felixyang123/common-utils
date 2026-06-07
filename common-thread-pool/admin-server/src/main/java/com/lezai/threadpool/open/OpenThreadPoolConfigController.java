@@ -3,18 +3,24 @@ package com.lezai.threadpool.open;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.exception.ConfigNotModifiedException;
+import com.lezai.threadpool.bean.ThreadPoolStatsReport;
+import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.storage.ConfigStorage;
+import com.lezai.threadpool.storage.listener.ConfigChangeListener;
+import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 线程池配置管理控制器
@@ -24,105 +30,102 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @RestController
 @RequestMapping("/open/api/thread-pool")
+@RequiredArgsConstructor
 public class OpenThreadPoolConfigController {
 
+    private final OpenThreadPoolConfigService openThreadPoolConfigService;
     private final ConfigStorage configStorage;
     private final ScheduledExecutorService subscriptionExecutor;
-
-    public OpenThreadPoolConfigController(ConfigStorage configStorage) {
-        this.configStorage = configStorage;
-        // 用于处理长轮询订阅的线程池
-        AtomicInteger counter = new AtomicInteger(1);
-        this.subscriptionExecutor = new ScheduledThreadPoolExecutor(10, r -> {
-            Thread t = new Thread(r, "long-polling-subscription-" + counter.getAndAdd(1));
-            t.setDaemon(true);
-            return t;
-        });
-    }
+    private final ConfigChangeListenerManager listenerManager;
 
     /**
      * 添加配置，存在直接返回
-     *
-     * @param appId
-     * @param config
-     * @return
      */
     @PostMapping("/config/{appId}/add")
     public ApiResponse<ThreadPoolConfig> addConfig(
             @PathVariable String appId,
-            @RequestBody ThreadPoolConfig config) {
-        return ApiResponse.success(configStorage.addConfig(appId, config));
+            @Valid @RequestBody ThreadPoolConfig config) {
+        return ApiResponse.success(openThreadPoolConfigService.addConfig(appId, config));
     }
 
     /**
      * 批量添加配置
-     *
-     * @param appId
-     * @param configs
-     * @return
      */
     @PostMapping("/configs/{appId}/add")
     public ApiResponse<List<ThreadPoolConfig>> addConfigs(
             @PathVariable String appId,
-            @RequestBody List<ThreadPoolConfig> configs) {
-        return ApiResponse.success(configStorage.addConfigs(appId, configs));
+            @Valid @RequestBody List<ThreadPoolConfig> configs) {
+        return ApiResponse.success(openThreadPoolConfigService.addConfigs(appId, configs));
     }
 
     /**
      * 长轮询订阅配置变更
-     * 客户端通过长连接订阅当前 appId 下的所有线程池配置变更事件
-     *
-     * @param appId   应用 ID
-     * @param version 客户端当前持有的配置版本
-     * @param timeout 超时时间（毫秒）
-     * @return 配置列表（如果有更新）或 304 未修改
      */
     @GetMapping(value = "/configs/{appId}/subscribe", produces = MediaType.APPLICATION_JSON_VALUE)
     public DeferredResult<ApiResponse<ThreadPoolAppConfig>> subscribe(
             @PathVariable String appId,
             @RequestParam Long version,
-            @RequestParam(defaultValue = "30000") Long timeout) {
+            @Valid
+            @Min(value = 1000, message = "timeout必须在1000-60000之间")
+            @RequestParam(defaultValue = "30000")
+            Long timeout) {
 
         log.debug("Subscription request: appId={}, version={}, timeout={}", appId, version, timeout);
 
         DeferredResult<ApiResponse<ThreadPoolAppConfig>> deferredResult =
                 new DeferredResult<>(timeout, ApiResponse.error(304, "Not modified"));
 
-        // 检查是否有新版本
-        ThreadPoolAppConfig appConfig = configStorage.getAppConfig(appId);
+        Optional<ThreadPoolAppConfig> appConfigOptional = configStorage.getAppConfig(appId);
+
+        if (appConfigOptional.isEmpty()) {
+            throw new ConfigNotFoundException("Config not found for appId: " + appId);
+        }
+
+        ThreadPoolAppConfig appConfig = appConfigOptional.get();
         long currentVersion = appConfig.getConfigVersion();
         if (currentVersion > version) {
-            // 配置已更新，立即返回
             deferredResult.setResult(ApiResponse.success(appConfig));
             log.info("Immediate response for subscription: appId={}, newVersion={}", appId, currentVersion);
             return deferredResult;
         }
 
-        // 注册监听器
-        ConfigStorage.ConfigChangeListener listener = (notifyAppId, configs, newVersion) -> {
-            if (appId.equals(notifyAppId) && newVersion > version) {
-                log.info("Config change detected for subscription: appId={}, newVersion={}", appId, newVersion);
-                deferredResult.setResult(ApiResponse.success(appConfig));
+        ConfigChangeListener listener = new ConfigChangeListener() {
+            @Override
+            public void onConfigChanged(String notifyAppId, long newVersion) {
+                if (appId.equals(notifyAppId) && newVersion > version) {
+                    log.info("Config change detected for subscription: appId={}, newVersion={}", appId, newVersion);
+                    deferredResult.setResult(ApiResponse.success(ThreadPoolAppConfig.builder().appId(appId)
+                            .configVersion(newVersion).build()));
+                }
+            }
+
+            @Override
+            public boolean isExpired() {
+                return deferredResult.isSetOrExpired();
             }
         };
 
         configStorage.registerChangeListener(appId, listener);
+        log.info("Registered config change listener for subscription: appId={}, version: {}", appId, version);
 
-        // 设置超时处理
-        deferredResult.onTimeout(() -> log.debug("Subscription timeout: appId={}, version={}", appId, version));
-
-        // 设置完成处理（清理资源）
+        deferredResult.onTimeout(() -> {
+            log.debug("Subscription timeout, unregister listener: appId={}, version={}", appId, version);
+            listenerManager.unregister(appId,  listener);
+        });
         deferredResult.onCompletion(() -> {
-            log.debug("Subscription completed: appId={}", appId);
+            log.debug("Subscription completed, unregister listener: appId={}", appId);
+            listenerManager.unregister(appId,  listener);
         });
 
-        // 在超时期间再次检查一次（防止竞争条件）
         subscriptionExecutor.schedule(() -> {
             if (!deferredResult.isSetOrExpired()) {
-                ThreadPoolAppConfig poolAppConfig = configStorage.getAppConfig(appId);
-                if (poolAppConfig.getConfigVersion() > version) {
-                    deferredResult.setResult(ApiResponse.success(poolAppConfig));
-                }
+                configStorage.getAppConfig(appId).ifPresent(poolAppConfig -> {
+                    if (poolAppConfig.getConfigVersion() > version) {
+                        log.info("Config change detected backend for subscription: appId={}, newVersion={}", appId,
+                                poolAppConfig.getConfigVersion());
+                        deferredResult.setResult(ApiResponse.success(poolAppConfig));
+                    }
+                });
             }
         }, Math.min(1000, timeout), TimeUnit.MILLISECONDS);
 
@@ -137,14 +140,15 @@ public class OpenThreadPoolConfigController {
     public ApiResponse<ThreadPoolAppConfig> pullConfigs(
             @PathVariable String appId,
             @RequestParam(required = false) Long version) {
+        return ApiResponse.success(openThreadPoolConfigService.pullConfigs(appId, version));
+    }
 
-        ThreadPoolAppConfig appConfig = configStorage.getAppConfig(appId);
-
-        long currentVersion = appConfig.getConfigVersion();
-        if (version != null && currentVersion <= version) {
-            throw new ConfigNotModifiedException("Config not modified for appId: " + appId);
-        }
-
-        return ApiResponse.success(appConfig);
+    /**
+     * 接收线程池统计信息上报
+     */
+    @PostMapping("/stats/report")
+    public ApiResponse<Void> reportStats(@Valid @RequestBody ThreadPoolStatsReport report) {
+        openThreadPoolConfigService.reportStats(report);
+        return ApiResponse.success();
     }
 }

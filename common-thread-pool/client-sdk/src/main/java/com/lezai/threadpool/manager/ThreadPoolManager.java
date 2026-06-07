@@ -1,11 +1,10 @@
 package com.lezai.threadpool.manager;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
-import com.lezai.threadpool.core.ThreadPoolStats;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -92,7 +91,7 @@ public class ThreadPoolManager {
      */
     public ThreadPoolStats getPoolStats(String poolName) {
         DynamicThreadPoolWrapper pool = getPool(poolName);
-        return pool != null ? pool.getStats() : null;
+        return pool.getStats();
     }
 
     /**
@@ -101,11 +100,9 @@ public class ThreadPoolManager {
      * @return 统计信息列表
      */
     public List<ThreadPoolStats> getAllPoolStats() {
-        List<ThreadPoolStats> statsList = new ArrayList<>();
-        for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
-            statsList.add(pool.getStats());
-        }
-        return statsList;
+        return poolRegistry.values().stream()
+                .map(DynamicThreadPoolWrapper::getStats)
+                .toList();
     }
 
 

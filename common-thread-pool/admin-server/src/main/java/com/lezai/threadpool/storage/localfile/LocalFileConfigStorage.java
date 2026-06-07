@@ -1,4 +1,4 @@
-package com.lezai.threadpool.storage;
+package com.lezai.threadpool.storage.localfile;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
@@ -6,21 +6,20 @@ import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.enums.StorageType;
 import com.lezai.threadpool.exception.StorageException;
-import com.lezai.threadpool.storage.base.AbstractLocalFileStorage;
+import com.lezai.threadpool.storage.ConfigHistoryStorage;
+import com.lezai.threadpool.storage.ConfigStorage;
+import com.lezai.threadpool.storage.listener.ConfigChangeListener;
+import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -34,23 +33,18 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
         implements ConfigStorage {
 
     private static final String FILE_SUFFIX = "_threadpool.json";
-    private final Map<String, List<ConfigChangeListener>> changeListeners;
-    private final ExecutorService listenerExecutor;
+
     private final ConfigHistoryStorage historyStorage;
 
-    public LocalFileConfigStorage(String configDir) {
-        this(configDir, null);
-    }
+    private final ConfigChangeListenerManager listenerManager;
 
-    public LocalFileConfigStorage(String configDir, ConfigHistoryStorage historyStorage) {
+
+    public LocalFileConfigStorage(String configDir,
+                                  ConfigHistoryStorage historyStorage,
+                                  ConfigChangeListenerManager listenerManager) {
         super(configDir);
-        this.changeListeners = new HashMap<>();
-        this.listenerExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "config-listener-thread");
-            t.setDaemon(true);
-            return t;
-        });
         this.historyStorage = historyStorage;
+        this.listenerManager = listenerManager;
     }
 
     @Override
@@ -130,21 +124,12 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public List<ThreadPoolConfig> getConfigs(String appId) {
-        ThreadPoolConfigFile file = getFromCache(appId);
-        if (file == null) {
-            return null;
-        }
-        return file.getConfigs().values().stream().toList();
+        return getAppConfig(appId).map(ThreadPoolAppConfig::getConfigs).orElseGet(List::of);
     }
 
     @Override
-    public ThreadPoolConfig getConfig(String appId, String poolName) {
-        ThreadPoolConfigFile file = getFromCache(appId);
-        if (file == null) {
-            return null;
-        }
-        return Optional.ofNullable(file.getConfigs()).map(map -> map.get(poolName))
-                .orElse(null);
+    public Optional<ThreadPoolConfig> getConfig(String appId, String poolName) {
+        return getFromCache(appId).map(configFile -> configFile.getConfigs().get(poolName));
     }
 
     @Override
@@ -154,7 +139,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             oldConfigsRef.set(configFile);
             Path path = getStoragePath(appId);
             deleteFile(path);
-            changeListeners.remove(appId);
+            listenerManager.unregister(appId);
             return null;
         });
 
@@ -220,27 +205,21 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public long getConfigVersion(String appId) {
-        ThreadPoolConfigFile file = getFromCache(appId);
-        return file != null ? file.getVersion() : 0L;
+        return getAppConfig(appId).map(ThreadPoolAppConfig::getConfigVersion).orElse(0L);
     }
 
     @Override
     public void registerChangeListener(String appId, ConfigChangeListener listener) {
-        changeListeners.computeIfAbsent(appId, k -> new CopyOnWriteArrayList<>()).add(listener);
-        log.info("Registered config change listener for appId: {}", appId);
+        listenerManager.register(appId, listener);
     }
 
     @Override
-    public ThreadPoolAppConfig getAppConfig(String appId) {
-        ThreadPoolConfigFile file = getFromCache(appId);
-        if (file == null) {
-            return null;
-        }
-        return ThreadPoolAppConfig.builder()
+    public Optional<ThreadPoolAppConfig> getAppConfig(String appId) {
+        return getFromCache(appId).map(configFile -> ThreadPoolAppConfig.builder()
                 .appId(appId)
-                .configVersion(file.getVersion())
-                .configs(file.getConfigs().values().stream().toList())
-                .build();
+                .configVersion(configFile.getVersion())
+                .configs(configFile.getConfigs().values().stream().toList())
+                .build());
     }
 
     @Override
@@ -324,19 +303,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
     }
 
     private void notifyListeners(ThreadPoolConfigFile file) {
-        List<ConfigChangeListener> listeners = changeListeners.get(file.getAppId());
-        if (!CollectionUtils.isEmpty(listeners)) {
-            for (ConfigChangeListener listener : listeners) {
-                listenerExecutor.execute(() -> {
-                    try {
-                        List<ThreadPoolConfig> configs = file.getConfigs().values().stream().toList();
-                        listener.onConfigChanged(file.getAppId(), configs, file.getVersion());
-                    } catch (Exception e) {
-                        log.error("Error notifying config change listener for appId: {}", file.getAppId(), e);
-                    }
-                });
-            }
-        }
+        listenerManager.triggerListeners(file.getAppId(), file.getVersion());
     }
 
     @Data

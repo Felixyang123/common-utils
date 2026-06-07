@@ -1,16 +1,18 @@
 package com.lezai.threadpool.controller;
 
-import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
-import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.bean.*;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
+import com.lezai.threadpool.storage.StatsStorage;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * 线程池配置管理控制器
@@ -22,20 +24,20 @@ import java.util.List;
 public class ThreadPoolConfigController {
 
     private final ConfigStorage configStorage;
+    private final StatsStorage statsStorage;
+    private final ConfigHistoryStorage historyStorage;
 
     /**
      * 获取应用的所有线程池配置
      */
     @GetMapping("/configs/{appId}")
     public ApiResponse<ThreadPoolConfigResp> getAppConfig(@PathVariable String appId) {
-        ThreadPoolAppConfig appConfig = configStorage.getAppConfig(appId);
-        if (appConfig == null) {
-            throw new ConfigNotFoundException("Config not found for appId: " + appId);
-        }
-        return ApiResponse.success(ThreadPoolConfigResp.builder()
-                .configVersion(appConfig.getConfigVersion())
-                .configs(appConfig.getConfigs())
-                .build());
+        return configStorage.getAppConfig(appId).map(appConfig -> ApiResponse.success(
+                        ThreadPoolConfigResp.builder()
+                                .configVersion(appConfig.getConfigVersion())
+                                .configs(appConfig.getConfigs())
+                                .build()))
+                .orElseThrow(() -> new ConfigNotFoundException("Config not found for appId: " + appId));
     }
 
     /**
@@ -45,11 +47,8 @@ public class ThreadPoolConfigController {
     public ApiResponse<ThreadPoolConfig> getConfig(
             @PathVariable String appId,
             @PathVariable String poolName) {
-        ThreadPoolConfig config = configStorage.getConfig(appId, poolName);
-        if (config == null) {
-            throw new ConfigNotFoundException("Config not found for pool: " + poolName);
-        }
-        return ApiResponse.success(config);
+        return configStorage.getConfig(appId, poolName).map(ApiResponse::success).orElseThrow(() ->
+                new ConfigNotFoundException("Config not found for pool: " + poolName));
     }
 
     /**
@@ -58,7 +57,7 @@ public class ThreadPoolConfigController {
     @PostMapping("/configs/{appId}")
     public ApiResponse<Void> saveConfigs(
             @PathVariable String appId,
-            @RequestBody List<ThreadPoolConfig> configs) {
+            @Valid @RequestBody List<ThreadPoolConfig> configs) {
         configStorage.saveConfigs(appId, configs);
         log.info("Configs saved for appId: {}", appId);
         return ApiResponse.success();
@@ -71,7 +70,7 @@ public class ThreadPoolConfigController {
     public ApiResponse<Void> saveConfig(
             @PathVariable String appId,
             @PathVariable String poolName,
-            @RequestBody ThreadPoolConfig config) {
+            @Valid @RequestBody ThreadPoolConfig config) {
         configStorage.saveConfig(appId, config);
         log.info("Config saved for appId: {}, pool: {}", appId, poolName);
         return ApiResponse.success();
@@ -114,7 +113,7 @@ public class ThreadPoolConfigController {
     @PostMapping("/config/{appId}/add")
     public ApiResponse<ThreadPoolConfig> addConfig(
             @PathVariable String appId,
-            @RequestBody ThreadPoolConfig config) {
+            @Valid @RequestBody ThreadPoolConfig config) {
         return ApiResponse.success(configStorage.addConfig(appId, config));
     }
 
@@ -124,7 +123,55 @@ public class ThreadPoolConfigController {
     @PostMapping("/configs/{appId}/add")
     public ApiResponse<List<ThreadPoolConfig>> addConfigs(
             @PathVariable String appId,
-            @RequestBody List<ThreadPoolConfig> configs) {
+            @Valid @RequestBody List<ThreadPoolConfig> configs) {
         return ApiResponse.success(configStorage.addConfigs(appId, configs));
+    }
+
+    // ==================== 统计信息查询接口 ====================
+
+    /**
+     * 获取应用的所有配置变更历史
+     *
+     * @param appId 应用 ID
+     * @return 按线程池名称分组的变更历史
+     */
+    @GetMapping("/configs/{appId}/history")
+    public ApiResponse<Map<String, List<ChangeLogEntry<ThreadPoolConfig>>>> getConfigHistory(
+            @PathVariable String appId) {
+        log.info("Getting config history for appId: {}", appId);
+
+        return configStorage.getAppConfig(appId).map(appConfig -> ApiResponse.success(
+                        historyStorage.getAllHistory(appId)))
+                .orElseThrow(() -> new ConfigNotFoundException("Config not found for appId: " + appId));
+    }
+
+    /**
+     * 获取指定线程池的配置变更历史
+     *
+     * @param appId    应用 ID
+     * @param poolName 线程池名称
+     * @param limit    限制条数（可选，默认返回全部）
+     * @return 变更历史列表
+     */
+    @GetMapping("/configs/{appId}/{poolName}/history")
+    public ApiResponse<List<ChangeLogEntry<ThreadPoolConfig>>> getPoolConfigHistory(
+            @PathVariable String appId,
+            @PathVariable String poolName,
+            @RequestParam(required = false) Integer limit) {
+        log.info("Getting pool config history for appId: {}, pool: {}, limit: {}", appId, poolName, limit);
+
+        Optional<ThreadPoolConfig> configOptional = configStorage.getConfig(appId, poolName);
+        if (configOptional.isEmpty()) {
+            throw new ConfigNotFoundException("Config not found for pool: " + poolName);
+        }
+
+        List<ChangeLogEntry<ThreadPoolConfig>> history;
+        if (limit != null && limit > 0) {
+            history = historyStorage.getHistory(appId, poolName, limit);
+        } else {
+            history = historyStorage.getHistory(appId, poolName);
+        }
+
+        return ApiResponse.success(history);
     }
 }

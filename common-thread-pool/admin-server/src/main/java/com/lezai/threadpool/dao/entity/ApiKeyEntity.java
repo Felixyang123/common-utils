@@ -1,10 +1,12 @@
-package com.lezai.threadpool.bean;
+package com.lezai.threadpool.dao.entity;
 
-import lombok.AllArgsConstructor;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
 
+import java.io.Serial;
 import java.time.LocalDateTime;
 
 /**
@@ -12,10 +14,12 @@ import java.time.LocalDateTime;
  * 用于存储和管理应用访问 admin-server Open API 的认证信息
  */
 @Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApiKey {
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@TableName(value = "api_key", autoResultMap = true)
+public class ApiKeyEntity extends BaseEntity {
+    @Serial
+    private static final long serialVersionUID = -8427733888707075983L;
 
     /**
      * 应用ID（唯一标识）
@@ -36,7 +40,7 @@ public class ApiKey {
      * 是否启用
      */
     @Builder.Default
-    private boolean enabled = true;
+    private Boolean enabled = Boolean.TRUE;
 
     /**
      * 创建时间
@@ -57,25 +61,4 @@ public class ApiKey {
      * 描述信息
      */
     private String description;
-
-    /**
-     * 检查 API Key 是否已过期
-     *
-     * @return true 如果已过期
-     */
-    public boolean isExpired() {
-        if (expireTime == null) {
-            return false;
-        }
-        return LocalDateTime.now().isAfter(expireTime);
-    }
-
-    /**
-     * 检查 API Key 是否有效（启用且未过期）
-     *
-     * @return true 如果有效
-     */
-    public boolean isValid() {
-        return enabled && !isExpired();
-    }
 }
