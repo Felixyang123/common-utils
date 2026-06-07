@@ -22,6 +22,7 @@ Dynamic thread pool management component (Spring Boot) supporting LOCAL / FILE /
 | `admin-server/` | Management server: Spring Boot app, REST controllers, MyBatis DAO, storage backends (Redis, local file, remote) |
 | `client-sdk/` | Client library: annotations (`@CreateThreadPool`, `@AsyncThreadPool`, `@EnableThreadPool`), aspects, auto-config, pool manager |
 | `thread-pool-spring-boot-starter/` | Spring Boot starter: wraps client-sdk + core as an auto-configured dependency |
+| `samples/` | Example apps: `sample-local` (LOCAL mode, port 8081), `sample-cs-client` (CS client, port 8083) |
 
 ## Commands
 

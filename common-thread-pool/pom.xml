@@ -25,5 +25,6 @@
         <module>admin-server</module>
         <module>client-sdk</module>
         <module>thread-pool-spring-boot-starter</module>
+        <module>samples</module>
     </modules>
 </project>

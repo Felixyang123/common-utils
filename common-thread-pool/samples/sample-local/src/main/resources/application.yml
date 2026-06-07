@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: thread-pool-sample-local
+
+thread:
+  pool:
+    enabled: true
+    default-pool:
+      core-pool-size: 4
+      maximum-pool-size: 8
+      queue-capacity: 256
+      keep-alive-time: 60
+      queue-type: BLOCKING_QUEUE
+      reject-policy-type: ABORT
+    pools:
+      - name: report-pool
+        core-pool-size: 2
+        maximum-pool-size: 4
+        queue-capacity: 128
+      - name: notification-pool
+        core-pool-size: 2
+        maximum-pool-size: 4
+        queue-capacity: 64
