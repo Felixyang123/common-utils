@@ -100,6 +100,7 @@ public class ThreadPoolConfig {
         private boolean allowCoreThreadTimeout = false;
         private String threadNamePrefix;
         private boolean daemon = false;
+        private boolean maximumPoolSizeExplicitlySet;
 
         public ThreadPoolConfigBuilder poolName(String poolName) {
             this.poolName = poolName;
@@ -113,6 +114,7 @@ public class ThreadPoolConfig {
 
         public ThreadPoolConfigBuilder maximumPoolSize(int maximumPoolSize) {
             this.maximumPoolSize = maximumPoolSize;
+            this.maximumPoolSizeExplicitlySet = true;
             return this;
         }
 
@@ -159,6 +161,9 @@ public class ThreadPoolConfig {
         public ThreadPoolConfig build() {
             if (StringUtils.isBlank(threadNamePrefix)) {
                 threadNamePrefix = poolName;
+            }
+            if (!maximumPoolSizeExplicitlySet) {
+                maximumPoolSize = corePoolSize * 2;
             }
             return new ThreadPoolConfig(
                     poolName, corePoolSize, maximumPoolSize, keepAliveTime,

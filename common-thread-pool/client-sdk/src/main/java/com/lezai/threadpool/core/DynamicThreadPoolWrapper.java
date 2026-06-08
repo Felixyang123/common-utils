@@ -100,18 +100,32 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     public void updateConfig(ThreadPoolConfig newConfig) {
         ThreadPoolConfig oldConfig = configRef.get();
 
-        // 更新核心线程数
-        if (newConfig.getCorePoolSize() != oldConfig.getCorePoolSize()) {
-            setCorePoolSize(newConfig.getCorePoolSize());
-            log.info("Thread pool [{}] core size changed: {} -> {}",
-                    poolName, oldConfig.getCorePoolSize(), newConfig.getCorePoolSize());
-        }
+        int newCore = newConfig.getCorePoolSize();
+        int newMax = newConfig.getMaximumPoolSize();
+        int oldCore = oldConfig.getCorePoolSize();
+        int oldMax = oldConfig.getMaximumPoolSize();
 
-        // 更新最大线程数
-        if (newConfig.getMaximumPoolSize() != oldConfig.getMaximumPoolSize()) {
-            setMaximumPoolSize(newConfig.getMaximumPoolSize());
+        boolean coreChanged = newCore != oldCore;
+        boolean maxChanged = newMax != oldMax;
+
+        // Update pool size params in safe order:
+        //   1. Expand max first to make room for a larger core
+        //   2. Set core
+        //   3. Shrink max after core is reduced
+        if (maxChanged && newMax > oldMax) {
+            setMaximumPoolSize(newMax);
             log.info("Thread pool [{}] max size changed: {} -> {}",
-                    poolName, oldConfig.getMaximumPoolSize(), newConfig.getMaximumPoolSize());
+                    poolName, oldMax, newMax);
+        }
+        if (coreChanged) {
+            setCorePoolSize(newCore);
+            log.info("Thread pool [{}] core size changed: {} -> {}",
+                    poolName, oldCore, newCore);
+        }
+        if (maxChanged && newMax <= oldMax) {
+            setMaximumPoolSize(newMax);
+            log.info("Thread pool [{}] max size changed: {} -> {}",
+                    poolName, oldMax, newMax);
         }
 
         // 更新空闲线程存活时间
