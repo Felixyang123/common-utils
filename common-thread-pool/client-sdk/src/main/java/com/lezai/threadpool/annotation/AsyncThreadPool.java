@@ -1,7 +1,6 @@
 package com.lezai.threadpool.annotation;
 
 import java.lang.annotation.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 异步线程池注解
@@ -16,7 +15,7 @@ public @interface AsyncThreadPool {
      * 线程池名称
      * 默认为空，使用默认线程池
      */
-    String poolName() default "";
+    String poolName() default "default-pool";
 
     /**
      * 是否启用

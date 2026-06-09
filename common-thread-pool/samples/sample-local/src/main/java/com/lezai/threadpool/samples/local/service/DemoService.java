@@ -48,7 +48,7 @@ public class DemoService {
 
     /** 编程式提交任务 */
     public String submitProgrammatic(String taskName) {
-        threadPoolManager.getRequiredPool("notification-pool").submit(() -> {
+        threadPoolManager.getPool("notification-pool").submit(() -> {
             log.info("Programmatic task '{}' submitted to notification-pool", taskName);
             simulateWork("programmatic", 500);
         });
