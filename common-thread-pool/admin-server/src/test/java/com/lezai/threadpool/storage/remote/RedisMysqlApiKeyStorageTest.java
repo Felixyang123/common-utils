@@ -2,12 +2,12 @@ package com.lezai.threadpool.storage.remote;
 
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.converter.ApiKeyConvertor;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ApiKeyDto;
-import com.lezai.threadpool.service.ApiKeyService;
+import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,10 +42,10 @@ class RedisMysqlApiKeyStorageTest {
     private RedissonClient redissonClient;
 
     @Mock
-    private ApiKeyService apiKeyService;
+    private ApiKeyPersistenceService apiKeyService;
 
     @Mock
-    private ApiKeyConvertor apiKeyConvertor;
+    private ApiKeyConverter apiKeyConvertor;
 
     @Captor
     private ArgumentCaptor<ApiKeyUpsertCmd> upsertCmdCaptor;

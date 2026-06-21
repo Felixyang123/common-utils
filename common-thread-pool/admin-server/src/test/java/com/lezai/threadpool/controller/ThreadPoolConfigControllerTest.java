@@ -5,11 +5,11 @@ import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ChangeLogEntry;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.enums.ChangeType;
+import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
-import com.lezai.threadpool.storage.ConfigHistoryStorage;
-import com.lezai.threadpool.storage.ConfigStorage;
-import com.lezai.threadpool.storage.StatsStorage;
+import com.lezai.threadpool.service.ConfigAdminService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,10 +24,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -38,13 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ThreadPoolConfigControllerTest {
 
     @Mock
-    private ConfigStorage configStorage;
-
-    @Mock
-    private StatsStorage statsStorage;
-
-    @Mock
-    private ConfigHistoryStorage historyStorage;
+    private ConfigAdminService configAdminService;
 
     @InjectMocks
     private ThreadPoolConfigController controller;
@@ -61,12 +53,11 @@ class ThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /api/thread-pool/configs/{appId} returns app config")
     void getAppConfig_success() throws Exception {
-        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
-                .appId("app1")
+        ThreadPoolConfigResp resp = ThreadPoolConfigResp.builder()
                 .configVersion(3)
                 .configs(TestDataFactory.buildConfigList("pool-a", "pool-b"))
                 .build();
-        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
+        when(configAdminService.getAppConfig("app1")).thenReturn(resp);
 
         mockMvc.perform(get("/api/thread-pool/configs/app1"))
                 .andExpect(status().isOk())
@@ -78,7 +69,8 @@ class ThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /api/thread-pool/configs/{appId} returns 404 when not found")
     void getAppConfig_notFound() throws Exception {
-        when(configStorage.getAppConfig("unknown")).thenReturn(Optional.empty());
+        when(configAdminService.getAppConfig("unknown"))
+                .thenThrow(new ConfigNotFoundException("Config not found for appId: unknown"));
 
         mockMvc.perform(get("/api/thread-pool/configs/unknown"))
                 .andExpect(status().isOk())
@@ -89,7 +81,7 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("GET /api/thread-pool/configs/{appId}/{poolName} returns single config")
     void getConfig_success() throws Exception {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.getConfig("app1", "test-pool")).thenReturn(Optional.of(config));
+        when(configAdminService.getConfig("app1", "test-pool")).thenReturn(config);
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/test-pool"))
                 .andExpect(status().isOk())
@@ -100,7 +92,8 @@ class ThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /api/thread-pool/configs/{appId}/{poolName} returns 404 when not found")
     void getConfig_notFound() throws Exception {
-        when(configStorage.getConfig("app1", "unknown-pool")).thenReturn(Optional.empty());
+        when(configAdminService.getConfig("app1", "unknown-pool"))
+                .thenThrow(new ConfigNotFoundException("Config not found for pool: unknown-pool"));
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/unknown-pool"))
                 .andExpect(status().isOk())
@@ -118,7 +111,7 @@ class ThreadPoolConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(configStorage).saveConfigs(anyString(), any(List.class));
+        verify(configAdminService).saveConfigs(anyString(), any(List.class));
     }
 
     @Test
@@ -132,7 +125,7 @@ class ThreadPoolConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(configStorage).saveConfig(anyString(), any(ThreadPoolConfig.class));
+        verify(configAdminService).saveConfig(anyString(), any(ThreadPoolConfig.class));
     }
 
     @Test
@@ -142,7 +135,7 @@ class ThreadPoolConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(configStorage).deleteConfigs("app1");
+        verify(configAdminService).deleteConfigs("app1");
     }
 
     @Test
@@ -152,13 +145,13 @@ class ThreadPoolConfigControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(configStorage).deleteConfig("app1", "test-pool");
+        verify(configAdminService).deleteConfig("app1", "test-pool");
     }
 
     @Test
     @DisplayName("GET /api/thread-pool/configs/{appId}/version returns version")
     void getConfigVersion() throws Exception {
-        when(configStorage.getConfigVersion("app1")).thenReturn(5L);
+        when(configAdminService.getConfigVersion("app1")).thenReturn(5L);
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/version"))
                 .andExpect(status().isOk())
@@ -170,7 +163,7 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("POST /api/thread-pool/config/{appId}/add adds config")
     void addConfig() throws Exception {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.addConfig("app1", config)).thenReturn(config);
+        when(configAdminService.addConfig("app1", config)).thenReturn(config);
 
         mockMvc.perform(post("/api/thread-pool/config/app1/add")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -183,7 +176,7 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("POST /api/thread-pool/configs/{appId}/add adds batch configs")
     void addConfigs() throws Exception {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a");
-        when(configStorage.addConfigs("app1", configs)).thenReturn(configs);
+        when(configAdminService.addConfigs("app1", configs)).thenReturn(configs);
 
         mockMvc.perform(post("/api/thread-pool/configs/app1/add")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -195,13 +188,10 @@ class ThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /api/thread-pool/configs/{appId}/history returns config history")
     void getConfigHistory() throws Exception {
-        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
-                .appId("app1").configVersion(1).configs(List.of()).build();
-        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
-
-        ChangeLogEntry<ThreadPoolConfig> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
-                TestDataFactory.defaultThreadPoolConfig().build());
-        when(historyStorage.getAllHistory("app1")).thenReturn(Map.of("pool-a", List.of(entry)));
+        List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a");
+        ChangeLogEntry<ThreadPoolConfig> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null, configs.get(0));
+        Map<String, List<ChangeLogEntry<ThreadPoolConfig>>> historyMap = Map.of("pool-a", List.of(entry));
+        when(configAdminService.getConfigHistory("app1")).thenReturn(historyMap);
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/history"))
                 .andExpect(status().isOk())
@@ -213,10 +203,8 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("GET /api/thread-pool/configs/{appId}/{poolName}/history returns pool history")
     void getPoolConfigHistory() throws Exception {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.getConfig("app1", "test-pool")).thenReturn(Optional.of(config));
-
         ChangeLogEntry<ThreadPoolConfig> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null, config);
-        when(historyStorage.getHistory("app1", "test-pool")).thenReturn(List.of(entry));
+        when(configAdminService.getPoolConfigHistory("app1", "test-pool", null)).thenReturn(List.of(entry));
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/test-pool/history"))
                 .andExpect(status().isOk())
@@ -228,10 +216,8 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("GET /api/thread-pool/configs/{appId}/{poolName}/history with limit")
     void getPoolConfigHistory_withLimit() throws Exception {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.getConfig("app1", "test-pool")).thenReturn(Optional.of(config));
-
         ChangeLogEntry<ThreadPoolConfig> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null, config);
-        when(historyStorage.getHistory("app1", "test-pool", 5)).thenReturn(List.of(entry));
+        when(configAdminService.getPoolConfigHistory("app1", "test-pool", 5)).thenReturn(List.of(entry));
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/test-pool/history")
                         .param("limit", "5"))

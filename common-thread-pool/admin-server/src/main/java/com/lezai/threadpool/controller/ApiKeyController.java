@@ -1,26 +1,20 @@
 package com.lezai.threadpool.controller;
 
-import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ChangeLogEntry;
-import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.pojo.cmd.CreateApiKeyCmd;
-import com.lezai.threadpool.pojo.cmd.UpdateApiKeyCmd;
-import com.lezai.threadpool.pojo.resp.ApiKeyInfoResponse;
-import com.lezai.threadpool.pojo.resp.CreateApiKeyResponse;
-import com.lezai.threadpool.pojo.resp.RegenerateApiKeyResponse;
-import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
-import com.lezai.threadpool.storage.ApiKeyStorage;
-import com.lezai.threadpool.utils.ApiKeyUtils;
+import com.lezai.threadpool.bean.ApiKey;
+import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
+import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
+import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
+import com.lezai.threadpool.service.ApiKeyAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * API Key 管理控制器
@@ -32,8 +26,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ApiKeyController {
 
-    private final ApiKeyStorage apiKeyStorage;
-    private final ApiKeyHistoryStorage historyStorage;
+    private final ApiKeyAdminService apiKeyAdminService;
 
     /**
      * 创建 API Key
@@ -42,43 +35,8 @@ public class ApiKeyController {
      * @return 包含明文 API Key 的响应
      */
     @PostMapping
-    public ApiResponse<CreateApiKeyResponse> createApiKey(@Valid @RequestBody CreateApiKeyCmd request) {
-        log.info("Creating API key for appId: {}", request.getAppId());
-
-        // 检查 appId 是否已存在
-        if (apiKeyStorage.exists(request.getAppId())) {
-            throw new ConfigAlreadyExistsException("API key already exists for appId: " + request.getAppId());
-        }
-
-        // 生成随机 API Key
-        String plainApiKey = ApiKeyUtils.generateRandomApiKey();
-        String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
-
-        // 创建 ApiKey 对象
-        ApiKey apiKey = ApiKey.builder()
-                .appId(request.getAppId())
-                .apiKeyHash(apiKeyHash)
-                .appName(request.getAppName())
-                .enabled(true)
-                .createTime(LocalDateTime.now())
-                .expireTime(request.getExpireTime())
-                .description(request.getDescription())
-                .build();
-
-        apiKeyStorage.saveApiKey(apiKey);
-
-        log.info("API key created successfully for appId: {}", request.getAppId());
-
-        CreateApiKeyResponse response = new CreateApiKeyResponse();
-        response.setAppId(apiKey.getAppId());
-        response.setApiKey(plainApiKey); // 仅在此返回明文 API Key
-        response.setAppName(apiKey.getAppName());
-        response.setEnabled(apiKey.isEnabled());
-        response.setCreateTime(apiKey.getCreateTime());
-        response.setExpireTime(apiKey.getExpireTime());
-        response.setDescription(apiKey.getDescription());
-
-        return ApiResponse.success(response);
+    public ApiResponse<CreateApiKeyResponse> createApiKey(@Valid @RequestBody CreateApiKeyRequest request) {
+        return ApiResponse.success(apiKeyAdminService.createApiKey(request));
     }
 
     /**
@@ -89,16 +47,8 @@ public class ApiKeyController {
      */
     @DeleteMapping("/{appId}")
     public ApiResponse<Void> deleteApiKey(@PathVariable String appId) {
-        log.info("Deleting API key for appId: {}", appId);
-
-        if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
-        }
-
-        apiKeyStorage.deleteApiKey(appId);
-        log.info("API key deleted successfully for appId: {}", appId);
-
-        return ApiResponse.success(null);
+        apiKeyAdminService.deleteApiKey(appId);
+        return ApiResponse.success();
     }
 
     /**
@@ -109,10 +59,7 @@ public class ApiKeyController {
      */
     @GetMapping("/{appId}")
     public ApiResponse<ApiKeyInfoResponse> getApiKey(@PathVariable String appId) {
-        return apiKeyStorage.getApiKey(appId)
-                .map(this::toApiKeyInfo)
-                .map(ApiResponse::success)
-                .orElseThrow(() -> new ConfigNotFoundException("API key not found for appId: " + appId));
+        return ApiResponse.success(apiKeyAdminService.getApiKey(appId));
     }
 
     /**
@@ -122,12 +69,7 @@ public class ApiKeyController {
      */
     @GetMapping
     public ApiResponse<List<ApiKeyInfoResponse>> listAllApiKeys() {
-        List<ApiKeyInfoResponse> apiKeys = apiKeyStorage.listAllApiKeys()
-                .stream()
-                .map(this::toApiKeyInfo)
-                .collect(Collectors.toList());
-
-        return ApiResponse.success(apiKeys);
+        return ApiResponse.success(apiKeyAdminService.listAllApiKeys());
     }
 
     /**
@@ -135,27 +77,13 @@ public class ApiKeyController {
      *
      * @param appId   应用 ID
      * @param request 更新请求
-     * @return 更新后的 API Key 信息
+     * @return 操作结果
      */
     @PutMapping("/{appId}")
     public ApiResponse<Void> updateApiKey(
             @PathVariable String appId,
-            @Valid @RequestBody UpdateApiKeyCmd request) {
-        log.info("Updating API key for appId: {}", appId);
-
-        if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
-        }
-
-        ApiKey apiKey = new ApiKey();
-        apiKey.setAppId(appId);
-        apiKey.setAppName(request.getAppName());
-        apiKey.setEnabled(request.isEnabled());
-        apiKey.setExpireTime(request.getExpireTime());
-        apiKey.setDescription(request.getDescription());
-
-        apiKeyStorage.saveApiKey(apiKey);
-
+            @Valid @RequestBody UpdateApiKeyRequest request) {
+        apiKeyAdminService.updateApiKey(appId, request);
         return ApiResponse.success();
     }
 
@@ -167,36 +95,7 @@ public class ApiKeyController {
      */
     @PostMapping("/{appId}/regenerate")
     public ApiResponse<RegenerateApiKeyResponse> regenerateApiKey(@PathVariable String appId) {
-        log.info("Regenerating API key for appId: {}", appId);
-
-        if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
-        }
-
-        String newApiKey = apiKeyStorage.regenerateApiKey(appId);
-
-        RegenerateApiKeyResponse response = new RegenerateApiKeyResponse();
-        response.setAppId(appId);
-        response.setApiKey(newApiKey);
-
-        return ApiResponse.success(response);
-    }
-
-    /**
-     * 转换为脱敏的 API Key 信息
-     */
-    private ApiKeyInfoResponse toApiKeyInfo(ApiKey apiKey) {
-        ApiKeyInfoResponse info = new ApiKeyInfoResponse();
-        info.setAppId(apiKey.getAppId());
-        info.setAppName(apiKey.getAppName());
-        info.setEnabled(apiKey.isEnabled());
-        info.setExpired(apiKey.isExpired());
-        info.setValid(apiKey.isValid());
-        info.setCreateTime(apiKey.getCreateTime());
-        info.setExpireTime(apiKey.getExpireTime());
-        info.setUpdateTime(apiKey.getUpdateTime());
-        info.setDescription(apiKey.getDescription());
-        return info;
+        return ApiResponse.success(apiKeyAdminService.regenerateApiKey(appId));
     }
 
     /**
@@ -210,19 +109,6 @@ public class ApiKeyController {
     public ApiResponse<List<ChangeLogEntry<ApiKey>>> getApiKeyHistory(
             @PathVariable String appId,
             @RequestParam(required = false) Integer limit) {
-        log.info("Getting API key history for appId: {}, limit: {}", appId, limit);
-
-        if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
-        }
-
-        List<ChangeLogEntry<ApiKey>> history;
-        if (limit != null && limit > 0) {
-            history = historyStorage.getHistory(appId, limit);
-        } else {
-            history = historyStorage.getHistory(appId);
-        }
-
-        return ApiResponse.success(history);
+        return ApiResponse.success(apiKeyAdminService.getHistory(appId, limit));
     }
 }

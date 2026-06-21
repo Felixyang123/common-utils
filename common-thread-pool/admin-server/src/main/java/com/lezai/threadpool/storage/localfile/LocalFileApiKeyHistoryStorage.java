@@ -70,7 +70,10 @@ public class LocalFileApiKeyHistoryStorage extends AbstractLocalFileStorage<ApiK
         compute(appId, (k, historyFile) -> {
             Path path = getStoragePath(appId);
             try {
-                historyFile = getOrBuildFile(appId, path);
+                historyFile = getOrBuildFile(path, ApiKeyHistoryFile.class, () -> new ApiKeyHistoryFile(appId));
+                if (historyFile.getHistory() == null) {
+                    historyFile.setHistory(new ArrayList<>());
+                }
 
                 long newVersion = historyFile.getCurrentVersion() + 1;
                 ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(newVersion, changeType, oldValue, newValue);
@@ -97,18 +100,6 @@ public class LocalFileApiKeyHistoryStorage extends AbstractLocalFileStorage<ApiK
                 throw new StorageException("Failed to record API key change for appId: " + appId, e);
             }
         });
-    }
-
-    private ApiKeyHistoryFile getOrBuildFile(String appId, Path path) {
-        ApiKeyHistoryFile historyFile;
-        historyFile = readFile(path, ApiKeyHistoryFile.class);
-        if (historyFile == null) {
-            historyFile = new ApiKeyHistoryFile(appId);
-        }
-        if (historyFile.getHistory() == null) {
-            historyFile.setHistory(new ArrayList<>());
-        }
-        return historyFile;
     }
 
     @Override

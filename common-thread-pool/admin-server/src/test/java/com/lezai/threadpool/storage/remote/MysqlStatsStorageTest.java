@@ -5,7 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolStatsAddCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolStatsDto;
-import com.lezai.threadpool.service.ThreadPoolStatsService;
+import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 class MysqlStatsStorageTest {
 
     @Mock
-    private ThreadPoolStatsService statsService;
+    private ThreadPoolStatsPersistenceService statsService;
 
     @Mock
     private ThreadPoolStatsConverter statsConverter;

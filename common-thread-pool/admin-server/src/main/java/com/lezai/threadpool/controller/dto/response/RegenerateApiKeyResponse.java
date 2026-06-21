@@ -9,6 +9,7 @@ import lombok.Data;
 public class RegenerateApiKeyResponse {
 
     private String appId;
+
     private String apiKey; // 新的明文 API Key
-    private String message;
+
 }

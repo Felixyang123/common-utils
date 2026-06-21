@@ -10,7 +10,7 @@ import org.mapstruct.ReportingPolicy;
 import java.util.List;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-public interface ApiKeyConvertor {
+public interface ApiKeyConverter {
 
     /**
      * 转换为 DTO

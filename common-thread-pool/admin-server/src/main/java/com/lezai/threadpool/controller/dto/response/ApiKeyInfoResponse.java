@@ -11,12 +11,20 @@ import java.time.LocalDateTime;
 public class ApiKeyInfoResponse {
 
     private String appId;
+
     private String appName;
+
     private boolean enabled;
+
     private boolean expired;
+
     private boolean valid;
+
     private LocalDateTime createTime;
+
     private LocalDateTime expireTime;
+
     private LocalDateTime updateTime;
+
     private String description;
 }

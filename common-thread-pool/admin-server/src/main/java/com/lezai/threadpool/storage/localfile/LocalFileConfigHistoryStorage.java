@@ -69,7 +69,10 @@ public class LocalFileConfigHistoryStorage extends AbstractLocalFileStorage<Conf
         compute(appId, (k, historyFile) -> {
             try {
                 Path path = getStoragePath(appId);
-                historyFile = getOrBuildFile(appId, path);
+                historyFile = getOrBuildFile(path, ConfigHistoryFile.class, () -> new ConfigHistoryFile(appId));
+                if (historyFile.getPoolHistory() == null) {
+                    historyFile.setPoolHistory(new HashMap<>());
+                }
 
                 long newVersion = historyFile.getCurrentVersion() + 1;
                 List<ChangeLogEntry<ThreadPoolConfig>> poolHistory = historyFile.getPoolHistory()
@@ -96,18 +99,6 @@ public class LocalFileConfigHistoryStorage extends AbstractLocalFileStorage<Conf
                 throw new StorageException("Failed to record config change for appId: " + appId + ", pool: " + poolName, e);
             }
         });
-    }
-
-    private ConfigHistoryFile getOrBuildFile(String appId, Path path) {
-        ConfigHistoryFile historyFile;
-        historyFile = readFile(path, ConfigHistoryFile.class);
-        if (historyFile == null) {
-            historyFile = new ConfigHistoryFile(appId);
-        }
-        if (historyFile.getPoolHistory() == null) {
-            historyFile.setPoolHistory(new HashMap<>());
-        }
-        return historyFile;
     }
 
     @Override

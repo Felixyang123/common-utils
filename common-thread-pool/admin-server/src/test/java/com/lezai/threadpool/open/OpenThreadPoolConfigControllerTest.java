@@ -4,13 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.bean.ThreadPoolStats;
+import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
-import com.lezai.threadpool.storage.ConfigStorage;
-import com.lezai.threadpool.storage.StatsStorage;
-import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
+import com.lezai.threadpool.service.SubscriptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,16 +18,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.ScheduledExecutorService;
-
-import org.springframework.test.web.servlet.MvcResult;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -46,13 +44,7 @@ class OpenThreadPoolConfigControllerTest {
     private OpenThreadPoolConfigService openThreadPoolConfigService;
 
     @Mock
-    private ConfigStorage configStorage;
-
-    @Mock
-    private ScheduledExecutorService subscriptionExecutor;
-
-    @Mock
-    private ConfigChangeListenerManager listenerManager;
+    private SubscriptionService subscriptionService;
 
     @InjectMocks
     private OpenThreadPoolConfigController controller;
@@ -111,12 +103,8 @@ class OpenThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /open/api/thread-pool/config/{appId}/pull with up-to-date version returns 304")
     void pullConfigs_notModified() throws Exception {
-        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
-                .appId("app1")
-                .configVersion(3)
-                .configs(List.of())
-                .build();
-        when(openThreadPoolConfigService.pullConfigs("app1", 5L)).thenThrow(new com.lezai.threadpool.exception.ConfigNotModifiedException("Config not modified"));
+        when(openThreadPoolConfigService.pullConfigs("app1", 5L))
+                .thenThrow(new com.lezai.threadpool.exception.ConfigNotModifiedException("Config not modified"));
 
         mockMvc.perform(get("/open/api/thread-pool/config/app1/pull")
                         .param("version", "5"))
@@ -194,14 +182,20 @@ class OpenThreadPoolConfigControllerTest {
                 .configVersion(5)
                 .configs(TestDataFactory.buildConfigList("pool-a"))
                 .build();
-        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
-        MvcResult mvcResult = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
+        DeferredResult<com.lezai.threadpool.bean.ApiResponse<ThreadPoolAppConfig>> deferredResult =
+                new DeferredResult<>(30000L);
+        deferredResult.setResult(com.lezai.threadpool.bean.ApiResponse.success(appConfig));
+
+        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(
+                (DeferredResult) deferredResult);
+
+        MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "3"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
-        mockMvc.perform(asyncDispatch(mvcResult))
+        mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.configVersion").value(5));

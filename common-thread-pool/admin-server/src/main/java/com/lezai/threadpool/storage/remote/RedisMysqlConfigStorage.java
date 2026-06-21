@@ -7,7 +7,7 @@ import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
-import com.lezai.threadpool.service.ThreadPoolConfigService;
+import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
@@ -27,14 +27,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPoolConfigAppDto> implements ConfigStorage {
 
-    private final ThreadPoolConfigService configService;
+    private final ThreadPoolConfigPersistenceService configService;
 
     private final ThreadPoolConfigConverter configConverter;
 
     private final ConfigChangeListenerManager listenerManager;
 
     public RedisMysqlConfigStorage(RedissonClient redissonClient,
-                                   ThreadPoolConfigService configService,
+                                   ThreadPoolConfigPersistenceService configService,
                                    ThreadPoolConfigConverter configConverter,
                                    ConfigChangeListenerManager listenerManager) {
         super(redissonClient, "config-storage");
@@ -67,13 +67,6 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
         }
     }
 
-
-    @Override
-    public void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
-        for (ThreadPoolConfig config : configs) {
-            saveConfig(appId, config);
-        }
-    }
 
     @Override
     public void saveConfig(String appId, ThreadPoolConfig config) {

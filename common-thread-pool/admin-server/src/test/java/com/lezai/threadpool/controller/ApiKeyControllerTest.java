@@ -8,15 +8,16 @@ import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
-import com.lezai.threadpool.pojo.cmd.CreateApiKeyCmd;
-import com.lezai.threadpool.pojo.cmd.UpdateApiKeyCmd;
-import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
-import com.lezai.threadpool.storage.ApiKeyStorage;
+import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
+import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
+import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
+import com.lezai.threadpool.service.ApiKeyAdminService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,10 +27,12 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -40,10 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiKeyControllerTest {
 
     @Mock
-    private ApiKeyStorage apiKeyStorage;
-
-    @Mock
-    private ApiKeyHistoryStorage historyStorage;
+    private ApiKeyAdminService apiKeyAdminService;
 
     @InjectMocks
     private ApiKeyController controller;
@@ -60,9 +60,16 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("POST /api/api-keys creates API key successfully")
     void createApiKey_success() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(false);
+        CreateApiKeyResponse serviceResponse = new CreateApiKeyResponse();
+        serviceResponse.setAppId("my-app");
+        serviceResponse.setApiKey("plain-key-123");
+        serviceResponse.setAppName("My App");
+        serviceResponse.setEnabled(true);
+        serviceResponse.setCreateTime(LocalDateTime.now());
 
-        var request = new CreateApiKeyCmd();
+        when(apiKeyAdminService.createApiKey(any(CreateApiKeyRequest.class))).thenReturn(serviceResponse);
+
+        var request = new CreateApiKeyRequest();
         request.setAppId("my-app");
         request.setAppName("My App");
 
@@ -72,17 +79,16 @@ class ApiKeyControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.appId").value("my-app"))
-                .andExpect(jsonPath("$.data.apiKey").isNotEmpty());
-
-        verify(apiKeyStorage).saveApiKey(any(ApiKey.class));
+                .andExpect(jsonPath("$.data.apiKey").value("plain-key-123"));
     }
 
     @Test
     @DisplayName("POST /api/api-keys returns 409 when appId already exists")
     void createApiKey_alreadyExists() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
+        when(apiKeyAdminService.createApiKey(any(CreateApiKeyRequest.class)))
+                .thenThrow(new ConfigAlreadyExistsException("API key already exists for appId: my-app"));
 
-        var request = new CreateApiKeyCmd();
+        var request = new CreateApiKeyRequest();
         request.setAppId("my-app");
         request.setAppName("My App");
 
@@ -96,15 +102,13 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("GET /api/api-keys/{appId} returns API key info")
     void getApiKey_success() throws Exception {
-        ApiKey key = ApiKey.builder()
-                .appId("my-app")
-                .appName("My App")
-                .enabled(true)
-                .expireTime(LocalDateTime.now().plusDays(30))
-                .createTime(LocalDateTime.now())
-                .build();
+        ApiKeyInfoResponse info = new ApiKeyInfoResponse();
+        info.setAppId("my-app");
+        info.setAppName("My App");
+        info.setEnabled(true);
+        info.setCreateTime(LocalDateTime.now());
 
-        when(apiKeyStorage.getApiKey("my-app")).thenReturn(Optional.of(key));
+        when(apiKeyAdminService.getApiKey("my-app")).thenReturn(info);
 
         mockMvc.perform(get("/api/api-keys/my-app"))
                 .andExpect(status().isOk())
@@ -115,7 +119,8 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("GET /api/api-keys/{appId} returns 404 when not found")
     void getApiKey_notFound() throws Exception {
-        when(apiKeyStorage.getApiKey("unknown")).thenReturn(Optional.empty());
+        when(apiKeyAdminService.getApiKey("unknown"))
+                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(get("/api/api-keys/unknown"))
                 .andExpect(status().isOk())
@@ -125,19 +130,18 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("DELETE /api/api-keys/{appId} deletes API key")
     void deleteApiKey_success() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-
         mockMvc.perform(delete("/api/api-keys/my-app"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(apiKeyStorage).deleteApiKey("my-app");
+        verify(apiKeyAdminService).deleteApiKey("my-app");
     }
 
     @Test
     @DisplayName("DELETE /api/api-keys/{appId} returns 404 when not found")
     void deleteApiKey_notFound() throws Exception {
-        when(apiKeyStorage.exists("unknown")).thenReturn(false);
+        doThrow(new ConfigNotFoundException("API key not found for appId: unknown"))
+                .when(apiKeyAdminService).deleteApiKey("unknown");
 
         mockMvc.perform(delete("/api/api-keys/unknown"))
                 .andExpect(status().isOk())
@@ -147,9 +151,14 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("GET /api/api-keys lists all API keys")
     void listAllApiKeys() throws Exception {
-        ApiKey key1 = ApiKey.builder().appId("app1").appName("App 1").enabled(true).build();
-        ApiKey key2 = ApiKey.builder().appId("app2").appName("App 2").enabled(true).build();
-        when(apiKeyStorage.listAllApiKeys()).thenReturn(List.of(key1, key2));
+        ApiKeyInfoResponse key1 = new ApiKeyInfoResponse();
+        key1.setAppId("app1");
+        key1.setAppName("App 1");
+        ApiKeyInfoResponse key2 = new ApiKeyInfoResponse();
+        key2.setAppId("app2");
+        key2.setAppName("App 2");
+
+        when(apiKeyAdminService.listAllApiKeys()).thenReturn(List.of(key1, key2));
 
         mockMvc.perform(get("/api/api-keys"))
                 .andExpect(status().isOk())
@@ -161,9 +170,7 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("PUT /api/api-keys/{appId} updates API key")
     void updateApiKey_success() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-
-        var request = new UpdateApiKeyCmd();
+        var request = new UpdateApiKeyRequest();
         request.setAppName("Updated App");
         request.setEnabled(true);
 
@@ -173,15 +180,16 @@ class ApiKeyControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(apiKeyStorage).saveApiKey(any(ApiKey.class));
+        verify(apiKeyAdminService).updateApiKey(eq("my-app"), any(UpdateApiKeyRequest.class));
     }
 
     @Test
     @DisplayName("PUT /api/api-keys/{appId} returns 404 when not found")
     void updateApiKey_notFound() throws Exception {
-        when(apiKeyStorage.exists("unknown")).thenReturn(false);
+        doThrow(new ConfigNotFoundException("API key not found for appId: unknown"))
+                .when(apiKeyAdminService).updateApiKey(eq("unknown"), any(UpdateApiKeyRequest.class));
 
-        var request = new UpdateApiKeyCmd();
+        var request = new UpdateApiKeyRequest();
         request.setEnabled(true);
 
         mockMvc.perform(put("/api/api-keys/unknown")
@@ -194,8 +202,11 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("POST /api/api-keys/{appId}/regenerate regenerates API key")
     void regenerateApiKey_success() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-        when(apiKeyStorage.regenerateApiKey("my-app")).thenReturn("new-plain-key");
+        RegenerateApiKeyResponse serviceResponse = new RegenerateApiKeyResponse();
+        serviceResponse.setAppId("my-app");
+        serviceResponse.setApiKey("new-plain-key");
+
+        when(apiKeyAdminService.regenerateApiKey("my-app")).thenReturn(serviceResponse);
 
         mockMvc.perform(post("/api/api-keys/my-app/regenerate"))
                 .andExpect(status().isOk())
@@ -206,7 +217,8 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("POST /api/api-keys/{appId}/regenerate returns 404 when not found")
     void regenerateApiKey_notFound() throws Exception {
-        when(apiKeyStorage.exists("unknown")).thenReturn(false);
+        when(apiKeyAdminService.regenerateApiKey("unknown"))
+                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(post("/api/api-keys/unknown/regenerate"))
                 .andExpect(status().isOk())
@@ -216,11 +228,10 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("GET /api/api-keys/{appId}/history returns history")
     void getApiKeyHistory() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-
         ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
                 ApiKey.builder().appId("my-app").build());
-        when(historyStorage.getHistory("my-app")).thenReturn(List.of(entry));
+
+        when(apiKeyAdminService.getHistory(eq("my-app"), eq(null))).thenReturn(List.of(entry));
 
         mockMvc.perform(get("/api/api-keys/my-app/history"))
                 .andExpect(status().isOk())
@@ -232,16 +243,26 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("GET /api/api-keys/{appId}/history with limit parameter")
     void getApiKeyHistory_withLimit() throws Exception {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-
         ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
                 ApiKey.builder().appId("my-app").build());
-        when(historyStorage.getHistory("my-app", 5)).thenReturn(List.of(entry));
+
+        when(apiKeyAdminService.getHistory("my-app", 5)).thenReturn(List.of(entry));
 
         mockMvc.perform(get("/api/api-keys/my-app/history")
                         .param("limit", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("GET /api/api-keys/{appId}/history returns 404 when appId not found")
+    void getApiKeyHistory_notFound() throws Exception {
+        when(apiKeyAdminService.getHistory("unknown", null))
+                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
+
+        mockMvc.perform(get("/api/api-keys/unknown/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(404));
     }
 }

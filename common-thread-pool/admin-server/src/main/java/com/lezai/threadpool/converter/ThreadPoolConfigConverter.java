@@ -28,8 +28,6 @@ public interface ThreadPoolConfigConverter {
 
     List<ThreadPoolConfig> convertConfigs(List<ThreadPoolConfigEntity> entities);
 
-    ThreadPoolConfigEntity covertConfigEntity(ThreadPoolConfig config);
-
     ThreadPoolConfigDto convertConfigDto(ThreadPoolConfigEntity entity);
 
     ThreadPoolConfig dtoConvertConfig(ThreadPoolConfigDto dto);

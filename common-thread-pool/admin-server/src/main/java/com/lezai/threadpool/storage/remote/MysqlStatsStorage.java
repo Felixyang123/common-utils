@@ -4,7 +4,7 @@ import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolStatsAddCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolStatsDto;
-import com.lezai.threadpool.service.ThreadPoolStatsService;
+import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import com.lezai.threadpool.storage.StatsStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class MysqlStatsStorage implements StatsStorage {
-    private final ThreadPoolStatsService statsService;
+    private final ThreadPoolStatsPersistenceService statsService;
     private final ThreadPoolStatsConverter statsConverter;
 
     @Override

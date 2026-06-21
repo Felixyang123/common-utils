@@ -9,6 +9,7 @@ import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateIntervalUnit;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -16,9 +17,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * Open API 限流拦截器
  * 基于 Redisson 的 RRateLimiter 实现按 appId 限流
+ * 可通过 threadpool.admin.rate-limit.enabled=false 关闭
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "threadpool.admin.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
 

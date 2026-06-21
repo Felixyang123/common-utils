@@ -74,56 +74,36 @@ public class LocalFileStatsStorage extends AbstractLocalFileStorage<LocalFileSta
 
         compute(appId, (k, statsFile) -> {
             Path path = getStoragePath(appId);
-            try {
-                statsFile = getOrBuildFile(appId, path);
+            statsFile = getOrBuildFile(path, ThreadPoolStatsFile.class, () -> new ThreadPoolStatsFile(appId, new HashMap<>()));
+            if (statsFile.getStatsHistory() == null) {
+                statsFile.setStatsHistory(new HashMap<>());
+            }
 
-                for (ThreadPoolStats stats : statsList) {
-                    if (stats == null || StringUtils.isBlank(stats.getPoolName())) {
-                        continue;
-                    }
-
-                    Map<String, List<ThreadPoolStats>> historyMap = statsFile.getStatsHistory();
-                    List<ThreadPoolStats> history = historyMap.computeIfAbsent(
-                            stats.getPoolName(), key -> new ArrayList<>());
-
-                    stats.setCollectTime(now);
-                    history.add(stats);
-
-                    if (history.size() > maxHistorySize) {
-                        List<ThreadPoolStats> trimmed = new ArrayList<>(
-                                history.subList(history.size() - maxHistorySize, history.size()));
-                        historyMap.put(stats.getPoolName(), trimmed);
-                    }
+            for (ThreadPoolStats stats : statsList) {
+                if (stats == null || StringUtils.isBlank(stats.getPoolName())) {
+                    continue;
                 }
 
-                statsFile.setUpdateTime(now);
-                writeFile(path, statsFile);
+                Map<String, List<ThreadPoolStats>> historyMap = statsFile.getStatsHistory();
+                List<ThreadPoolStats> history = historyMap.computeIfAbsent(
+                        stats.getPoolName(), key -> new ArrayList<>());
 
-                log.debug("Saved stats for appId: {}, pools: {}", appId, statsList.size());
-                return statsFile;
-            } catch (IOException e) {
-                throw new StorageException("Failed to save stats for appId: " + appId, e);
+                stats.setCollectTime(now);
+                history.add(stats);
+
+                if (history.size() > maxHistorySize) {
+                    List<ThreadPoolStats> trimmed = new ArrayList<>(
+                            history.subList(history.size() - maxHistorySize, history.size()));
+                    historyMap.put(stats.getPoolName(), trimmed);
+                }
             }
+
+            statsFile.setUpdateTime(now);
+            writeFile(path, statsFile);
+
+            log.debug("Saved stats for appId: {}, pools: {}", appId, statsList.size());
+            return statsFile;
         });
-    }
-
-    private static ThreadPoolStatsFile getOrBuildFile(String appId, Path path) throws IOException {
-        ThreadPoolStatsFile statsFile;
-        if (Files.exists(path)) {
-            String content = Files.readString(path);
-            if (StringUtils.isNotBlank(content)) {
-                statsFile = JSON.parseObject(content, ThreadPoolStatsFile.class);
-            }else {
-                statsFile = new ThreadPoolStatsFile(appId, new HashMap<>());
-            }
-        }else {
-            statsFile = new ThreadPoolStatsFile(appId, new HashMap<>());
-        }
-
-        if (statsFile.getStatsHistory() == null) {
-            statsFile.setStatsHistory(new HashMap<>());
-        }
-        return statsFile;
     }
 
     @Override

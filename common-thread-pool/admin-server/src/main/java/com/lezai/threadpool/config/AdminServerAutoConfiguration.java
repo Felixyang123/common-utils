@@ -1,15 +1,17 @@
 package com.lezai.threadpool.config;
 
-import com.lezai.threadpool.converter.ApiKeyConvertor;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.interceptor.ApiKeyAuthInterceptor;
-import com.lezai.threadpool.service.ApiKeyService;
-import com.lezai.threadpool.service.ThreadPoolConfigService;
-import com.lezai.threadpool.service.ThreadPoolStatsService;
+import com.lezai.threadpool.service.ApiKeyPersistenceService;
+import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
+import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import com.lezai.threadpool.storage.*;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import com.lezai.threadpool.storage.localfile.*;
+import com.lezai.threadpool.storage.remote.MysqlApiKeyHistoryStorage;
+import com.lezai.threadpool.storage.remote.MysqlConfigHistoryStorage;
 import com.lezai.threadpool.storage.remote.MysqlStatsStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlApiKeyStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlConfigStorage;
@@ -118,10 +120,10 @@ public class AdminServerAutoConfiguration {
     @ConditionalOnClass(RedissonClient.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
     public ApiKeyStorage redisMysqlApiKeyStorage(RedissonClient redissonClient,
-                                                 ApiKeyService apiKeyService,
-                                                 ApiKeyConvertor apiKeyConvertor) {
+                                                 ApiKeyPersistenceService apiKeyService,
+                                                 ApiKeyConverter apiKeyConverter) {
         log.info("Initializing RedisMysqlApiKeyStorage");
-        return new RedisMysqlApiKeyStorage(redissonClient, apiKeyService, apiKeyConvertor);
+        return new RedisMysqlApiKeyStorage(redissonClient, apiKeyService, apiKeyConverter);
     }
 
     /**
@@ -132,7 +134,7 @@ public class AdminServerAutoConfiguration {
     @ConditionalOnClass(RedissonClient.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
     public ConfigStorage redisMysqlConfigStorage(RedissonClient redissonClient,
-                                                 ThreadPoolConfigService configService,
+                                                 ThreadPoolConfigPersistenceService configService,
                                                  ThreadPoolConfigConverter configConverter,
                                                  ConfigChangeListenerManager listenerManager) {
         log.info("Initializing RedisMysqlConfigStorage");
@@ -146,9 +148,35 @@ public class AdminServerAutoConfiguration {
     @ConditionalOnMissingBean(StatsStorage.class)
     @ConditionalOnClass(RedissonClient.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public StatsStorage redisMysqlStatsStorage(ThreadPoolStatsService statsService, ThreadPoolStatsConverter statsConverter) {
+    public StatsStorage redisMysqlStatsStorage(ThreadPoolStatsPersistenceService statsService, ThreadPoolStatsConverter statsConverter) {
         log.info("Initializing RedisMysqlStatsStorage");
         return new MysqlStatsStorage(statsService, statsConverter);
+    }
+
+    /**
+     * API Key 历史记录存储 Bean - Redis + MySQL 实现
+     * 使用内存缓存，配合 OperateLogService 持久化日志
+     */
+    @Bean
+    @ConditionalOnMissingBean(ApiKeyHistoryStorage.class)
+    @ConditionalOnClass(RedissonClient.class)
+    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
+    public ApiKeyHistoryStorage mysqlApiKeyHistoryStorage() {
+        log.info("Initializing MysqlApiKeyHistoryStorage");
+        return new MysqlApiKeyHistoryStorage();
+    }
+
+    /**
+     * 配置历史记录存储 Bean - Redis + MySQL 实现
+     * 使用内存缓存，配合 OperateLogService 持久化日志
+     */
+    @Bean
+    @ConditionalOnMissingBean(ConfigHistoryStorage.class)
+    @ConditionalOnClass(RedissonClient.class)
+    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
+    public ConfigHistoryStorage mysqlConfigHistoryStorage() {
+        log.info("Initializing MysqlConfigHistoryStorage");
+        return new MysqlConfigHistoryStorage();
     }
 
     // ==================== Authentication ====================

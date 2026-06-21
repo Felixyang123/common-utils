@@ -1,12 +1,12 @@
 package com.lezai.threadpool.storage.remote;
 
 import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.converter.ApiKeyConvertor;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ApiKeyDto;
-import com.lezai.threadpool.service.ApiKeyService;
+import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -25,15 +25,15 @@ import java.util.Optional;
 @Slf4j
 public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> implements ApiKeyStorage {
 
-    private final ApiKeyService apiKeyService;
-    private final ApiKeyConvertor apiKeyConvertor;
+    private final ApiKeyPersistenceService apiKeyService;
+    private final ApiKeyConverter apiKeyConverter;
 
     public RedisMysqlApiKeyStorage(RedissonClient redissonClient,
-                                   ApiKeyService apiKeyService,
-                                   ApiKeyConvertor apiKeyConvertor) {
+                                   ApiKeyPersistenceService apiKeyService,
+                                   ApiKeyConverter apiKeyConverter) {
         super(redissonClient, "api-key-storage");
         this.apiKeyService = apiKeyService;
-        this.apiKeyConvertor = apiKeyConvertor;
+        this.apiKeyConverter = apiKeyConverter;
     }
 
     @Override
@@ -44,7 +44,7 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
         try {
             List<ApiKeyDto> allKeys = apiKeyService.all();
             for (ApiKeyDto apiKeyDto : allKeys) {
-                ApiKey apiKey = apiKeyConvertor.convertApiKey(apiKeyDto);
+                ApiKey apiKey = apiKeyConverter.convertApiKey(apiKeyDto);
                 cache.putIfAbsent(apiKey.getAppId(), apiKey);
             }
 
@@ -66,7 +66,7 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
         }
 
         compute(apiKey.getAppId(), (appId, existing) -> {
-            boolean upsert = apiKeyService.upsert(apiKeyConvertor.convertUpsertCmd(apiKey));
+            boolean upsert = apiKeyService.upsert(apiKeyConverter.convertUpsertCmd(apiKey));
             if (upsert) {
                 log.info("Saved API key for appId: {}", apiKey.getAppId());
                 return apiKey;
@@ -85,42 +85,9 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
                 return existing;
             }
 
-            return apiKeyService.findByAppId(appId).map(apiKeyConvertor::convertApiKey).orElse(null);
+            return apiKeyService.findByAppId(appId).map(apiKeyConverter::convertApiKey).orElse(null);
         });
         return Optional.ofNullable(apiKey);
-    }
-
-    @Override
-    public boolean validateApiKey(String appId, String apiKey) {
-        if (appId == null || apiKey == null) {
-            log.warn("AppId and API key cannot be null");
-            return false;
-        }
-        Optional<ApiKey> apiKeyOptional = getApiKey(appId);
-
-        if (apiKeyOptional.isEmpty()) {
-            log.warn("API key not found for appId: {}", appId);
-            return false;
-        }
-
-        ApiKey storedKey = apiKeyOptional.get();
-        if (!storedKey.isEnabled()) {
-            log.warn("API key is disabled for appId: {}", appId);
-            return false;
-        }
-
-        if (storedKey.isExpired()) {
-            log.warn("API key has expired for appId: {}", appId);
-            return false;
-        }
-
-        boolean valid = ApiKeyUtils.validateApiKey(apiKey, storedKey.getApiKeyHash());
-
-        if (!valid) {
-            log.warn("API key validation failed for appId: {}", appId);
-        }
-
-        return valid;
     }
 
     @Override
@@ -157,7 +124,7 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
             }
 
             ApiKeyDto apiKeyDto = apiKeyOptional.get();
-            existing = apiKeyConvertor.convertApiKey(apiKeyDto);
+            existing = apiKeyConverter.convertApiKey(apiKeyDto);
             ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
             cmd.setId(apiKeyDto.getId());
             cmd.setAppId(appId);

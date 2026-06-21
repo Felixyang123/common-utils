@@ -1,9 +1,10 @@
 package com.lezai.threadpool.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolStatsEntity;
-import com.lezai.threadpool.dao.rep.ThreadPoolStatsRep;
+import com.lezai.threadpool.dao.mapper.StatsMapper;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolStatsAddCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolStatsDto;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +22,8 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ThreadPoolStatsService {
+public class ThreadPoolStatsPersistenceService extends ServiceImpl<StatsMapper, ThreadPoolStatsEntity> {
 
-    private final ThreadPoolStatsRep statsRep;
     private final ThreadPoolStatsConverter statsConverter;
 
     /**
@@ -37,7 +37,7 @@ public class ThreadPoolStatsService {
 
         List<ThreadPoolStatsEntity> statsEntities = cmd.getStats().stream().map(stats ->
                 statsConverter.convertEntity(stats, cmd.getAppId())).toList();
-        statsRep.saveBatch(statsEntities);
+        saveBatch(statsEntities);
     }
 
     public List<ThreadPoolStatsDto> queryStatsHistory(String appId, String poolName, LocalDateTime beginTime, LocalDateTime endTime) {
@@ -58,7 +58,7 @@ public class ThreadPoolStatsService {
             return List.of();
         }
 
-        List<ThreadPoolStatsEntity> statsEntities = statsRep.list(Wrappers.<ThreadPoolStatsEntity>lambdaQuery()
+        List<ThreadPoolStatsEntity> statsEntities = list(Wrappers.<ThreadPoolStatsEntity>lambdaQuery()
                         .eq(ThreadPoolStatsEntity::getAppId, appId)
                         .eq(ThreadPoolStatsEntity::getPoolName, poolName)
                         .between(ThreadPoolStatsEntity::getUpdateTime, beginTime, endTime));

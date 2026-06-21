@@ -8,7 +8,7 @@ import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigDto;
-import com.lezai.threadpool.service.ThreadPoolConfigService;
+import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +40,7 @@ class RedisMysqlConfigStorageTest {
     private RedissonClient redissonClient;
 
     @Mock
-    private ThreadPoolConfigService configService;
+    private ThreadPoolConfigPersistenceService configService;
 
     @Mock
     private ThreadPoolConfigConverter configConverter;

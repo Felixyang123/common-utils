@@ -67,30 +67,22 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
     }
 
     @Override
-    public void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
-        for (ThreadPoolConfig config : configs) {
-            saveConfig(appId, config);
-        }
-    }
-
-    @Override
     public void saveConfig(String appId, ThreadPoolConfig config) {
         AtomicReference<ThreadPoolConfigFile> oldConfigRef = new AtomicReference<>();
         compute(appId, (k, oldConfig) -> {
             oldConfigRef.set(oldConfig);
             Path path = getStoragePath(appId);
-            try {
-                ThreadPoolConfigFile configFile = getOrBuildFile(appId, path);
-
-                configFile.getConfigs().put(config.getPoolName(), config);
-                configFile.setVersion(configFile.getVersion() + 1);
-                writeFile(path, configFile);
-
-                notifyListeners(configFile);
-                return configFile;
-            } catch (IOException e) {
-                throw new StorageException("Failed to save config for appId: " + appId + ", pool: " + config.getPoolName(), e);
+            ThreadPoolConfigFile configFile = getOrBuildFile(path, ThreadPoolConfigFile.class, () -> new ThreadPoolConfigFile(appId, 0, new HashMap<>()));
+            if (configFile.getConfigs() == null) {
+                configFile.setConfigs(new HashMap<>());
             }
+
+            configFile.getConfigs().put(config.getPoolName(), config);
+            configFile.setVersion(configFile.getVersion() + 1);
+            writeFile(path, configFile);
+
+            notifyListeners(configFile);
+            return configFile;
         });
 
         if (historyStorage != null) {
@@ -101,25 +93,6 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             ChangeType changeType = (oldConfig == null) ? ChangeType.CREATE : ChangeType.UPDATE;
             historyStorage.recordChange(appId, config.getPoolName(), changeType, oldConfig, config);
         }
-    }
-
-    private static ThreadPoolConfigFile getOrBuildFile(String appId, Path path) throws IOException {
-        ThreadPoolConfigFile configFile;
-        if (Files.exists(path)) {
-            String content = Files.readString(path);
-            if (StringUtils.isNotBlank(content)) {
-                configFile = JSON.parseObject(content, ThreadPoolConfigFile.class);
-            } else {
-                configFile = new ThreadPoolConfigFile(appId, 0, new HashMap<>());
-            }
-        } else {
-            configFile = new ThreadPoolConfigFile(appId, 0, new HashMap<>());
-        }
-
-        if (configFile.getConfigs() == null) {
-            configFile.setConfigs(new HashMap<>());
-        }
-        return configFile;
     }
 
     @Override
@@ -228,28 +201,27 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
         ThreadPoolConfigFile file = compute(appId, (k, configFile) -> {
             Path path = getStoragePath(appId);
-            try {
-                configFile = getOrBuildFile(appId, path);
-
-                configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
-                    if (oldConfig != null) {
-                        return oldConfig;
-                    } else {
-                        added.set(true);
-                        return config;
-                    }
-                });
-
-                if (added.get()) {
-                    configFile.setVersion(configFile.getVersion() + 1);
-                    writeFile(path, configFile);
-                    notifyListeners(configFile);
-                    log.info("Config added for appId: {}, pool: {}", appId, config.getPoolName());
-                }
-                return configFile;
-            } catch (IOException e) {
-                throw new StorageException("Failed to add config for appId: " + appId + ", pool: " + config.getPoolName(), e);
+            configFile = getOrBuildFile(path, ThreadPoolConfigFile.class, () -> new ThreadPoolConfigFile(appId, 0, new HashMap<>()));
+            if (configFile.getConfigs() == null) {
+                configFile.setConfigs(new HashMap<>());
             }
+
+            configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
+                if (oldConfig != null) {
+                    return oldConfig;
+                } else {
+                    added.set(true);
+                    return config;
+                }
+            });
+
+            if (added.get()) {
+                configFile.setVersion(configFile.getVersion() + 1);
+                writeFile(path, configFile);
+                notifyListeners(configFile);
+                log.info("Config added for appId: {}, pool: {}", appId, config.getPoolName());
+            }
+            return configFile;
         });
 
         if (added.get() && historyStorage != null) {
@@ -266,31 +238,30 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
         compute(appId, (k, configFile) -> {
             Path path = getStoragePath(appId);
-            try {
-                configFile = getOrBuildFile(appId, path);
-
-                for (ThreadPoolConfig config : configs) {
-                    configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
-                        if (oldConfig != null) {
-                            return oldConfig;
-                        } else {
-                            added.compareAndSet(false, true);
-                            addedConfigs.add(config);
-                            return config;
-                        }
-                    });
-                }
-
-                if (added.get()) {
-                    configFile.setVersion(configFile.getVersion() + 1);
-                    writeFile(path, configFile);
-                    notifyListeners(configFile);
-                    log.info("Configs added for appId: {}, count: {}", appId, addedConfigs.size());
-                }
-                return configFile;
-            } catch (IOException e) {
-                throw new StorageException("Failed to add configs for appId: " + appId, e);
+            configFile = getOrBuildFile(path, ThreadPoolConfigFile.class, () -> new ThreadPoolConfigFile(appId, 0, new HashMap<>()));
+            if (configFile.getConfigs() == null) {
+                configFile.setConfigs(new HashMap<>());
             }
+
+            for (ThreadPoolConfig config : configs) {
+                configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
+                    if (oldConfig != null) {
+                        return oldConfig;
+                    } else {
+                        added.compareAndSet(false, true);
+                        addedConfigs.add(config);
+                        return config;
+                    }
+                });
+            }
+
+            if (added.get()) {
+                configFile.setVersion(configFile.getVersion() + 1);
+                writeFile(path, configFile);
+                notifyListeners(configFile);
+                log.info("Configs added for appId: {}, count: {}", appId, addedConfigs.size());
+            }
+            return configFile;
         });
 
         if (historyStorage != null) {

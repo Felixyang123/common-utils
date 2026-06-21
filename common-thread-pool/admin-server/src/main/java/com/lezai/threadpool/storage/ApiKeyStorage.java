@@ -1,6 +1,10 @@
 package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.ApiKey;
+import com.lezai.threadpool.utils.ApiKeyUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +14,8 @@ import java.util.Optional;
  * 支持多种实现（本地文件、数据库等）
  */
 public interface ApiKeyStorage {
+
+    Logger log = LoggerFactory.getLogger(ApiKeyStorage.class);
 
     /**
      * 保存 API Key
@@ -33,7 +39,37 @@ public interface ApiKeyStorage {
      * @param apiKey 明文 API Key
      * @return true 如果验证通过
      */
-    boolean validateApiKey(String appId, String apiKey);
+    default boolean validateApiKey(String appId, String apiKey) {
+        if (StringUtils.isAnyBlank(appId, apiKey)) {
+            log.warn("AppId and API key cannot be blank");
+            return false;
+        }
+
+        Optional<ApiKey> apiKeyOptional = getApiKey(appId);
+        if (apiKeyOptional.isEmpty()) {
+            log.warn("API key not found for appId: {}", appId);
+            return false;
+        }
+
+        ApiKey storedKey = apiKeyOptional.get();
+        if (!storedKey.isEnabled()) {
+            log.warn("API key is disabled for appId: {}", appId);
+            return false;
+        }
+
+        if (storedKey.isExpired()) {
+            log.warn("API key has expired for appId: {}", appId);
+            return false;
+        }
+
+        boolean valid = ApiKeyUtils.validateApiKey(apiKey, storedKey.getApiKeyHash());
+
+        if (!valid) {
+            log.warn("API key validation failed for appId: {}", appId);
+        }
+
+        return valid;
+    }
 
     /**
      * 删除 API Key

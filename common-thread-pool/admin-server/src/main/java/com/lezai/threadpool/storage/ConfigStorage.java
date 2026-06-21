@@ -20,7 +20,11 @@ public interface ConfigStorage {
      * @param appId   应用 ID
      * @param configs 配置列表
      */
-    void saveConfigs(String appId, List<ThreadPoolConfig> configs);
+    default void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
+        for (ThreadPoolConfig config : configs) {
+            saveConfig(appId, config);
+        }
+    }
 
     /**
      * 保存单个线程池配置

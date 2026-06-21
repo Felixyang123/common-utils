@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>admin-server 重构测试报告</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card2: #21252f;
+    --border: #2c3140;
+    --text: #e4e7ec;
+    --muted: #9aa0ac;
+    --green: #2ecc71;
+    --green-bg: rgba(46, 204, 113, 0.12);
+    --red: #ff5c5c;
+    --red-bg: rgba(255, 92, 92, 0.12);
+    --amber: #f5b041;
+    --amber-bg: rgba(245, 176, 65, 0.12);
+    --blue: #4aa3ff;
+    --blue-bg: rgba(74, 163, 255, 0.12);
+    --purple: #b07cff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.65;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  .subtitle { color: var(--muted); font-size: 15px; }
+  .meta-line { color: var(--muted); font-size: 13px; margin-top: 14px; display: flex; flex-wrap: wrap; gap: 18px; }
+  .meta-line b { color: var(--text); font-weight: 600; }
+  h2 {
+    font-size: 21px;
+    margin: 44px 0 18px;
+    padding-left: 12px;
+    border-left: 4px solid var(--blue);
+  }
+  h3 { font-size: 16px; margin: 26px 0 12px; color: var(--text); }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--mono);
+  }
+  .b-pass { background: var(--green-bg); color: var(--green); }
+  .b-fail { background: var(--red-bg); color: var(--red); }
+  .b-fix  { background: var(--amber-bg); color: var(--amber); }
+  .b-info { background: var(--blue-bg); color: var(--blue); }
+
+  /* summary cards */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 8px 0 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .card .num { font-size: 34px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .card .lbl { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .num.green { color: var(--green); }
+  .num.red { color: var(--red); }
+  .num.amber { color: var(--amber); }
+  .num.blue { color: var(--blue); }
+
+  .banner {
+    background: var(--green-bg);
+    border: 1px solid rgba(46,204,113,0.35);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 20px 0;
+  }
+  .banner .tick { font-size: 26px; }
+  .banner b { color: var(--green); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 14px;
+    margin: 6px 0;
+  }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { background: var(--card2); color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: 13px; }
+  td.center, th.center { text-align: center; }
+  .ok { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); font-weight: 600; }
+
+  .code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: #0b0d13;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    white-space: pre;
+    color: #c8cdd6;
+    line-height: 1.55;
+  }
+  .code .c-key { color: var(--blue); }
+  .code .c-ok { color: var(--green); }
+  .code .c-warn { color: var(--amber); }
+  .code .c-del { color: var(--red); }
+  .code .c-cmt { color: var(--muted); }
+
+  .bug {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--red);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 16px 0;
+  }
+  .bug.fixed { border-left-color: var(--green); }
+  .bug h3 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  .ba > div { background: #0b0d13; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .ba .tag { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .ba .before .tag { color: var(--red); }
+  .ba .after .tag { color: var(--green); }
+  .ba code { font-family: var(--mono); font-size: 12.5px; color: #c8cdd6; display: block; white-space: pre-wrap; }
+
+  ul.clean { list-style: none; padding-left: 0; }
+  ul.clean li { padding: 6px 0 6px 26px; position: relative; }
+  ul.clean li::before { content: "▸"; position: absolute; left: 4px; color: var(--blue); }
+
+  .file-tag { font-family: var(--mono); font-size: 13px; color: var(--purple); }
+  footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  a { color: var(--blue); }
+  @media (max-width: 760px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .ba { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>admin-server 重构 · 测试报告</h1>
+    <div class="subtitle">基于当前改动执行单元测试 → 修复失败用例 → 真实端到端冒烟测试（从后端接口进入）</div>
+    <div class="meta-line">
+      <span>模块：<b>common-thread-pool-admin-server</b></span>
+      <span>分支：<b>dynamic-tp</b></span>
+      <span>日期：<b>2026-06-21</b></span>
+      <span>测试人：<b>wangyang</b></span>
+    </div>
+  </header>
+
+  <div class="banner">
+    <span class="tick">✅</span>
+    <div>
+      <b>结论：全部通过。</b>
+      单元测试 371/371 绿；过程中发现并修复 2 个真实生产缺陷；真实 HTTP 端到端冒烟测试覆盖全部核心接口与错误路径，均符合预期。
+    </div>
+  </div>
+
+  <!-- ============ 总览 ============ -->
+  <h2>一、结果总览</h2>
+  <div class="cards">
+    <div class="card"><div class="num blue">371</div><div class="lbl">单元测试总数</div></div>
+    <div class="card"><div class="num green">371</div><div class="lbl">通过</div></div>
+    <div class="card"><div class="num red">0</div><div class="lbl">失败 / 错误</div></div>
+    <div class="card"><div class="num amber">2</div><div class="lbl">修复的缺陷</div></div>
+  </div>
+  <table>
+    <tr><th>阶段</th><th>内容</th><th class="center">结果</th></tr>
+    <tr><td>① 编译</td><td>clean compile + test-compile（含 MapStruct 生成源、core 依赖）</td><td class="center"><span class="badge b-pass">BUILD SUCCESS</span></td></tr>
+    <tr><td>② 单元测试（首跑）</td><td>368 通过，3 失败（均在新增 <span class="mono">AdminServerE2ETest</span>）</td><td class="center"><span class="badge b-fail">3 FAIL</span></td></tr>
+    <tr><td>③ 缺陷修复</td><td>修正 2 个生产缺陷 + 同步更新受影响的单测契约</td><td class="center"><span class="badge b-fix">FIXED</span></td></tr>
+    <tr><td>④ 单元测试（终跑）</td><td>clean test 全量，371 通过</td><td class="center"><span class="badge b-pass">371/371</span></td></tr>
+    <tr><td>⑤ 真实端到端冒烟</td><td>启动内嵌 Tomcat 真实进程，curl 走真实 HTTP 调后端接口</td><td class="center"><span class="badge b-pass">PASS</span></td></tr>
+  </table>
+
+  <!-- ============ 环境 ============ -->
+  <h2>二、测试环境</h2>
+  <table>
+    <tr><th>项</th><th>值</th></tr>
+    <tr><td>JDK</td><td class="mono">OpenJDK 21.0.8 (Microsoft)</td></tr>
+    <tr><td>构建工具</td><td class="mono">Apache Maven 3.9.15</td></tr>
+    <tr><td>操作系统</td><td class="mono">Windows 10 Enterprise LTSC 2021</td></tr>
+    <tr><td>Web 容器</td><td class="mono">Spring Boot + 内嵌 Apache Tomcat 10.1.42（端口 18080）</td></tr>
+    <tr><td>冒烟数据源</td><td class="mono">H2 内存库（MODE=MySQL）；存储模式 storage.type=local（本地文件）</td></tr>
+    <tr><td>外部依赖</td><td>本机 MySQL:3306 / Redis:6379 在线，但仓库无建表 SQL、root 密码未知，故冒烟采用 <b>local 文件存储</b>；Redisson 以 mock 替换</td></tr>
+  </table>
+
+  <!-- ============ 单元测试明细 ============ -->
+  <h2>三、单元测试明细（371 项 · 36 个测试类）</h2>
+  <table>
+    <tr><th>分层</th><th>测试类</th><th class="center">用例数</th><th class="center">结果</th></tr>
+    <tr><td rowspan="3">Controller / E2E</td><td class="mono">AdminServerE2ETest</td><td class="center">29</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">ApiKeyControllerTest</td><td class="center">14</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">ThreadPoolConfigControllerTest / OpenThreadPoolConfigControllerTest</td><td class="center">14 / 9</td><td class="center ok">PASS</td></tr>
+    <tr><td rowspan="3">Service</td><td class="mono">ApiKeyAdminServiceTest</td><td class="center">21</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">ConfigAdminServiceTest / SubscriptionServiceTest / OpenThreadPoolConfigServiceTest</td><td class="center">16 / 6 / 10</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">ApiKeyPersistenceServiceTest / ThreadPoolConfigPersistenceServiceTest</td><td class="center">7 / 15</td><td class="center ok">PASS</td></tr>
+    <tr><td rowspan="3">Storage</td><td class="mono">LocalFile*StorageTest（ApiKey/Config/History/Stats）</td><td class="center">72</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">RedisMysql* / Mysql*StorageTest</td><td class="center">86</td><td class="center ok">PASS</td></tr>
+    <tr><td class="mono">ConcurrentMapStorageTest / ConfigChangeListenerManagerTest</td><td class="center">8 / 6</td><td class="center ok">PASS</td></tr>
+    <tr><td>Bean / Enum / Exception</td><td class="mono">ApiKey/ChangeLogEntry/...Test、Biz/Change/Operate/StorageTypeTest、BusinessException/GlobalExceptionHandlerTest</td><td class="center">36</td><td class="center ok">PASS</td></tr>
+    <tr><td>Interceptor / Utils</td><td class="mono">ApiKeyAuthInterceptorTest / RateLimitInterceptorTest / ApiKeyUtilsTest / ExecutorUtilsTest</td><td class="center">23</td><td class="center ok">PASS</td></tr>
+    <tr><td colspan="2"><b>合计</b></td><td class="center"><b>371</b></td><td class="center ok"><b>0 失败 / 0 错误 / 0 跳过</b></td></tr>
+  </table>
+
+  <!-- ============ 缺陷 ============ -->
+  <h2>四、发现并修复的缺陷</h2>
+  <p style="color:var(--muted)">两处均为<b>重构前就已存在的真实生产缺陷</b>——旧的 Controller 单测使用 mock 存储，无法触达校验逻辑；新增的真实存储 E2E 测试将其暴露。修复位于 <span class="file-tag">service/ApiKeyAdminService.java</span>。</p>
+
+  <div class="bug fixed">
+    <h3><span class="badge b-fix">BUG-1</span> updateApiKey 会清空 API Key 凭证哈希</h3>
+    <p><b>现象：</b>仅更新名称/描述的 PUT 请求，会新建一个不含 <span class="mono">apiKeyHash</span> 的 ApiKey 对象 → 存储层抛 <span class="mono">ValidationException</span>，接口返回业务码 <span class="no">400</span>；即便不抛异常，也会把真实凭证哈希覆盖为 null。</p>
+    <div class="ba">
+      <div class="before"><div class="tag">修复前</div><code>ApiKey apiKey = new ApiKey();
+apiKey.setAppId(appId);
+apiKey.setAppName(request.getAppName());
+// 未设置 apiKeyHash / createTime
+apiKeyStorage.saveApiKey(apiKey); // → 400</code></div>
+      <div class="after"><div class="tag">修复后</div><code>ApiKey existing = storage.getApiKey(appId)
+    .orElseThrow(...);
+ApiKey updated = ApiKey.builder()
+    .apiKeyHash(existing.getApiKeyHash()) // 保留凭证
+    .createTime(existing.getCreateTime()) // 保留创建时间
+    .appName(request.getAppName())...build();</code></div>
+    </div>
+  </div>
+
+  <div class="bug fixed">
+    <h3><span class="badge b-fix">BUG-2</span> 删除 API Key 后变更历史不可读</h3>
+    <p><b>现象：</b><span class="mono">getHistory</span> 以 <span class="mono">apiKeyStorage.exists()</span> 为前置校验，导致 Key 删除后，其 <span class="mono">DELETE</span> 审计记录永远返回业务码 <span class="no">404</span> 而无法读取。</p>
+    <div class="ba">
+      <div class="before"><div class="tag">修复前</div><code>if (!apiKeyStorage.exists(appId)) {
+    throw new ConfigNotFoundException(...); // → 404
+}
+return historyStorage.getHistory(appId);</code></div>
+      <div class="after"><div class="tag">修复后</div><code>// 审计日志与 Key 当前是否存在解耦，
+// 删除后仍可读到 DELETE 记录，
+// 未知 appId 时历史存储返回空列表
+return historyStorage.getHistory(appId);</code></div>
+    </div>
+  </div>
+
+  <!-- ============ 端到端冒烟 ============ -->
+  <h2>五、真实端到端冒烟测试（从后端接口进入）</h2>
+  <p style="color:var(--muted)">启动一个与生产 <span class="mono">ThreadPoolAdminServer</span> 同构的真实进程（内嵌 Tomcat、根包组件扫描、@MapperScan；仅排除 Flyway、mock Redisson），用 <span class="mono">curl</span> 走 <b>真实 HTTP</b> 调用 <span class="mono">http://127.0.0.1:18080</span>，而非进程内 MockMvc。</p>
+
+  <h3>5.1 API Key 生命周期</h3>
+  <table>
+    <tr><th class="center">#</th><th>接口</th><th>校验点</th><th class="center">结果</th></tr>
+    <tr><td class="center">1</td><td class="mono">POST /api/api-keys</td><td>创建，返回一次性明文 Key</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">2</td><td class="mono">GET /api/api-keys/{appId}</td><td>脱敏返回，无 apiKey 明文字段</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">3</td><td class="mono">GET /api/api-keys</td><td>列出全部</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">4</td><td class="mono">PUT /api/api-keys/{appId}</td><td><b>BUG-1 验证：</b>更新不再 400，凭证保留</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">5</td><td class="mono">POST /{appId}/regenerate</td><td>重新生成，返回新 Key（哈希变化）</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">6</td><td class="mono">GET /{appId}/history</td><td>含 CREATE/UPDATE/REGENERATE 条目</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">7</td><td class="mono">DELETE /api/api-keys/{appId}</td><td>删除成功，再查 Key 返回 404</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="center">8</td><td class="mono">GET /{appId}/history（删后）</td><td><b>BUG-2 验证：</b>删除后历史仍可读，含 DELETE 条目</td><td class="center ok">code 0 ✓</td></tr>
+  </table>
+
+  <h3>5.2 关键证据：UPDATE 前后凭证哈希一致、REGENERATE 后变化</h3>
+  <div class="code"><span class="c-cmt"># GET /{appId}/history 截取 apiKeyHash 字段</span>
+version 1  <span class="c-key">CREATE</span>     hash = <span class="c-ok">$2a$10$UTPDI6dDQqrnwCJjyydKee...</span>
+version 2  <span class="c-key">UPDATE</span>     hash = <span class="c-ok">$2a$10$UTPDI6dDQqrnwCJjyydKee...</span>  <span class="c-cmt">← 与 CREATE 完全一致（BUG-1 已修复，凭证未被清空）</span>
+version 3  <span class="c-key">REGENERATE</span> hash = <span class="c-warn">$2a$10$L9ojWoFdOqdcOsm7S8HMHO...</span>  <span class="c-cmt">← 正确变更为新哈希</span>
+version 4  <span class="c-del">DELETE</span>     newValue = null                       <span class="c-cmt">← 删除后该条目仍可读（BUG-2 已修复）</span></div>
+
+  <h3>5.3 线程池配置流程</h3>
+  <table>
+    <tr><th>接口</th><th>校验点</th><th class="center">结果</th></tr>
+    <tr><td class="mono">POST /api/thread-pool/configs/{appId}</td><td>保存配置列表</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">GET .../configs/{appId}</td><td>应用配置 + configVersion=1</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">GET .../configs/{appId}/{poolName}</td><td>获取单个池配置</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">POST .../configs/{appId}/{poolName}</td><td>更新 corePoolSize 4→2，版本 1→2</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">GET .../configs/{appId}/version</td><td>版本号 = 2</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">GET .../configs/{appId}/history</td><td>历史 Map 含 CREATE 条目</td><td class="center ok">code 0 ✓</td></tr>
+    <tr><td class="mono">DELETE .../configs/{appId}</td><td>删除全部，再查返回 404</td><td class="center ok">code 0 ✓</td></tr>
+  </table>
+
+  <h3>5.4 错误路径</h3>
+  <table>
+    <tr><th>场景</th><th>预期业务码</th><th class="center">实际</th></tr>
+    <tr><td>重复创建 API Key</td><td class="mono">409</td><td class="center ok">409 ✓</td></tr>
+    <tr><td>缺少必填 appId（Bean 校验）</td><td class="mono">400</td><td class="center ok">400 ✓</td></tr>
+    <tr><td>查询不存在的 API Key</td><td class="mono">404</td><td class="center ok">404 ✓</td></tr>
+    <tr><td>查询不存在的配置</td><td class="mono">404</td><td class="center ok">404 ✓</td></tr>
+  </table>
+
+  <!-- ============ 变更清单 ============ -->
+  <h2>六、本次测试涉及的文件变更</h2>
+  <table>
+    <tr><th>类型</th><th>文件</th><th>说明</th></tr>
+    <tr><td><span class="badge b-fix">改</span></td><td class="file-tag">main/.../service/ApiKeyAdminService.java</td><td>修复 BUG-1（updateApiKey 保留凭证）与 BUG-2（history 与存在性解耦）</td></tr>
+    <tr><td><span class="badge b-fix">改</span></td><td class="file-tag">test/.../service/ApiKeyAdminServiceTest.java</td><td>更新为正确契约，新增 getHistory_survivesDeletion 用例</td></tr>
+    <tr><td><span class="badge b-fix">改</span></td><td class="file-tag">test/.../AdminServerE2ETest.java</td><td>补齐缺失 import（MockMvc / MvcResult / 静态断言）</td></tr>
+    <tr><td><span class="badge b-info">新</span></td><td class="file-tag">test/.../LocalSmokeApplication.java</td><td>新增可复用的真实 HTTP 冒烟启动器（测试作用域，不影响生产构建）</td></tr>
+  </table>
+
+  <footer>
+    生成于 2026-06-21 · common-thread-pool-admin-server · 验证命令：
+    <span class="mono">mvn -pl admin-server clean test</span> → <span class="ok">BUILD SUCCESS (371/371)</span>
+  </footer>
+
+</div>
+</body>
+</html>

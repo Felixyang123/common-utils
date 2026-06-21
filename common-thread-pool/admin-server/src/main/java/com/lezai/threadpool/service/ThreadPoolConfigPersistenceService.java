@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ThreadPoolConfigService {
+public class ThreadPoolConfigPersistenceService {
     private final ThreadPoolConfigRep configRep;
 
     private final ThreadPoolConfigAppRep configAppRep;

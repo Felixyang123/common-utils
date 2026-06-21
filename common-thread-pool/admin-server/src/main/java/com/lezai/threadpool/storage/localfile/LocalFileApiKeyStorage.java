@@ -94,37 +94,6 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
     }
 
     @Override
-    public boolean validateApiKey(String appId, String apiKey) {
-        if (StringUtils.isAnyBlank(appId, apiKey)) {
-            return false;
-        }
-
-        ApiKey storedKey = getFromCache(appId).orElse(null);
-        if (storedKey == null) {
-            log.warn("API key not found for appId: {}", appId);
-            return false;
-        }
-
-        if (!storedKey.isEnabled()) {
-            log.warn("API key is disabled for appId: {}", appId);
-            return false;
-        }
-
-        if (storedKey.isExpired()) {
-            log.warn("API key has expired for appId: {}", appId);
-            return false;
-        }
-
-        boolean valid = ApiKeyUtils.validateApiKey(apiKey, storedKey.getApiKeyHash());
-
-        if (!valid) {
-            log.warn("API key validation failed for appId: {}", appId);
-        }
-
-        return valid;
-    }
-
-    @Override
     public void deleteApiKey(String appId) {
         AtomicReference<ApiKey> oldKeyRef = new AtomicReference<>();
         compute(appId, (k, existing) -> {

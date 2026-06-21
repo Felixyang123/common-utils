@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -98,6 +99,23 @@ public abstract class AbstractLocalFileStorage<T> extends ConcurrentMapStorage<T
         } catch (IOException e) {
             throw new StorageException("Failed to delete file: " + path, e);
         }
+    }
+
+    /**
+     * 读取文件内容（如果存在且不为空），否则使用默认值
+     *
+     * @param path            文件路径
+     * @param clazz           实体类
+     * @param defaultSupplier 默认值提供者
+     * @param <R>             实体类型
+     * @return 实体对象
+     */
+    protected <R> R getOrBuildFile(Path path, Class<R> clazz, Supplier<R> defaultSupplier) {
+        R file = readFile(path, clazz);
+        if (file == null) {
+            file = defaultSupplier.get();
+        }
+        return file;
     }
 
     protected abstract String getFileSuffix();
