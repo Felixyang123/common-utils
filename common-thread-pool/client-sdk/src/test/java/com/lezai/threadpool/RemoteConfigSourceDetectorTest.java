@@ -51,7 +51,9 @@ class RemoteConfigSourceDetectorTest {
         RecordedRequest req = server.takeRequest();
         assertTrue(req.getPath().startsWith("/open/api/thread-pool/config/test-app/pull"),
                 "pull must hit singular /config/.../pull, was: " + req.getPath());
-        assertTrue(req.getPath().contains("version="), "pull should send version param");
+        // 启动 pull 不带 version——总是拉最新全量配置,本地 updatePools guard 去重
+        assertFalse(req.getPath().contains("version="),
+                "startup pull should NOT include version param — always fetch latest");
         assertEquals("test-key", req.getHeader("X-API-Key"));
 
         d.stop();

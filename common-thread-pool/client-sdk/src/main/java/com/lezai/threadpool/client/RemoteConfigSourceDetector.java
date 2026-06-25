@@ -178,8 +178,8 @@ public class RemoteConfigSourceDetector {
      * 拉取配置
      */
     private void pullConfigs() {
-        String url = String.format("%s/open/api/thread-pool/config/%s/pull?version=%d",
-                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8), configVersion.get());
+        String url = String.format("%s/open/api/thread-pool/config/%s/pull",
+                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8));
 
         Request request = new Request.Builder()
                 .url(url)
@@ -359,7 +359,7 @@ public class RemoteConfigSourceDetector {
         int applied = 0;
         for (ThreadPoolConfig config : configs) {
             String poolName = config.getPoolName();
-            if (!org.springframework.util.StringUtils.hasText(poolName)) {
+            if (StringUtils.isBlank(poolName)) {
                 log.warn("Skipping config with null or empty poolName: {}, appId: {}", config, appId);
                 continue;
             }
