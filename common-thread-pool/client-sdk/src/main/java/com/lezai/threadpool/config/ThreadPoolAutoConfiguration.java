@@ -9,13 +9,12 @@ import com.lezai.threadpool.manager.RemoteConfigSourcePoolManager;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import com.lezai.threadpool.properties.ThreadPoolProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.event.ContextClosedEvent;
 
 /**
  * 线程池自动配置（基于策略模式重构）
@@ -101,18 +100,8 @@ public class ThreadPoolAutoConfiguration {
                 remote.getReportIntervalMs(),
                 threadPoolManager
         );
-        reporter.start();
-        log.info("Initialized ThreadPoolStatsReporter, interval: {}ms", remote.getReportIntervalMs());
+        log.info("Created ThreadPoolStatsReporter, interval: {}ms (will be started by ThreadPoolLifecycle)", remote.getReportIntervalMs());
         return reporter;
-    }
-
-    @Bean
-    public ApplicationListener<ContextClosedEvent> reporterDestroyListener(ThreadPoolStatsReporter reporter) {
-        return event -> {
-            if (reporter != null) {
-                reporter.stop();
-            }
-        };
     }
 
     // ==================== 初始化器 ====================
@@ -121,10 +110,8 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false)
     public ThreadPoolInitializer threadPoolInitializerLocal(ThreadPoolManager threadPoolManager) {
-        log.info("Initializing ThreadPoolInitializer (LOCAL mode)");
-        ThreadPoolInitializer initializer = new ThreadPoolInitializer(properties, null, threadPoolManager);
-        initializer.initialize();
-        return initializer;
+        log.info("Creating ThreadPoolInitializer (LOCAL mode)");
+        return new ThreadPoolInitializer(properties, null, threadPoolManager);
     }
 
     @Bean
@@ -132,15 +119,21 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ThreadPoolInitializer threadPoolInitializerRemote(RemoteConfigSourceDetector detector,
                                                               ThreadPoolManager threadPoolManager) {
-        log.info("Initializing ThreadPoolInitializer (REMOTE/CS mode)");
-        ThreadPoolInitializer initializer = new ThreadPoolInitializer(properties, detector, threadPoolManager);
-        initializer.initialize();
-        return initializer;
+        log.info("Creating ThreadPoolInitializer (REMOTE/CS mode)");
+        return new ThreadPoolInitializer(properties, detector, threadPoolManager);
     }
 
+    // ==================== Lifecycle 编排 ====================
+
     @Bean
-    public ApplicationListener<ContextClosedEvent> detectorDestroyListener(RemoteConfigSourceDetector detector) {
-        return event -> detector.stop();
+    @ConditionalOnMissingBean
+    public ThreadPoolLifecycle threadPoolLifecycle(
+            @Autowired(required = false) RemoteConfigSourceDetector detector,
+            @Autowired(required = false) ThreadPoolStatsReporter reporter,
+            ThreadPoolInitializer initializer,
+            ThreadPoolManager threadPoolManager) {
+        log.info("Creating ThreadPoolLifecycle");
+        return new ThreadPoolLifecycle(detector, reporter, initializer, threadPoolManager);
     }
 
 }
