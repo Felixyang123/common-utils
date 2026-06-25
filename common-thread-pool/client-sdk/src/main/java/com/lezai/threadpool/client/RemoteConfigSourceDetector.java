@@ -13,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -104,6 +105,8 @@ public class RemoteConfigSourceDetector {
         log.info("Stopping remote config source for appId: {}", appId);
 
         // 1. Interrupt subscription thread
+        // 注意：OkHttp 的阻塞 I/O 在不同平台可能不会立即响应 Thread.interrupt()，
+        // 因此 shutdown 最长可能延迟一个长轮询周期（longPollingTimeoutMs，默认 30s）
         subscriptionThread.interrupt();
 
         // 2. Shut down short-polling scheduler
@@ -130,7 +133,7 @@ public class RemoteConfigSourceDetector {
     private void subscribeWithLongPolling() {
         while (running) {
             String url = String.format("%s/open/api/thread-pool/configs/%s/subscribe?version=%d&timeout=%d",
-                    serverUrl, appId, configVersion.get(), longPollingTimeoutMs);
+                    serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8), configVersion.get(), longPollingTimeoutMs);
 
             Request request = new Request.Builder()
                     .url(url)
@@ -176,7 +179,7 @@ public class RemoteConfigSourceDetector {
      */
     private void pullConfigs() {
         String url = String.format("%s/open/api/thread-pool/config/%s/pull?version=%d",
-                serverUrl, appId, configVersion.get());
+                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8), configVersion.get());
 
         Request request = new Request.Builder()
                 .url(url)
@@ -253,12 +256,17 @@ public class RemoteConfigSourceDetector {
         }
 
         // 更新线程池配置
-        applyConfigs(appId, resp.getConfigs());
+        int applied = applyConfigs(appId, resp.getConfigs());
 
-        configVersion.set(currentVersion);
-        this.configHash.set(newConfigHash);
-
-        log.info("Thread pools updated for appId: {}, version: {}", appId, currentVersion);
+        // 至少一个池成功应用后才推进版本——防止全局失败后永久忽略同一版本
+        if (applied > 0) {
+            configVersion.set(currentVersion);
+            this.configHash.set(newConfigHash);
+            log.info("Thread pools updated for appId: {}, version: {}, applied: {}/{}",
+                    appId, currentVersion, applied, resp.getConfigs().size());
+        } else {
+            log.warn("No configs applied for appId: {}, version not advanced", appId);
+        }
     }
 
     public ThreadPoolConfig registerConfig(ThreadPoolConfig config) {
@@ -270,7 +278,8 @@ public class RemoteConfigSourceDetector {
             log.debug("Registering config for appId: {}, config: {}", appId, JSON.toJSONString(config));
         }
 
-        String url = String.format("%s/open/api/thread-pool/config/%s/add", serverUrl, appId);
+        String url = String.format("%s/open/api/thread-pool/config/%s/add",
+                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8));
 
         RequestBody body = RequestBody.create(
                 JSON.toJSONString(config),
@@ -309,7 +318,8 @@ public class RemoteConfigSourceDetector {
             log.debug("Registering configs for appId: {}, configs: {}", appId, JSON.toJSONString(configs));
         }
 
-        String url = String.format("%s/open/api/thread-pool/configs/%s/add", serverUrl, appId);
+        String url = String.format("%s/open/api/thread-pool/configs/%s/add",
+                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8));
 
         RequestBody body = RequestBody.create(
                 JSON.toJSONString(configs),
@@ -340,12 +350,13 @@ public class RemoteConfigSourceDetector {
     /**
      * 应用配置到本地线程池（模板方法）
      */
-    public void applyConfigs(String appId, List<ThreadPoolConfig> configs) {
+    public int applyConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (CollectionUtils.isEmpty(configs)) {
             log.warn("no configs to apply for appId: {}, skipping", appId);
-            return;
+            return 0;
         }
 
+        int applied = 0;
         for (ThreadPoolConfig config : configs) {
             String poolName = config.getPoolName();
             if (!org.springframework.util.StringUtils.hasText(poolName)) {
@@ -355,12 +366,14 @@ public class RemoteConfigSourceDetector {
 
             try {
                 threadPoolManager.updatePool(config);
-                log.info("created thread pool: {}, appId: {}", poolName, appId);
+                applied++;
+                log.info("applied config for pool: {}, appId: {}", poolName, appId);
             } catch (Exception e) {
                 log.error("failed to apply config for pool: {}, appId: {}", poolName, appId, e);
             }
         }
 
-        log.info("remote applied configs, appId: {}, pool count: {}", appId, configs.size());
+        log.info("remote applied configs, appId: {}, applied: {}/{}", appId, applied, configs.size());
+        return applied;
     }
 }

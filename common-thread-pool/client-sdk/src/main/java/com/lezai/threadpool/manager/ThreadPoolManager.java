@@ -153,7 +153,8 @@ public class ThreadPoolManager {
             if (!pool.awaitTermination(timeout, unit)) {
                 log.warn("Thread pool {} did not terminate within timeout, forcing shutdown", pool.getPoolName());
                 pool.shutdownNow();
-                return pool.awaitTermination(timeout, unit);
+                // shutdownNow 返回很快——短暂等待确认 worker 已退出即可
+                return pool.awaitTermination(1, TimeUnit.SECONDS);
             }
             return true;
         } catch (InterruptedException e) {
@@ -173,20 +174,27 @@ public class ThreadPoolManager {
     public void shutdown() {
         log.info("Shutting down {} thread pools", poolRegistry.size());
 
+        // 快照：避免 ConcurrentHashMap.values() 两阶段之间元素漂移
+        List<DynamicThreadPoolWrapper> snapshot = List.copyOf(poolRegistry.values());
+
         // 阶段 1：对所有池发出 shutdown 信号（非阻塞）—— 各池开始并发排空
-        for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
+        for (DynamicThreadPoolWrapper pool : snapshot) {
             pool.shutdown();
         }
 
         // 阶段 2：以共享截止时间依次等待终止，超时则强制关闭
         long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
-        for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
+        for (DynamicThreadPoolWrapper pool : snapshot) {
             String poolName = pool.getPoolName();
             long remaining = deadlineNanos - System.nanoTime();
             try {
                 if (remaining <= 0 || !pool.awaitTermination(remaining, TimeUnit.NANOSECONDS)) {
                     log.warn("Thread pool '{}' did not terminate within timeout, forcing shutdownNow", poolName);
                     pool.shutdownNow();
+                    // 等待强制终止完成（shutdownNow 中断 worker 后仍需短暂等待）
+                    if (!pool.awaitTermination(1, TimeUnit.SECONDS)) {
+                        log.error("Thread pool '{}' failed to terminate after shutdownNow", poolName);
+                    }
                 }
             } catch (InterruptedException e) {
                 log.warn("Interrupted while waiting for pool '{}' to terminate", poolName);

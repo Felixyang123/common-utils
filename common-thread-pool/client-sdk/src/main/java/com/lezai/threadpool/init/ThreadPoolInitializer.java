@@ -82,8 +82,9 @@ public class ThreadPoolInitializer {
         // 创建自定义线程池（过滤掉用户重复声明的 default-pool）
         List<ThreadPoolConfig> configs = Arrays.stream(properties.getPools())
                 .filter(poolConfig -> !"default-pool".equals(poolConfig.getName()))
-                .map(poolConfig ->
-                        ThreadPoolConfig.builder()
+                .map(poolConfig -> {
+                    try {
+                        return ThreadPoolConfig.builder()
                                 .poolName(poolConfig.getName())
                                 .corePoolSize(poolConfig.getCorePoolSize())
                                 .maximumPoolSize(poolConfig.getMaximumPoolSize())
@@ -95,7 +96,13 @@ public class ThreadPoolInitializer {
                                 .allowCoreThreadTimeout(poolConfig.isAllowCoreThreadTimeout())
                                 .threadNamePrefix(poolConfig.getThreadNamePrefix())
                                 .daemon(poolConfig.isDaemon())
-                                .build()).toList();
+                                .build();
+                    } catch (IllegalArgumentException e) {
+                        // 包装异常以携带池名和原始值，帮助快速定位 YAML 错配
+                        throw new IllegalArgumentException(
+                                "Failed to parse config for pool '" + poolConfig.getName() + "': " + e.getMessage(), e);
+                    }
+                }).toList();
         threadPoolManager.registerPools(configs);
     }
 

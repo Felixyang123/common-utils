@@ -42,11 +42,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
         this.configRef = new AtomicReference<>(config);
 
         // 装饰拒绝策略，统计拒绝次数
-        RejectedExecutionHandler base = getRejectedExecutionHandler();
-        setRejectedExecutionHandler((r, executor) -> {
-            rejectedTaskCount.incrementAndGet();
-            base.rejectedExecution(r, executor);
-        });
+        setRejectedExecutionHandler(withRejectedCounting(getRejectedExecutionHandler()));
 
         log.info("Created dynamic thread pool [{}]: coreSize={}, maxSize={}, queueSize={}",
                 poolName, config.getCorePoolSize(), config.getMaximumPoolSize(), config.getQueueCapacity());
@@ -64,7 +60,8 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     }
 
     private static ThreadFactory createThreadFactory(ThreadPoolConfig config) {
-        String prefix = config.getThreadNamePrefix();
+        // 防御 null：JSON 反序列化可能跳过 Builder 的默认值（threadNamePrefix 默认 poolName）
+        String prefix = config.getThreadNamePrefix() != null ? config.getThreadNamePrefix() : config.getPoolName();
         boolean daemon = config.isDaemon();
         AtomicLong threadNumber = new AtomicLong(1);
 
@@ -92,11 +89,6 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     public void execute(Runnable command) {
         submittedTaskCount.incrementAndGet();
         super.execute(command);
-    }
-
-    @Override
-    protected void beforeExecute(Thread t, Runnable r) {
-        super.beforeExecute(t, r);
     }
 
     @Override
@@ -158,8 +150,23 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                     poolName, oldConfig.isAllowCoreThreadTimeout(), newConfig.isAllowCoreThreadTimeout());
         }
 
+        // 更新拒绝策略
+        if (newConfig.getRejectPolicyType() != oldConfig.getRejectPolicyType()) {
+            setRejectedExecutionHandler(withRejectedCounting(createRejectPolicy(newConfig)));
+            log.info("Thread pool [{}] reject policy changed: {} -> {}",
+                    poolName, oldConfig.getRejectPolicyType(), newConfig.getRejectPolicyType());
+        }
+
         configRef.set(newConfig);
         log.info("Thread pool [{}] configuration updated successfully", poolName);
+    }
+
+    /** 装饰 RejectedExecutionHandler，在调用真实处理器前累加 rejectedTaskCount */
+    private RejectedExecutionHandler withRejectedCounting(RejectedExecutionHandler handler) {
+        return (r, executor) -> {
+            rejectedTaskCount.incrementAndGet();
+            handler.rejectedExecution(r, executor);
+        };
     }
 
     /**

@@ -78,6 +78,8 @@ public class ThreadPoolLifecycle implements SmartLifecycle {
 
     @Override
     public int getPhase() {
-        return 0;
+        // 使用最低 phase：start 最先调用（确保池在所有其他组件之前就绪），
+        // stop 最后调用（池在所有组件停止之后才排空）
+        return Integer.MIN_VALUE;
     }
 }
