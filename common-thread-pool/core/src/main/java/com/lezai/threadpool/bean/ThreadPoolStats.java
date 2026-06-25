@@ -72,6 +72,11 @@ public class ThreadPoolStats implements Serializable {
     private long errorTaskCount;
 
     /**
+     * 被拒绝的任务数
+     */
+    private long rejectedTaskCount;
+
+    /**
      * 历史最大线程数
      */
     private int largestPoolSize;

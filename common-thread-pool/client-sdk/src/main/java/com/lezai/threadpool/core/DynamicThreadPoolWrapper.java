@@ -26,6 +26,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     private final AtomicLong completedTaskCount = new AtomicLong(0);
     private final AtomicLong submittedTaskCount = new AtomicLong(0);
     private final AtomicLong errorTaskCount = new AtomicLong(0);
+    private final AtomicLong rejectedTaskCount = new AtomicLong(0);
 
     public DynamicThreadPoolWrapper(ThreadPoolConfig config) {
         super(
@@ -39,6 +40,14 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
         );
         this.poolName = config.getPoolName();
         this.configRef = new AtomicReference<>(config);
+
+        // 装饰拒绝策略，统计拒绝次数
+        RejectedExecutionHandler base = getRejectedExecutionHandler();
+        setRejectedExecutionHandler((r, executor) -> {
+            rejectedTaskCount.incrementAndGet();
+            base.rejectedExecution(r, executor);
+        });
+
         log.info("Created dynamic thread pool [{}]: coreSize={}, maxSize={}, queueSize={}",
                 poolName, config.getCorePoolSize(), config.getMaximumPoolSize(), config.getQueueCapacity());
     }
@@ -80,9 +89,14 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     }
 
     @Override
+    public void execute(Runnable command) {
+        submittedTaskCount.incrementAndGet();
+        super.execute(command);
+    }
+
+    @Override
     protected void beforeExecute(Thread t, Runnable r) {
         super.beforeExecute(t, r);
-        submittedTaskCount.incrementAndGet();
     }
 
     @Override
@@ -205,6 +219,20 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     }
 
     /**
+     * 由异步提交层(如切面)在任务异常完成时调用,累加错误计数。
+     */
+    public void incrementErrorCount() {
+        errorTaskCount.incrementAndGet();
+    }
+
+    /**
+     * 获取被拒绝的任务数
+     */
+    public long getRejectedTaskCount() {
+        return rejectedTaskCount.get();
+    }
+
+    /**
      * 获取线程池统计信息
      */
     public ThreadPoolStats getStats() {
@@ -221,6 +249,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                 .completedTaskCount(getCompletedTaskCount())
                 .submittedTaskCount(getSubmittedTaskCount())
                 .errorTaskCount(getErrorTaskCount())
+                .rejectedTaskCount(getRejectedTaskCount())
                 .largestPoolSize(getLargestPoolSize())
                 .taskCount(getTaskCount())
                 .isShutdown(isShutdown())

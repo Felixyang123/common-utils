@@ -140,22 +140,6 @@ public class ThreadPoolManager {
     }
 
     /**
-     * 关闭并移除线程池
-     *
-     * @param poolName 线程池名称
-     * @param timeout  超时时间
-     * @param unit     时间单位
-     * @return 是否成功关闭
-     */
-    public boolean shutdownPool(String poolName, long timeout, TimeUnit unit) {
-        DynamicThreadPoolWrapper pool = poolRegistry.remove(poolName);
-        if (pool != null) {
-            return shutdownPool(pool, timeout, unit);
-        }
-        return false;
-    }
-
-    /**
      * 关闭线程池
      *
      * @param pool    线程池包装器
@@ -178,23 +162,6 @@ public class ThreadPoolManager {
             Thread.currentThread().interrupt();
             return false;
         }
-    }
-
-    /**
-     * 重新创建线程池
-     * 使用 replace 方法保证原子性
-     *
-     * @param poolName 线程池名称
-     * @param config   新配置
-     */
-    private void recreatePool(String poolName, ThreadPoolConfig config) {
-        poolRegistry.compute(poolName, (k, oldPool) -> {
-            if (oldPool != null) {
-                shutdownPool(oldPool, 5, TimeUnit.SECONDS);
-            }
-            log.info("Recreated thread pool: {} with new config", poolName);
-            return new DynamicThreadPoolWrapper(config);
-        });
     }
 
     /**
