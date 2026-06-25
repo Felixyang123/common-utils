@@ -40,7 +40,7 @@ public class ThreadPoolAspect {
         }
 
         String poolName = asyncThreadPool.poolName();
-        DynamicThreadPoolWrapper pool = threadPoolManager.getPool(poolName);
+        DynamicThreadPoolWrapper pool = threadPoolManager.getRequiredPool(poolName);
 
         Method method = getMethod(joinPoint);
         log.debug("Executing method {} asynchronously in thread pool {}",
