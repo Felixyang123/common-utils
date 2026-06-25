@@ -61,7 +61,9 @@ public class ThreadPoolInitializer {
             loadConfiguredPools();
 
             // 阶段 3: 查询服务端当前 appId 下的所有线程池配置，委托给RemoteConfigSourceDetector
-            remoteConfigSourceDetector.start();
+            if (remoteConfigSourceDetector != null) {
+                remoteConfigSourceDetector.start();
+            }
 
             log.info("Thread pool initialization completed");
         } catch (Exception e) {

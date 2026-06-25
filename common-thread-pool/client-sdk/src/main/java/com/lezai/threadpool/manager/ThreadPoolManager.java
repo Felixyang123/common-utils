@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -133,7 +132,7 @@ public class ThreadPoolManager {
     public boolean removePool(String poolName) {
         DynamicThreadPoolWrapper pool = poolRegistry.remove(poolName);
         if (pool != null) {
-            shutdownPoolAsync(pool);
+            pool.shutdown();
             log.info("Removed thread pool: {}", poolName);
             return true;
         }
@@ -144,11 +143,11 @@ public class ThreadPoolManager {
      * 删除所有自定义线程池（保留默认线程池）
      */
     public void removeAllPools() {
-        poolRegistry.entrySet().removeIf(entry -> {
-            shutdownPoolAsync(entry.getValue());
-            return true;
+        poolRegistry.values().forEach(pool -> {
+            pool.shutdown();
         });
-        log.info("Removed all custom thread pools");
+        poolRegistry.clear();
+        log.info("Removed all thread pools");
     }
 
     /**
@@ -165,15 +164,6 @@ public class ThreadPoolManager {
             return shutdownPool(pool, timeout, unit);
         }
         return false;
-    }
-
-    /**
-     * 异步关闭线程池（不阻塞）
-     *
-     * @param pool 线程池包装器
-     */
-    private void shutdownPoolAsync(DynamicThreadPoolWrapper pool) {
-        CompletableFuture.runAsync(() -> shutdownPool(pool, 30, TimeUnit.SECONDS));
     }
 
     /**
@@ -211,7 +201,7 @@ public class ThreadPoolManager {
     private void recreatePool(String poolName, ThreadPoolConfig config) {
         poolRegistry.compute(poolName, (k, oldPool) -> {
             if (oldPool != null) {
-                shutdownPoolAsync(oldPool);
+                oldPool.shutdown();
             }
             log.info("Recreated thread pool: {} with new config", poolName);
             return new DynamicThreadPoolWrapper(config);
@@ -222,11 +212,26 @@ public class ThreadPoolManager {
      * 关闭所有线程池
      */
     public void shutdown() {
-        // 关闭所有动态线程池
-        poolRegistry.values().forEach(this::shutdownPoolAsync);
-
+        log.info("Shutting down {} thread pools", poolRegistry.size());
+        for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
+            String poolName = pool.getPoolName();
+            pool.shutdown();
+            try {
+                if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
+                    log.warn("Thread pool '{}' did not terminate within timeout, forcing shutdownNow", poolName);
+                    pool.shutdownNow();
+                    if (!pool.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.error("Thread pool '{}' failed to terminate after shutdownNow", poolName);
+                    }
+                }
+            } catch (InterruptedException e) {
+                log.warn("Interrupted while waiting for pool '{}' to terminate", poolName);
+                pool.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
         poolRegistry.clear();
-        log.info("Shutdown all thread pools");
+        log.info("All thread pools shut down");
     }
 
     /**
@@ -238,22 +243,4 @@ public class ThreadPoolManager {
         log.info("Shutdown now all thread pools");
     }
 
-    /**
-     * 简单的 CompletableFuture 用于异步操作
-     */
-    private static class CompletableFuture {
-        private static final ExecutorService asyncExecutor =
-                new java.util.concurrent.ScheduledThreadPoolExecutor(
-                        2,
-                        r -> {
-                            Thread t = new Thread(r, "pool-shutdown-async");
-                            t.setDaemon(true);
-                            return t;
-                        }
-                );
-
-        static void runAsync(Runnable runnable) {
-            asyncExecutor.submit(runnable);
-        }
-    }
 }

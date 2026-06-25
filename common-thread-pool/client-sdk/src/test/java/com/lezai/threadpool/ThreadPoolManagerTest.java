@@ -214,4 +214,31 @@ class ThreadPoolManagerTest {
             manager.getRequiredPool("unknown-pool");
         });
     }
+
+    @Test
+    @DisplayName("shutdown terminates all pools and waits for completion")
+    void shutdownAwaitsTermination() throws Exception {
+        manager.registerPool(config("sync-shutdown-a"));
+        manager.registerPool(config("sync-shutdown-b"));
+
+        manager.shutdown();
+
+        // After shutdown, pools are cleared from registry
+        assertNull(manager.getPool("sync-shutdown-a"));
+        assertNull(manager.getPool("sync-shutdown-b"));
+    }
+
+    @Test
+    @DisplayName("shutdown on empty registry does not throw")
+    void shutdownEmptyDoesNotThrow() {
+        assertDoesNotThrow(() -> manager.shutdown());
+    }
+
+    @Test
+    @DisplayName("removePool shuts down the pool synchronously")
+    void removePoolShutsDownSynchronously() {
+        DynamicThreadPoolWrapper pool = manager.registerPool(config("sync-remove"));
+        manager.removePool("sync-remove");
+        assertTrue(pool.isShutdown(), "pool should be shut down after removePool");
+    }
 }
