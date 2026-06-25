@@ -132,7 +132,7 @@ public class ThreadPoolManager {
     public boolean removePool(String poolName) {
         DynamicThreadPoolWrapper pool = poolRegistry.remove(poolName);
         if (pool != null) {
-            pool.shutdown();
+            shutdownPool(pool, 5, TimeUnit.SECONDS);
             log.info("Removed thread pool: {}", poolName);
             return true;
         }
@@ -143,9 +143,9 @@ public class ThreadPoolManager {
      * 删除所有自定义线程池（保留默认线程池）
      */
     public void removeAllPools() {
-        poolRegistry.values().forEach(pool -> {
-            pool.shutdown();
-        });
+        poolRegistry.values().forEach(pool ->
+            shutdownPool(pool, 5, TimeUnit.SECONDS)
+        );
         poolRegistry.clear();
         log.info("Removed all thread pools");
     }
@@ -201,7 +201,7 @@ public class ThreadPoolManager {
     private void recreatePool(String poolName, ThreadPoolConfig config) {
         poolRegistry.compute(poolName, (k, oldPool) -> {
             if (oldPool != null) {
-                oldPool.shutdown();
+                shutdownPool(oldPool, 5, TimeUnit.SECONDS);
             }
             log.info("Recreated thread pool: {} with new config", poolName);
             return new DynamicThreadPoolWrapper(config);
