@@ -74,22 +74,39 @@ public class ThreadPoolInitializer {
      * 使用默认配置
      */
     private void loadConfiguredPools() {
-        // 创建自定义线程池
-        List<ThreadPoolConfig> configs = Arrays.stream(properties.getPools()).map(poolConfig ->
-                ThreadPoolConfig.builder()
-                        .poolName(poolConfig.getName())
-                        .corePoolSize(poolConfig.getCorePoolSize())
-                        .maximumPoolSize(poolConfig.getMaximumPoolSize())
-                        .keepAliveTime(poolConfig.getKeepAliveTime())
-                        .timeUnit(TimeUnit.SECONDS)
-                        .queueType(QueueType.valueOf(poolConfig.getQueueType()))
-                        .queueCapacity(poolConfig.getQueueCapacity())
-                        .rejectPolicyType(RejectPolicyType.valueOf(poolConfig.getRejectPolicyType()))
-                        .allowCoreThreadTimeout(poolConfig.isAllowCoreThreadTimeout())
-                        .threadNamePrefix(poolConfig.getThreadNamePrefix())
-                        .daemon(poolConfig.isDaemon())
-                        .build()).toList();
+        // 注册默认线程池
+        registerDefaultPool();
+
+        // 创建自定义线程池（过滤掉用户重复声明的 default-pool）
+        List<ThreadPoolConfig> configs = Arrays.stream(properties.getPools())
+                .filter(poolConfig -> !"default-pool".equals(poolConfig.getName()))
+                .map(poolConfig ->
+                        ThreadPoolConfig.builder()
+                                .poolName(poolConfig.getName())
+                                .corePoolSize(poolConfig.getCorePoolSize())
+                                .maximumPoolSize(poolConfig.getMaximumPoolSize())
+                                .keepAliveTime(poolConfig.getKeepAliveTime())
+                                .timeUnit(TimeUnit.SECONDS)
+                                .queueType(QueueType.valueOf(poolConfig.getQueueType()))
+                                .queueCapacity(poolConfig.getQueueCapacity())
+                                .rejectPolicyType(RejectPolicyType.valueOf(poolConfig.getRejectPolicyType()))
+                                .allowCoreThreadTimeout(poolConfig.isAllowCoreThreadTimeout())
+                                .threadNamePrefix(poolConfig.getThreadNamePrefix())
+                                .daemon(poolConfig.isDaemon())
+                                .build()).toList();
         threadPoolManager.registerPools(configs);
+    }
+
+    private void registerDefaultPool() {
+        threadPoolManager.registerPool(ThreadPoolConfig.builder()
+                .poolName("default-pool")
+                .corePoolSize(Runtime.getRuntime().availableProcessors())
+                .maximumPoolSize(Runtime.getRuntime().availableProcessors() * 2)
+                .keepAliveTime(60)
+                .timeUnit(TimeUnit.SECONDS)
+                .queueCapacity(1024)
+                .build());
+        log.info("Registered default thread pool: default-pool");
     }
 
 }

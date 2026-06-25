@@ -117,10 +117,21 @@ public class ThreadPoolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ThreadPoolInitializer threadPoolInitializer(RemoteConfigSourceDetector detector,
-                                                       ThreadPoolManager threadPoolManager) {
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false)
+    public ThreadPoolInitializer threadPoolInitializerLocal(ThreadPoolManager threadPoolManager) {
+        log.info("Initializing ThreadPoolInitializer (LOCAL mode)");
+        ThreadPoolInitializer initializer = new ThreadPoolInitializer(properties, null, threadPoolManager);
+        initializer.initialize();
+        return initializer;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    public ThreadPoolInitializer threadPoolInitializerRemote(RemoteConfigSourceDetector detector,
+                                                              ThreadPoolManager threadPoolManager) {
+        log.info("Initializing ThreadPoolInitializer (REMOTE/CS mode)");
         ThreadPoolInitializer initializer = new ThreadPoolInitializer(properties, detector, threadPoolManager);
-        // 自动执行初始化流程
         initializer.initialize();
         return initializer;
     }
