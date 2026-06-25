@@ -1,12 +1,18 @@
 package com.lezai.threadpool.properties;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * 线程池配置属性
  */
 @Data
+@Validated
 @ConfigurationProperties(prefix = "thread.pool")
 public class ThreadPoolProperties {
 
@@ -20,10 +26,9 @@ public class ThreadPoolProperties {
      */
     private PoolConfig[] pools = new PoolConfig[0];
 
-    /**
-     * CS 模式配置
-     */
-    private RemoteServerConfig remote = new RemoteServerConfig();
+    /** 远程（CS 客户端）配置 */
+    @Valid
+    private RemoteConfig remote = new RemoteConfig();
 
     @Data
     public static class PoolConfig {
@@ -35,16 +40,19 @@ public class ThreadPoolProperties {
         /**
          * 核心线程数
          */
+        @Min(1)
         private int corePoolSize = Runtime.getRuntime().availableProcessors();
 
         /**
          * 最大线程数
          */
+        @Min(1)
         private int maximumPoolSize = Runtime.getRuntime().availableProcessors() * 2;
 
         /**
          * 空闲线程存活时间（秒）
          */
+        @PositiveOrZero
         private long keepAliveTime = 60L;
 
         /**
@@ -79,76 +87,52 @@ public class ThreadPoolProperties {
     }
 
     /**
-     * CS 模式配置（包含服务端和客户端）
+     * 远程（CS 客户端模式）配置 — 描述客户端如何连接 admin-server。
+     * <p>
+     * 注意: 这是"客户端连服务端"的连接信息，<b>不是</b>服务端自身的配置（服务端配置在 {@code threadpool.admin.*}）。
      */
     @Data
-    public static class RemoteServerConfig {
+    public static class RemoteConfig {
+
+        /** 是否启用 CS 客户端模式（默认 false，即 LOCAL 模式） */
+        private boolean enabled = false;
+
+        /** admin-server 地址（默认 http://localhost:8080） */
+        private String serverUrl = "http://localhost:8080";
+
+        /** 应用 ID（客户端身份标识） */
+        private String appId = "default-app";
+
+        /** API 密钥（remote.enabled=true 时必填） */
+        private String apiKey;
+
+        /** 长轮询超时（毫秒），默认 30000 */
+        @PositiveOrZero
+        private long longPollingTimeoutMs = 30000L;
+
+        /** 短轮询补偿间隔（毫秒），默认 0 = 禁用 */
+        @PositiveOrZero
+        private long pullIntervalMs = 0L;
+
+        /** 是否上报统计信息 */
+        private boolean reportEnabled = true;
+
+        /** 统计上报间隔（毫秒），默认 60000 */
+        @PositiveOrZero
+        private long reportIntervalMs = 60000L;
 
         /**
-         * 服务端配置（仅服务端启用）
+         * 条件校验：仅当 remote.enabled=true 时检查必填连接字段。
+         * 这样 local 模式（enabled=false、不设 api-key）不会触发校验失败。
          */
-        private ServerConfig server = new ServerConfig();
-
-        /**
-         * 客户端配置（仅客户端启用）
-         */
-        private ClientConfig client = new ClientConfig();
-
-        @Data
-        public static class ServerConfig {
-            /**
-             * 是否启用服务端
-             */
-            private boolean enabled = false;
-
-            /**
-             * 服务端端口
-             */
-            private int port = 8088;
-
-            /**
-             * 服务端地址
-             */
-            private String host = "http://localhost";
-
-            public String getServerUrl() {
-                return host + ":" + port;
+        @AssertTrue(message = "When remote.enabled=true, server-url, app-id, and api-key must not be blank")
+        public boolean isConnectionConfigValid() {
+            if (!enabled) {
+                return true;
             }
-
-        }
-
-        @Data
-        public static class ClientConfig {
-
-            /**
-             * 应用 ID
-             */
-            private String appId = "default-app";
-
-            /**
-             * API 密钥
-             */
-            private String apiKey;
-
-            /**
-             * 长轮询超时时间（毫秒）
-             */
-            private long longPollingTimeoutMs = 30000L;
-
-            /**
-             * 短轮询间隔时间（毫秒）
-             */
-            private long pullIntervalMs;
-
-            /**
-             * 是否启用统计信息上报
-             */
-            private boolean reportEnabled = true;
-
-            /**
-             * 统计信息上报间隔（毫秒），默认60秒
-             */
-            private long reportIntervalMs = 60000L;
+            return serverUrl != null && !serverUrl.isBlank()
+                    && appId != null && !appId.isBlank()
+                    && apiKey != null && !apiKey.isBlank();
         }
     }
 
