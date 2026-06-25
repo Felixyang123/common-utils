@@ -13,6 +13,7 @@ import org.aspectj.lang.reflect.MethodSignature;
 
 import java.lang.reflect.Method;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Future;
 
 /**
@@ -50,12 +51,21 @@ public class ThreadPoolAspect {
             try {
                 return joinPoint.proceed();
             } catch (Throwable e) {
-                throw new RuntimeException(e);
+                throw new CompletionException(e);
             }
         }, pool);
 
+        // 错误可见性:在 CF 完成层捕获异常(afterExecute 的 throwable 在异步路径恒为 null),
+        // 计数并记日志 —— 即便是 fire-and-forget 的非 Future 方法,异常也不再被静默吞没。
+        CompletableFuture<Object> tracked = future.whenComplete((result, ex) -> {
+            if (ex != null) {
+                pool.incrementErrorCount();
+                log.error("Async task {} failed in pool {}", getMethodName(method), poolName, ex);
+            }
+        });
+
         if (Future.class.isAssignableFrom(method.getReturnType())) {
-            return future;
+            return tracked;
         }
 
         return null;
