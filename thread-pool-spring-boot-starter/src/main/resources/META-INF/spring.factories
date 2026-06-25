@@ -1,2 +1,0 @@
-org.springframework.boot.autoconfigure.AutoConfiguration=\
-com.lezai.threadpool.starter.config.ThreadPoolStarterAutoConfiguration
