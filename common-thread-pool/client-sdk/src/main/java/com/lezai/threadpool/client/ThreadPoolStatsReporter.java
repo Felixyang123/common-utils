@@ -68,11 +68,28 @@ public class ThreadPoolStatsReporter {
      * 停止定时上报
      */
     public void stop() {
-        if (running) {
-            running = false;
-            log.info("Stopping ThreadPoolStatsReporter for appId: {}", appId);
-            reportExecutor.shutdown();
+        if (!running) {
+            return;
         }
+        running = false;
+        log.info("Stopping ThreadPoolStatsReporter for appId: {}", appId);
+
+        // 1. Shut down report scheduler
+        reportExecutor.shutdown();
+        try {
+            if (!reportExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                reportExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            reportExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        // 2. Release OkHttp resources
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
+
+        log.info("ThreadPoolStatsReporter stopped for appId: {}", appId);
     }
 
     /**

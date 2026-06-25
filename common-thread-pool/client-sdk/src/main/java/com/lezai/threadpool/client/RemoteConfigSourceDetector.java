@@ -85,11 +85,31 @@ public class RemoteConfigSourceDetector {
      * 停止订阅
      */
     public void stop() {
-        if (running) {
-            running = false;
-            log.info("Stopping remote config source for appId: {}", appId);
-            subscriptionThread.interrupt();
+        if (!running) {
+            return;
         }
+        running = false;
+        log.info("Stopping remote config source for appId: {}", appId);
+
+        // 1. Interrupt subscription thread
+        subscriptionThread.interrupt();
+
+        // 2. Shut down short-polling scheduler
+        pullConfigsScheduler.shutdown();
+        try {
+            if (!pullConfigsScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                pullConfigsScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            pullConfigsScheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        // 3. Release OkHttp resources
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
+
+        log.info("Remote config source stopped for appId: {}", appId);
     }
 
     /**
