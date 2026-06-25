@@ -33,6 +33,9 @@ public class RemoteConfigSourceDetector {
     private final String apiKey;
     private final long longPollingTimeoutMs;
     private final long pullIntervalMs;
+    private final long backoffInitialMs;
+    private final long backoffMaxMs;
+    private long backoffMs = 0;
     private final OkHttpClient httpClient;
     private final AtomicLong configVersion;
     private final Thread subscriptionThread;
@@ -43,12 +46,16 @@ public class RemoteConfigSourceDetector {
 
     public RemoteConfigSourceDetector(String serverUrl, String appId, String apiKey,
                                       long longPollingTimeoutMs, long pullIntervalMs,
+                                      long backoffInitialMs, long backoffMaxMs,
                                       ThreadPoolManager threadPoolManager) {
         this.serverUrl = serverUrl;
         this.appId = appId;
         this.apiKey = apiKey;
         this.longPollingTimeoutMs = longPollingTimeoutMs;
         this.pullIntervalMs = pullIntervalMs;
+        this.backoffInitialMs = backoffInitialMs;
+        this.backoffMaxMs = backoffMaxMs;
+        this.backoffMs = 0;
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(longPollingTimeoutMs + 5000, TimeUnit.MILLISECONDS)
@@ -131,21 +138,29 @@ public class RemoteConfigSourceDetector {
             log.debug("Starting long polling subscription: version={}", configVersion.get());
 
             try (Response response = httpClient.newCall(request).execute()) {
+                backoffMs = 0; // Reset backoff on successful connection
                 ThreadPoolConfigResp resp = analyzeResponse(response);
                 if (resp != null) {
                     log.info("Received long polling notification for appId: {}, version: {}", appId, resp.getConfigVersion());
                     updatePools(resp);
                 } else {
-                    log.info("No new config received from long polling for appId: {}", appId);
+                    log.debug("No new config received from long polling for appId: {}", appId);
                 }
             } catch (Exception e) {
                 log.error("Error in long polling subscription for appId: {}", appId, e);
 
                 try {
-                    Thread.sleep(10);
+                    if (backoffMs == 0) {
+                        backoffMs = backoffInitialMs;
+                    } else {
+                        backoffMs = Math.min(backoffMs * 2, backoffMaxMs);
+                    }
+                    log.warn("Long polling error, backing off {}ms before retry (appId: {})", backoffMs, appId);
+                    Thread.sleep(backoffMs);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
-                    log.error("Interrupted while waiting for next long polling subscription: {}", appId, ex);
+                    log.warn("Interrupted during backoff for appId: {}", appId);
+                    break;
                 }
             }
         }

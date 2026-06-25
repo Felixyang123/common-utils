@@ -87,6 +87,25 @@ class ThreadPoolPropertiesTest {
     }
 
     @Test
+    @DisplayName("backoffInitialMs and backoffMaxMs have correct defaults")
+    void backoffDefaults() {
+        var p = bind(Map.of());
+        assertEquals(1000L, p.getRemote().getBackoffInitialMs());
+        assertEquals(30000L, p.getRemote().getBackoffMaxMs());
+    }
+
+    @Test
+    @DisplayName("backoff config binds correctly")
+    void backoffConfigBinds() {
+        var p = bind(Map.of(
+                "thread.pool.remote.backoff-initial-ms", "2000",
+                "thread.pool.remote.backoff-max-ms", "60000"
+        ));
+        assertEquals(2000L, p.getRemote().getBackoffInitialMs());
+        assertEquals(60000L, p.getRemote().getBackoffMaxMs());
+    }
+
+    @Test
     @DisplayName("pool config binds correctly")
     void poolConfigBinds() {
         var p = bind(Map.of(

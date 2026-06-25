@@ -44,6 +44,8 @@ public class ThreadPoolAutoConfiguration {
                 remote.getApiKey(),
                 remote.getLongPollingTimeoutMs(),
                 remote.getPullIntervalMs(),
+                remote.getBackoffInitialMs(),
+                remote.getBackoffMaxMs(),
                 threadPoolManager());
     }
 

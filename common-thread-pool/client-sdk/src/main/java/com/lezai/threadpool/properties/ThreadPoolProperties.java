@@ -114,6 +114,14 @@ public class ThreadPoolProperties {
         @PositiveOrZero
         private long pullIntervalMs = 0L;
 
+        /** 长轮询错误后退避初始间隔（毫秒），默认 1000 */
+        @PositiveOrZero
+        private long backoffInitialMs = 1000L;
+
+        /** 长轮询错误后退避最大间隔（毫秒），默认 30000 */
+        @PositiveOrZero
+        private long backoffMaxMs = 30000L;
+
         /** 是否上报统计信息 */
         private boolean reportEnabled = true;
 
