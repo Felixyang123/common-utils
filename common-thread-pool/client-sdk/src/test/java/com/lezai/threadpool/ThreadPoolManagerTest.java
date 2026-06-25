@@ -3,6 +3,7 @@ package com.lezai.threadpool;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
+import com.lezai.threadpool.exception.PoolNotFoundException;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -200,5 +201,22 @@ class ThreadPoolManagerTest {
 
         ThreadPoolStats stats = manager.getPoolStats("stats-test");
         assertEquals("stats-test", stats.getPoolName());
+    }
+
+    @Test
+    @DisplayName("getRequiredPool returns existing pool")
+    void getRequiredPoolReturnsExisting() {
+        manager.registerPool(config("required-existing"));
+        DynamicThreadPoolWrapper pool = manager.getRequiredPool("required-existing");
+        assertNotNull(pool);
+        assertEquals("required-existing", pool.getPoolName());
+    }
+
+    @Test
+    @DisplayName("getRequiredPool throws PoolNotFoundException when not found")
+    void getRequiredPoolThrowsWhenMissing() {
+        assertThrows(PoolNotFoundException.class, () -> {
+            manager.getRequiredPool("unknown-pool");
+        });
     }
 }

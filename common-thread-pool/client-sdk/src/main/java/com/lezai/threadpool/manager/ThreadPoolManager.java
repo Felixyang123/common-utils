@@ -3,6 +3,7 @@ package com.lezai.threadpool.manager;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
+import com.lezai.threadpool.exception.PoolNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -67,6 +68,22 @@ public class ThreadPoolManager {
 
     public DynamicThreadPoolWrapper getPool(String poolName) {
         return poolRegistry.computeIfAbsent(poolName, this::createDefaultPool);
+    }
+
+    /**
+     * 获取已注册的线程池（必须存在）。
+     * 与 {@link #getPool(String)} 不同，此方法不会自动创建，池不存在时抛出异常。
+     *
+     * @param poolName 线程池名称
+     * @return 线程池包装器
+     * @throws PoolNotFoundException 如果池未注册
+     */
+    public DynamicThreadPoolWrapper getRequiredPool(String poolName) {
+        DynamicThreadPoolWrapper pool = poolRegistry.get(poolName);
+        if (pool == null) {
+            throw new PoolNotFoundException(poolName);
+        }
+        return pool;
     }
 
     // ==================== 创建操作 ====================
