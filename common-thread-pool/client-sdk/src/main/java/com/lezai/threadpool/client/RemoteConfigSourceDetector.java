@@ -70,10 +70,13 @@ public class RemoteConfigSourceDetector {
         if (!running) {
             running = true;
             log.info("Starting remote config source for appId: {}", appId);
-            // 先拉取一次配置
             pullConfigs();
-            this.pullConfigsScheduler.scheduleAtFixedRate(this::pullConfigs, pullIntervalMs, pullIntervalMs, TimeUnit.MILLISECONDS);
-
+            if (pullIntervalMs > 0) {
+                this.pullConfigsScheduler.scheduleAtFixedRate(this::pullConfigs, pullIntervalMs, pullIntervalMs, TimeUnit.MILLISECONDS);
+                log.info("Short-polling enabled: interval={}ms", pullIntervalMs);
+            } else {
+                log.info("Short-polling disabled (pullIntervalMs={})", pullIntervalMs);
+            }
             subscriptionThread.start();
         }
     }
