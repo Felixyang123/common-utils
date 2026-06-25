@@ -35,8 +35,11 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public RemoteConfigSourceDetector remoteConfigSourceDetector() {
+    public RemoteConfigSourceDetector remoteConfigSourceDetector(ThreadPoolManager threadPoolManager) {
         // 创建远程配置源监听器
+        // 通过方法参数注入 ThreadPoolManager 而非直接调用 threadPoolManager()——
+        // CS 模式下 LOCAL bean 不存在,CGLIB 直接调方法体会创建新的孤立实例，
+        // 导致 detector 操作的是另一个 pool registry（远程配置变更静默丢失）。
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         return new RemoteConfigSourceDetector(
                 remote.getServerUrl(),
@@ -46,7 +49,7 @@ public class ThreadPoolAutoConfiguration {
                 remote.getPullIntervalMs(),
                 remote.getBackoffInitialMs(),
                 remote.getBackoffMaxMs(),
-                threadPoolManager());
+                threadPoolManager);
     }
 
     @Bean
@@ -61,7 +64,7 @@ public class ThreadPoolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false)
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
     public ThreadPoolManager threadPoolManager() {
         // 返回单例实例，初始化由 ThreadPoolInitializer 处理
         ThreadPoolManager poolManager = new ThreadPoolManager();
@@ -108,7 +111,7 @@ public class ThreadPoolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false)
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
     public ThreadPoolInitializer threadPoolInitializerLocal(ThreadPoolManager threadPoolManager) {
         log.info("Creating ThreadPoolInitializer (LOCAL mode)");
         return new ThreadPoolInitializer(properties, null, threadPoolManager);

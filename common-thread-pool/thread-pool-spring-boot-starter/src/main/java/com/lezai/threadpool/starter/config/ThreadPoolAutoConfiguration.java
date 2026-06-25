@@ -35,7 +35,7 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public RemoteConfigSourceDetector remoteConfigSourceDetector() {
+    public RemoteConfigSourceDetector remoteConfigSourceDetector(ThreadPoolManager threadPoolManager) {
         // 创建远程配置源监听器
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         return new RemoteConfigSourceDetector(
@@ -46,7 +46,7 @@ public class ThreadPoolAutoConfiguration {
                 remote.getPullIntervalMs(),
                 remote.getBackoffInitialMs(),
                 remote.getBackoffMaxMs(),
-                threadPoolManager());
+                threadPoolManager);
     }
 
     @Bean
@@ -61,7 +61,7 @@ public class ThreadPoolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false)
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
     public ThreadPoolManager threadPoolManager() {
         // 返回单例实例，初始化由 ThreadPoolInitializer 处理
         ThreadPoolManager poolManager = new ThreadPoolManager();
