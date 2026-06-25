@@ -153,18 +153,6 @@ class ThreadPoolManagerTest {
     }
 
     @Test
-    @DisplayName("removeAllPools removes all pools")
-    void removeAllPools() {
-        manager.registerPool(config("pool-a"));
-        manager.registerPool(config("pool-b"));
-
-        manager.removeAllPools();
-
-        assertNull(manager.getPool("pool-a"));
-        assertNull(manager.getPool("pool-b"));
-    }
-
-    @Test
     @DisplayName("shutdown shuts down all pools gracefully")
     void shutdownAll() throws Exception {
         manager.registerPool(config("shutdown-a"));

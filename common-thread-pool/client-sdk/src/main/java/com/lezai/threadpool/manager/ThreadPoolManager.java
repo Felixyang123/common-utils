@@ -140,17 +140,6 @@ public class ThreadPoolManager {
     }
 
     /**
-     * 删除所有自定义线程池（保留默认线程池）
-     */
-    public void removeAllPools() {
-        poolRegistry.values().forEach(pool ->
-            shutdownPool(pool, 5, TimeUnit.SECONDS)
-        );
-        poolRegistry.clear();
-        log.info("Removed all thread pools");
-    }
-
-    /**
      * 关闭并移除线程池
      *
      * @param poolName 线程池名称
@@ -209,25 +198,34 @@ public class ThreadPoolManager {
     }
 
     /**
-     * 关闭所有线程池
+     * 关闭所有线程池。
+     * <p>
+     * 两阶段：先对所有池发出 shutdown 信号（非阻塞，各池在自身工作线程并发排空），
+     * 再以一个共享截止时间依次等待。因此总阻塞时间约等于最慢的单个池，而非所有池之和。
      */
     public void shutdown() {
         log.info("Shutting down {} thread pools", poolRegistry.size());
+
+        // 阶段 1：对所有池发出 shutdown 信号（非阻塞）—— 各池开始并发排空
+        for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
+            pool.shutdown();
+        }
+
+        // 阶段 2：以共享截止时间依次等待终止，超时则强制关闭
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         for (DynamicThreadPoolWrapper pool : poolRegistry.values()) {
             String poolName = pool.getPoolName();
-            pool.shutdown();
+            long remaining = deadlineNanos - System.nanoTime();
             try {
-                if (!pool.awaitTermination(30, TimeUnit.SECONDS)) {
+                if (remaining <= 0 || !pool.awaitTermination(remaining, TimeUnit.NANOSECONDS)) {
                     log.warn("Thread pool '{}' did not terminate within timeout, forcing shutdownNow", poolName);
                     pool.shutdownNow();
-                    if (!pool.awaitTermination(5, TimeUnit.SECONDS)) {
-                        log.error("Thread pool '{}' failed to terminate after shutdownNow", poolName);
-                    }
                 }
             } catch (InterruptedException e) {
                 log.warn("Interrupted while waiting for pool '{}' to terminate", poolName);
                 pool.shutdownNow();
                 Thread.currentThread().interrupt();
+                break;
             }
         }
         poolRegistry.clear();
