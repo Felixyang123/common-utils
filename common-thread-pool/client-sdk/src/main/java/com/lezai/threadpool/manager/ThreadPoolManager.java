@@ -32,16 +32,6 @@ public class ThreadPoolManager {
     }
 
     /**
-     * 创建默认线程池
-     */
-    private DynamicThreadPoolWrapper createDefaultPool(String name) {
-        ThreadPoolConfig defaultConfig = ThreadPoolConfig.builder().poolName(name).build();
-        DynamicThreadPoolWrapper defaultPool = new DynamicThreadPoolWrapper(defaultConfig);
-        log.info("Created default thread pool: {}", name);
-        return defaultPool;
-    }
-
-    /**
      * 注册线程池（如果不存在则创建）
      *
      * @param config
@@ -66,8 +56,15 @@ public class ThreadPoolManager {
         });
     }
 
+    /**
+     * 获取已注册的线程池。
+     * 与 {@link #getRequiredPool(String)} 不同，此方法不会自动创建，池不存在时返回 null。
+     *
+     * @param poolName 线程池名称
+     * @return 线程池包装器，如果未注册则返回 null
+     */
     public DynamicThreadPoolWrapper getPool(String poolName) {
-        return poolRegistry.computeIfAbsent(poolName, this::createDefaultPool);
+        return poolRegistry.get(poolName);
     }
 
     /**
@@ -108,6 +105,9 @@ public class ThreadPoolManager {
      */
     public ThreadPoolStats getPoolStats(String poolName) {
         DynamicThreadPoolWrapper pool = getPool(poolName);
+        if (pool == null) {
+            throw new PoolNotFoundException(poolName);
+        }
         return pool.getStats();
     }
 

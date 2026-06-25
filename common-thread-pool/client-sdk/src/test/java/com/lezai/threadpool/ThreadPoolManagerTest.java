@@ -73,12 +73,10 @@ class ThreadPoolManagerTest {
     }
 
     @Test
-    @DisplayName("getPool creates default pool when not registered")
-    void getPoolCreatesDefault() {
-        DynamicThreadPoolWrapper pool = manager.getPool("auto-created");
-        assertNotNull(pool);
-        assertEquals("auto-created", pool.getPoolName());
-        assertFalse(pool.isShutdown());
+    @DisplayName("getPool returns null when pool not registered (no auto-create)")
+    void getPoolReturnsNullWhenMissing() {
+        DynamicThreadPoolWrapper pool = manager.getPool("never-registered");
+        assertNull(pool, "getPool should no longer auto-create pools");
     }
 
     @Test
@@ -88,11 +86,10 @@ class ThreadPoolManagerTest {
         assertNotNull(manager.getPool("to-remove"));
 
         boolean removed = manager.removePool("to-remove");
-
         assertTrue(removed, "removePool should return true");
-        // After removal, getPool recreates a new one — verify it's a different instance
-        DynamicThreadPoolWrapper recreated = manager.getPool("to-remove");
-        assertNotSame(pool, recreated, "should be a new instance after removal");
+
+        assertNull(manager.getPool("to-remove"), "getPool should return null after removal");
+        assertThrows(PoolNotFoundException.class, () -> manager.getRequiredPool("to-remove"));
     }
 
     @Test
@@ -163,10 +160,8 @@ class ThreadPoolManagerTest {
 
         manager.removeAllPools();
 
-        // After removeAll, getPool auto-creates - verify instance is new
-        DynamicThreadPoolWrapper pa = manager.getPool("pool-a");
-        assertNotNull(pa);
-        assertFalse(pa.isShutdown(), "auto-created pool should not be shut down");
+        assertNull(manager.getPool("pool-a"));
+        assertNull(manager.getPool("pool-b"));
     }
 
     @Test
@@ -177,9 +172,9 @@ class ThreadPoolManagerTest {
 
         manager.shutdown();
 
-        // After shutdown, getPool auto-creates new instances
-        DynamicThreadPoolWrapper pa = manager.getPool("shutdown-a");
-        assertNotNull(pa);
+        // getPool no longer auto-creates — returns null after shutdown
+        assertNull(manager.getPool("shutdown-a"));
+        assertNull(manager.getPool("shutdown-b"));
     }
 
     @Test
