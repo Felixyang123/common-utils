@@ -121,6 +121,16 @@ public class ThreadPoolManager {
                 .toList();
     }
 
+    /**
+     * 获取所有线程池包装器（快照）。
+     * 供可观测性组件（如 Micrometer binder）使用。
+     *
+     * @return 当前池列表
+     */
+    public List<DynamicThreadPoolWrapper> getAllWrappers() {
+        return List.copyOf(poolRegistry.values());
+    }
+
 
     /**
      * 删除线程池

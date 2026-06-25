@@ -10,7 +10,9 @@ import com.lezai.threadpool.manager.ThreadPoolManager;
 import com.lezai.threadpool.properties.ThreadPoolProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -124,6 +126,18 @@ public class ThreadPoolAutoConfiguration {
                                                               ThreadPoolManager threadPoolManager) {
         log.info("Creating ThreadPoolInitializer (REMOTE/CS mode)");
         return new ThreadPoolInitializer(properties, detector, threadPoolManager);
+    }
+
+    // ==================== 可观测性 ====================
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
+    @ConditionalOnBean(io.micrometer.core.instrument.MeterRegistry.class)
+    public com.lezai.threadpool.metrics.ThreadPoolMetricsBinder threadPoolMetricsBinder(
+            ThreadPoolManager threadPoolManager) {
+        return new com.lezai.threadpool.metrics.ThreadPoolMetricsBinder(
+                threadPoolManager, properties.getRemote().getAppId());
     }
 
     // ==================== Lifecycle 编排 ====================

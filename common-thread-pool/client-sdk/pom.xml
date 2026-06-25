@@ -33,6 +33,13 @@
             <artifactId>fastjson2</artifactId>
         </dependency>
 
+        <!-- Micrometer for observability (optional) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- OkHttp for client -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
