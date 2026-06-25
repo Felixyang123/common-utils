@@ -44,6 +44,11 @@ public class RemoteConfigSourceDetector {
     private final ScheduledExecutorService pullConfigsScheduler;
     private final ThreadPoolManager threadPoolManager;
 
+    private static final TypeReference<ApiResponse<ThreadPoolConfigResp>> CONFIG_RESP_TYPE =
+            new TypeReference<>() {};
+    private static final TypeReference<ApiResponse<ThreadPoolConfig>> CONFIG_TYPE =
+            new TypeReference<>() {};
+
     public RemoteConfigSourceDetector(String serverUrl, String appId, String apiKey,
                                       long longPollingTimeoutMs, long pullIntervalMs,
                                       long backoffInitialMs, long backoffMaxMs,
@@ -139,7 +144,7 @@ public class RemoteConfigSourceDetector {
 
             try (Response response = httpClient.newCall(request).execute()) {
                 backoffMs = 0; // Reset backoff on successful connection
-                ThreadPoolConfigResp resp = analyzeResponse(response);
+                ThreadPoolConfigResp resp = analyzeResponse(response, CONFIG_RESP_TYPE);
                 if (resp != null) {
                     log.info("Received long polling notification for appId: {}, version: {}", appId, resp.getConfigVersion());
                     updatePools(resp);
@@ -170,7 +175,8 @@ public class RemoteConfigSourceDetector {
      * 拉取配置
      */
     private void pullConfigs() {
-        String url = String.format("%s/open/api/thread-pool/configs/%s/pull", serverUrl, appId);
+        String url = String.format("%s/open/api/thread-pool/config/%s/pull?version=%d",
+                serverUrl, appId, configVersion.get());
 
         Request request = new Request.Builder()
                 .url(url)
@@ -181,7 +187,7 @@ public class RemoteConfigSourceDetector {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            ThreadPoolConfigResp resp = analyzeResponse(response);
+            ThreadPoolConfigResp resp = analyzeResponse(response, CONFIG_RESP_TYPE);
             if (resp != null) {
                 log.info("Pulled configs for appId: {}, version: {}", appId, resp.getConfigVersion());
                 updatePools(resp);
@@ -196,7 +202,7 @@ public class RemoteConfigSourceDetector {
     /**
      * 处理响应
      */
-    private <T> T analyzeResponse(Response response) {
+    private <T> T analyzeResponse(Response response, TypeReference<ApiResponse<T>> typeRef) {
         try {
             if (!response.isSuccessful()) {
                 log.error("Failed to call api, appId: {}, response code: {}", appId, response.code());
@@ -205,10 +211,7 @@ public class RemoteConfigSourceDetector {
 
             String responseBody = response.body() != null ? response.body().string() : "{}";
 
-            @SuppressWarnings("unchecked")
-            ApiResponse<T> apiResponse =
-                    JSON.parseObject(responseBody, new TypeReference<>() {
-                    });
+            ApiResponse<T> apiResponse = JSON.parseObject(responseBody, typeRef);
 
             if (apiResponse.getCode() == 0) {
                 log.info("Call api success, appId: {}, result: {}", appId, apiResponse);
@@ -283,7 +286,7 @@ public class RemoteConfigSourceDetector {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            ThreadPoolConfig resp = analyzeResponse(response);
+            ThreadPoolConfig resp = analyzeResponse(response, CONFIG_TYPE);
             if (resp != null) {
                 log.info("Config saved for appId: {}, pool: {}", appId, config.getPoolName());
                 return resp;
@@ -331,30 +334,6 @@ public class RemoteConfigSourceDetector {
             }
         } catch (IOException e) {
             log.error("Error saving all configs for appId: {}", appId, e);
-        }
-    }
-
-    public void deleteConfig(String appId, String poolName) {
-        String url = String.format("%s/api/thread-pool/configs/%s/%s", serverUrl, appId, poolName);
-
-        Request request = new Request.Builder()
-                .url(url)
-                .delete()
-                .addHeader("Content-Type", "application/json")
-                .addHeader("X-API-Key", apiKey)
-                .addHeader("X-App-Id", appId)
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (response.isSuccessful()) {
-                log.info("Config deleted for appId: {}, pool: {}", appId, poolName);
-                // 删除成功后拉取最新配置
-                pullConfigs();
-            } else {
-                log.error("Failed to delete config, response code: {}", response.code());
-            }
-        } catch (IOException e) {
-            log.error("Error deleting config for appId: {}", appId, e);
         }
     }
 
