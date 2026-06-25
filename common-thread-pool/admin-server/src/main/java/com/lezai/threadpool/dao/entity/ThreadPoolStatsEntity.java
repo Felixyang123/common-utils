@@ -77,6 +77,11 @@ public class ThreadPoolStatsEntity extends BaseEntity {
     private long errorTaskCount;
 
     /**
+     * 被拒绝任务数
+     */
+    private long rejectedTaskCount;
+
+    /**
      * 历史最大线程数
      */
     private int largestPoolSize;

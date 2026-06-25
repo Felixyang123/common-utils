@@ -55,11 +55,10 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Bean Validation implementation for tests -->
+        <!-- Bean Validation: @Validated on ThreadPoolProperties requires an implementation at runtime -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

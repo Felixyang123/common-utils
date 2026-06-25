@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * 线程池自动配置（基于策略模式重构）
@@ -37,7 +38,7 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public RemoteConfigSourceDetector remoteConfigSourceDetector(ThreadPoolManager threadPoolManager) {
+    public RemoteConfigSourceDetector remoteConfigSourceDetector(@Lazy ThreadPoolManager threadPoolManager) {
         // 创建远程配置源监听器
         // 通过方法参数注入 ThreadPoolManager 而非直接调用 threadPoolManager()——
         // CS 模式下 LOCAL bean 不存在,CGLIB 直接调方法体会创建新的孤立实例，
@@ -126,18 +127,6 @@ public class ThreadPoolAutoConfiguration {
                                                               ThreadPoolManager threadPoolManager) {
         log.info("Creating ThreadPoolInitializer (REMOTE/CS mode)");
         return new ThreadPoolInitializer(properties, detector, threadPoolManager);
-    }
-
-    // ==================== 可观测性 ====================
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
-    @ConditionalOnBean(io.micrometer.core.instrument.MeterRegistry.class)
-    public com.lezai.threadpool.metrics.ThreadPoolMetricsBinder threadPoolMetricsBinder(
-            ThreadPoolManager threadPoolManager) {
-        return new com.lezai.threadpool.metrics.ThreadPoolMetricsBinder(
-                threadPoolManager, properties.getRemote().getAppId());
     }
 
     // ==================== Lifecycle 编排 ====================

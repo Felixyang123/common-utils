@@ -59,6 +59,7 @@ public final class TestDataFactory {
                 .completedTaskCount(1000L)
                 .submittedTaskCount(1010L)
                 .errorTaskCount(0L)
+                .rejectedTaskCount(0L)
                 .largestPoolSize(6)
                 .taskCount(1010L)
                 .isShutdown(false)

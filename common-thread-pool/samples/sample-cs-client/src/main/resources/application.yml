@@ -8,19 +8,21 @@ spring:
 thread:
   pool:
     enabled: true
-    default-pool:
-      core-pool-size: 4
-      maximum-pool-size: 8
-      queue-capacity: 256
     remote:
-      server:
-        enabled: true
-        host: http://localhost
-        port: 8080
-      client:
-        app-id: sample-app
-        api-key: demo-api-key
-        long-polling-timeout-ms: 30000
-        pull-interval-ms: 5000
-        report-enabled: true
-        report-interval-ms: 10000
+      enabled: true
+      server-url: http://localhost:8080
+      app-id: sample-app
+      api-key: demo-api-key
+      long-polling-timeout-ms: 30000
+      pull-interval-ms: 0
+      report-enabled: true
+      report-interval-ms: 10000
+    pools:
+      - name: order-pool
+        core-pool-size: 4
+        maximum-pool-size: 8
+        queue-capacity: 256
+      - name: notification-pool
+        core-pool-size: 2
+        maximum-pool-size: 4
+        queue-capacity: 64

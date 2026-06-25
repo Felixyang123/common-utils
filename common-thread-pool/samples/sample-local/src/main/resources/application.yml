@@ -8,13 +8,6 @@ spring:
 thread:
   pool:
     enabled: true
-    default-pool:
-      core-pool-size: 4
-      maximum-pool-size: 8
-      queue-capacity: 256
-      keep-alive-time: 60
-      queue-type: BLOCKING_QUEUE
-      reject-policy-type: ABORT
     pools:
       - name: report-pool
         core-pool-size: 2
