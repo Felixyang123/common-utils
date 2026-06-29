@@ -31,7 +31,8 @@ public class ApiKeyHistoryFile {
     /**
      * 最后更新时间
      */
-    private LocalDateTime lastUpdateTime;
+    @Builder.Default
+    private LocalDateTime lastUpdateTime = LocalDateTime.now();
 
     /**
      * 当前版本号

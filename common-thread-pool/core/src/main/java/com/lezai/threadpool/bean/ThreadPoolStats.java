@@ -1,7 +1,9 @@
 package com.lezai.threadpool.bean;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -11,6 +13,8 @@ import java.time.LocalDateTime;
  * 线程池统计信息
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class ThreadPoolStats implements Serializable {
 

@@ -3,8 +3,7 @@ package com.lezai.threadpool.exception;
 import java.io.Serial;
 
 /**
- * 配置不存在异常
- * HTTP 200，业务码 404
+ * 配置未修改异常 304
  */
 public class ConfigNotModifiedException extends BusinessException {
 

@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -20,7 +19,6 @@ import java.util.Optional;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-@AllArgsConstructor
 @SuperBuilder
 @TableName(value = "operate_log", autoResultMap = true)
 public class OperateLogEntity extends BaseEntity {
@@ -29,8 +27,8 @@ public class OperateLogEntity extends BaseEntity {
 
     /**
      * 日志 ID
-     * logType=APIKEY, logId=APIKEY_ID
-     * logType=THREADPOOL, logId=THREADPOOL_CONFIG_ID
+     * bizType=APIKEY, bizId=APIKEY_ID
+     * bizType=THREADPOOL, bizId=THREADPOOL_CONFIG_ID
      */
     private String bizId;
 

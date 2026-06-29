@@ -2,8 +2,10 @@ package com.lezai.threadpool.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.lezai.threadpool.enumeration.QueueType;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
@@ -14,6 +16,8 @@ import java.util.concurrent.TimeUnit;
  * 对应数据库表 thread_pool_config
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @TableName(value = "thread_pool_config", autoResultMap = true)

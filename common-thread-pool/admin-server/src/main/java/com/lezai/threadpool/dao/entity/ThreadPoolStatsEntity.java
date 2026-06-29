@@ -3,6 +3,7 @@ package com.lezai.threadpool.dao.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
@@ -10,9 +11,10 @@ import java.time.LocalDateTime;
 
 /**
  * 统计信息实体类
- * 对应数据库表 stats_storage
+ * 对应数据库表 thread_pool_stats
  */
 @Data
+@NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @TableName(value = "thread_pool_stats", autoResultMap = true)

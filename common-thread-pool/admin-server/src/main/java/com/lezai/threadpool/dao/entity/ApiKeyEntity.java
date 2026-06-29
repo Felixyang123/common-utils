@@ -1,9 +1,11 @@
 package com.lezai.threadpool.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
@@ -14,6 +16,8 @@ import java.time.LocalDateTime;
  * 用于存储和管理应用访问 admin-server Open API 的认证信息
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @TableName(value = "api_key", autoResultMap = true)
@@ -43,19 +47,9 @@ public class ApiKeyEntity extends BaseEntity {
     private Boolean enabled = Boolean.TRUE;
 
     /**
-     * 创建时间
-     */
-    private LocalDateTime createTime;
-
-    /**
      * 过期时间（null 表示永不过期）
      */
     private LocalDateTime expireTime;
-
-    /**
-     * 最后更新时间
-     */
-    private LocalDateTime updateTime;
 
     /**
      * 描述信息

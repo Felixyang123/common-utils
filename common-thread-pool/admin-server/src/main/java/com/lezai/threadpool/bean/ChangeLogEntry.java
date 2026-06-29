@@ -46,7 +46,8 @@ public class ChangeLogEntry<T> {
     /**
      * 变更时间戳
      */
-    private LocalDateTime timestamp;
+    @Builder.Default
+    private LocalDateTime timestamp = LocalDateTime.now();
 
     /**
      * 操作人（预留字段，用于未来扩展）

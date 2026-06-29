@@ -1,8 +1,10 @@
 package com.lezai.threadpool.pojo.dto;
 
 import com.lezai.threadpool.bean.ThreadPoolStats;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,6 +14,8 @@ import java.util.Map;
  * 应用统计信息 DTO
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class StatsAppDto {
     /**
