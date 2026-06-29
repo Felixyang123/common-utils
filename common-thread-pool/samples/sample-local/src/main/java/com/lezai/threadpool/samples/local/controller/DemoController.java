@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.concurrent.CompletableFuture;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
@@ -17,17 +17,17 @@ public class DemoController {
     private final DemoService demoService;
 
     @GetMapping("/order/{orderId}")
-    public CompletableFuture<String> processOrder(@PathVariable String orderId) {
+    public String processOrder(@PathVariable String orderId) {
         return demoService.processOrder(orderId);
     }
 
     @GetMapping("/notify")
-    public CompletableFuture<String> sendNotification(@RequestParam(defaultValue = "Hello") String message) {
+    public String sendNotification(@RequestParam(defaultValue = "Hello") String message) {
         return demoService.sendNotification(message);
     }
 
     @GetMapping("/report/{reportId}")
-    public CompletableFuture<String> generateReport(@PathVariable String reportId) {
+    public String generateReport(@PathVariable String reportId) {
         return demoService.generateReport(reportId);
     }
 

@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.CompletableFuture;
+import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
@@ -19,18 +19,18 @@ public class DemoService {
 
     /** 使用默认线程池异步执行 */
     @AsyncThreadPool
-    public CompletableFuture<String> processOrder(String orderId) {
+    public String processOrder(String orderId) {
         log.info("processOrder executed in default pool, orderId={}", orderId);
         simulateWork("processOrder", 1000);
-        return CompletableFuture.completedFuture("Order " + orderId + " processed");
+        return "Order " + orderId + " processed";
     }
 
     /** 使用指定线程池 */
     @AsyncThreadPool(poolName = "notification-pool")
-    public CompletableFuture<String> sendNotification(String message) {
+    public String sendNotification(String message) {
         log.info("sendNotification executed in notification-pool, message={}", message);
         simulateWork("sendNotification", 800);
-        return CompletableFuture.completedFuture("Notification sent: " + message);
+        return "Notification sent: " + message;
     }
 
     /** 声明式创建临时线程池并执行 */
@@ -40,10 +40,10 @@ public class DemoService {
             maximumPoolSize = 4,
             queueCapacity = 128
     )
-    public CompletableFuture<String> generateReport(String reportId) {
+    public String generateReport(String reportId) {
         log.info("generateReport executed in report-pool, reportId={}", reportId);
         simulateWork("generateReport", 2000);
-        return CompletableFuture.completedFuture("Report " + reportId + " generated");
+        return "Report " + reportId + " generated";
     }
 
     /** 编程式提交任务 */

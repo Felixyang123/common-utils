@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.CompletableFuture;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -17,25 +15,25 @@ public class DemoService {
     private final ThreadPoolManager threadPoolManager;
 
     @AsyncThreadPool
-    public CompletableFuture<String> csAsyncTask(String taskId) {
+    public String csAsyncTask(String taskId) {
         log.info("csAsyncTask executed — config pulled from admin-server via long polling");
         try {
             Thread.sleep(400);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        return CompletableFuture.completedFuture("CS async task " + taskId + " completed");
+        return "CS async task " + taskId + " completed";
     }
 
     @AsyncThreadPool(poolName = "notification-pool")
-    public CompletableFuture<String> sendNotification(String message) {
+    public String sendNotification(String message) {
         log.info("sendNotification executed in notification-pool");
         try {
             Thread.sleep(200);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        return CompletableFuture.completedFuture("Notification sent: " + message);
+        return "Notification sent: " + message;
     }
 
     /** 获取当前客户端连接信息 */
