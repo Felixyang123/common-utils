@@ -51,6 +51,9 @@ public class ConfigAdminService {
      * 保存所有线程池配置
      */
     public void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
+        if (configs == null || configs.isEmpty()) {
+            throw new IllegalArgumentException("configs must not be null or empty");
+        }
         configStorage.saveConfigs(appId, configs);
         log.info("Configs saved for appId: {}", appId);
     }
@@ -59,6 +62,9 @@ public class ConfigAdminService {
      * 保存单个线程池配置
      */
     public void saveConfig(String appId, ThreadPoolConfig config) {
+        if (config == null) {
+            throw new IllegalArgumentException("config must not be null");
+        }
         configStorage.saveConfig(appId, config);
         log.info("Config saved for appId: {}, pool: {}", appId, config.getPoolName());
     }

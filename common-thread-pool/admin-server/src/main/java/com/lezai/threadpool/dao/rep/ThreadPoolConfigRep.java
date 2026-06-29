@@ -26,13 +26,17 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
     public Optional<ThreadPoolConfigEntity> findByAppIdAndPoolName(String appId, String poolName) {
         return Optional.ofNullable(getOne(Wrappers.<ThreadPoolConfigEntity>lambdaQuery()
                 .eq(ThreadPoolConfigEntity::getAppId, appId)
-                .eq(ThreadPoolConfigEntity::getPoolName, poolName)));
+                .eq(ThreadPoolConfigEntity::getPoolName, poolName)
+                .last("LIMIT 1")));
     }
 
     /**
      * 根据 appId 和 poolNames 批量查询配置
      */
     public List<ThreadPoolConfigEntity> findByAppIdAndPoolNamesIn(String appId, List<String> poolNames) {
+        if (poolNames == null || poolNames.isEmpty()) {
+            return List.of();
+        }
         return list(Wrappers.<ThreadPoolConfigEntity>lambdaQuery().eq(ThreadPoolConfigEntity::getAppId, appId)
                 .in(ThreadPoolConfigEntity::getPoolName, poolNames));
     }
@@ -41,6 +45,9 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * 根据 appId 和 poolNames 批量查询存在的poolNames
      */
     public List<String> findExistPoolNames(String appId, List<String> poolNames) {
+        if (poolNames == null || poolNames.isEmpty()) {
+            return List.of();
+        }
         return list(Wrappers.<ThreadPoolConfigEntity>lambdaQuery().eq(ThreadPoolConfigEntity::getAppId, appId)
                 .in(ThreadPoolConfigEntity::getPoolName, poolNames).select(ThreadPoolConfigEntity::getPoolName))
                 .stream().map(ThreadPoolConfigEntity::getPoolName).toList();
@@ -107,6 +114,9 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * @return
      */
     public Map<String, Long> countByAppIds(List<String> appIds) {
+        if (appIds == null || appIds.isEmpty()) {
+            return Map.of();
+        }
         Map<String, Map<String, Object>> raw = getBaseMapper().countByAppIds(appIds);
         Map<String, Long> result = new java.util.HashMap<>();
         if (raw != null) {
@@ -135,6 +145,9 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * @return
      */
     public List<ThreadPoolConfigEntity> listByCursor(long cursor, int limit, List<String> appIds) {
+        if (appIds == null || appIds.isEmpty()) {
+            return List.of();
+        }
         return list(Wrappers.<ThreadPoolConfigEntity>lambdaQuery()
                 .in(ThreadPoolConfigEntity::getAppId, appIds)
                 .gt(ThreadPoolConfigEntity::getId, cursor)
@@ -148,6 +161,9 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * @return
      */
     public List<ThreadPoolConfigEntity> listByAppIds(List<String> appIds) {
+        if (appIds == null || appIds.isEmpty()) {
+            return List.of();
+        }
         return list(Wrappers.<ThreadPoolConfigEntity>lambdaQuery()
                 .in(ThreadPoolConfigEntity::getAppId, appIds));
     }
