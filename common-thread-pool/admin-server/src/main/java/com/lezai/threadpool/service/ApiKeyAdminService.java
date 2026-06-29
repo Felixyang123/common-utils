@@ -133,7 +133,7 @@ public class ApiKeyAdminService {
                 .appId(existing.getAppId())
                 .apiKeyHash(existing.getApiKeyHash())
                 .appName(request.getAppName())
-                .enabled(request.isEnabled())
+                .enabled(request.getEnabled() != null ? request.getEnabled() : existing.isEnabled())
                 .createTime(existing.getCreateTime())
                 .expireTime(request.getExpireTime())
                 .description(request.getDescription())

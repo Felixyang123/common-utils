@@ -61,8 +61,8 @@ public class SubscriptionService {
             public void onConfigChanged(String notifyAppId, long newVersion) {
                 if (appId.equals(notifyAppId) && newVersion > version) {
                     log.info("Config change detected for subscription: appId={}, newVersion={}", appId, newVersion);
-                    deferredResult.setResult(ApiResponse.success(ThreadPoolAppConfig.builder().appId(appId)
-                            .configVersion(newVersion).build()));
+                    configStorage.getAppConfig(appId).ifPresent(config ->
+                            deferredResult.setResult(ApiResponse.success(config)));
                 }
             }
 

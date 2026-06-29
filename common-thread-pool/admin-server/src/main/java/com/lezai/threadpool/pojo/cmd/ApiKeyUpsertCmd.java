@@ -31,7 +31,7 @@ public class ApiKeyUpsertCmd {
     /**
      * 是否启用
      */
-    private boolean enabled;
+    private Boolean enabled;
 
     /**
      * 过期时间（null 表示永不过期）

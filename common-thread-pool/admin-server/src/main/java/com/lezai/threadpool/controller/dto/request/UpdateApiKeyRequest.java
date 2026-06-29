@@ -14,7 +14,7 @@ public class UpdateApiKeyRequest {
     @Size(max = 128, message = "appName长度不能超过128")
     private String appName;
 
-    private boolean enabled;
+    private Boolean enabled;
 
     @Size(max = 256, message = "description长度不能超过256")
     private String description;
