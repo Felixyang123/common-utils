@@ -94,6 +94,17 @@ public interface ApiKeyStorage {
     boolean exists(String appId);
 
     /**
+     * 原子插入：仅当 appId 不存在时写入，已存在时不做任何修改。
+     * 与 {@link #saveApiKey(ApiKey)}（upsert 语义）不同，本方法保证
+     * 检查和写入在同一次原子操作中完成，消除 check-then-act 竞态。
+     *
+     * @param apiKey 待插入的 API Key
+     * @return true  如果成功插入（appId 之前不存在）
+     *         false 如果 appId 已存在（未做任何修改）
+     */
+    boolean putIfAbsent(ApiKey apiKey);
+
+    /**
      * 重新生成 API Key
      *
      * @param appId 应用 ID

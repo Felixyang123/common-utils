@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Redis + MySQL 实现 API Key 存储
@@ -113,15 +115,51 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     }
 
     @Override
+    public boolean putIfAbsent(ApiKey apiKey) {
+        if (apiKey == null || apiKey.getAppId() == null) {
+            throw new ValidationException("ApiKey and appId cannot be null");
+        }
+        if (apiKey.getApiKeyHash() == null) {
+            throw new ValidationException("ApiKey hash cannot be null");
+        }
+
+        AtomicBoolean inserted = new AtomicBoolean(false);
+        compute(apiKey.getAppId(), (appId, existing) -> {
+            // 1. 缓存命中 → 已存在
+            if (existing != null) {
+                return existing;
+            }
+            // 2. 缓存未命中，查 DB
+            Optional<ApiKeyDto> dbKey = apiKeyService.findByAppId(appId);
+            if (dbKey.isPresent()) {
+                return apiKeyConverter.convertApiKey(dbKey.get());
+            }
+            // 3. 真正不存在，执行插入
+            boolean success = apiKeyService.upsert(apiKeyConverter.convertUpsertCmd(apiKey));
+            if (success) {
+                inserted.set(true);
+                log.info("Inserted new API key for appId: {}", appId);
+                return apiKey;
+            }
+            log.warn("Failed to insert API key for appId: {}", appId);
+            return null;
+        });
+        return inserted.get();
+    }
+
+    @Override
     @Transactional
     public String regenerateApiKey(String appId) {
-        String newApiKey = ApiKeyUtils.generateRandomApiKey();
+        AtomicReference<String> apiKeyValRef = new AtomicReference<>();
 
         compute(appId, (k, existing) -> {
             Optional<ApiKeyDto> apiKeyOptional = apiKeyService.findByAppId(appId);
             if (apiKeyOptional.isEmpty()) {
                 throw new ConfigNotFoundException("ApiKey not found for appId: " + appId);
             }
+
+            String newApiKey = ApiKeyUtils.generateRandomApiKey();
+            apiKeyValRef.set(newApiKey);
 
             ApiKeyDto apiKeyDto = apiKeyOptional.get();
             existing = apiKeyConverter.convertApiKey(apiKeyDto);
@@ -137,6 +175,6 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
             return existing;
         });
 
-        return newApiKey;
+        return apiKeyValRef.get();
     }
 }

@@ -41,11 +41,6 @@ public class ApiKeyAdminService {
     public CreateApiKeyResponse createApiKey(CreateApiKeyRequest request) {
         log.info("Creating API key for appId: {}", request.getAppId());
 
-        // 检查 appId 是否已存在
-        if (apiKeyStorage.exists(request.getAppId())) {
-            throw new ConfigAlreadyExistsException("API key already exists for appId: " + request.getAppId());
-        }
-
         // 生成随机 API Key
         String plainApiKey = ApiKeyUtils.generateRandomApiKey();
         String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
@@ -61,7 +56,10 @@ public class ApiKeyAdminService {
                 .description(request.getDescription())
                 .build();
 
-        apiKeyStorage.saveApiKey(apiKey);
+        // 原子插入：仅当 appId 不存在时写入，消除 check-then-act 竞态
+        if (!apiKeyStorage.putIfAbsent(apiKey)) {
+            throw new ConfigAlreadyExistsException("API key already exists for appId: " + request.getAppId());
+        }
 
         log.info("API key created successfully for appId: {}", request.getAppId());
 

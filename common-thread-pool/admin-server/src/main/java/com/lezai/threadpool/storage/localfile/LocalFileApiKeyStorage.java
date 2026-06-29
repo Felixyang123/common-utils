@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -118,6 +119,41 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
     @Override
     public boolean exists(String appId) {
         return existsInCache(appId);
+    }
+
+    @Override
+    public boolean putIfAbsent(ApiKey apiKey) {
+        if (apiKey == null || StringUtils.isBlank(apiKey.getAppId())) {
+            throw new ValidationException("ApiKey and appId cannot be blank");
+        }
+        if (apiKey.getApiKeyHash() == null) {
+            throw new ValidationException("ApiKey hash cannot be null");
+        }
+
+        AtomicBoolean inserted = new AtomicBoolean(false);
+        compute(apiKey.getAppId(), (appId, existing) -> {
+            if (existing != null) {
+                return existing; // 已存在，不覆盖
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            if (apiKey.getCreateTime() == null) {
+                apiKey.setCreateTime(now);
+            }
+            apiKey.setUpdateTime(now);
+
+            Path path = getStoragePath(appId);
+            writeFile(path, apiKey);
+            inserted.set(true);
+
+            if (historyStorage != null) {
+                historyStorage.recordChange(appId, ChangeType.CREATE, null, apiKey);
+            }
+
+            log.info("Inserted new API key for appId: {}", appId);
+            return apiKey;
+        });
+        return inserted.get();
     }
 
     @Override

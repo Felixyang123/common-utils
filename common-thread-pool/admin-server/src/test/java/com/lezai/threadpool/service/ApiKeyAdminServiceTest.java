@@ -62,7 +62,7 @@ class ApiKeyAdminServiceTest {
         request.setDescription("Test app");
         request.setExpireTime(LocalDateTime.now().plusDays(30));
 
-        when(apiKeyStorage.exists("my-app")).thenReturn(false);
+        when(apiKeyStorage.putIfAbsent(any(ApiKey.class))).thenReturn(true);
 
         CreateApiKeyResponse response = service.createApiKey(request);
 
@@ -75,7 +75,7 @@ class ApiKeyAdminServiceTest {
         assertThat(response.isEnabled()).isTrue();
         assertThat(response.getCreateTime()).isNotNull();
 
-        verify(apiKeyStorage).saveApiKey(any(ApiKey.class));
+        verify(apiKeyStorage).putIfAbsent(any(ApiKey.class));
     }
 
     @Test
@@ -85,13 +85,11 @@ class ApiKeyAdminServiceTest {
         request.setAppId("my-app");
         request.setAppName("My App");
 
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
+        when(apiKeyStorage.putIfAbsent(any(ApiKey.class))).thenReturn(false);
 
         assertThatThrownBy(() -> service.createApiKey(request))
                 .isInstanceOf(ConfigAlreadyExistsException.class)
                 .hasMessageContaining("my-app");
-
-        verify(apiKeyStorage, never()).saveApiKey(any(ApiKey.class));
     }
 
     @Test
@@ -101,7 +99,7 @@ class ApiKeyAdminServiceTest {
         request.setAppId("my-app");
         request.setAppName("My App");
 
-        when(apiKeyStorage.exists("my-app")).thenReturn(false);
+        when(apiKeyStorage.putIfAbsent(any(ApiKey.class))).thenReturn(true);
 
         CreateApiKeyResponse response = service.createApiKey(request);
 
