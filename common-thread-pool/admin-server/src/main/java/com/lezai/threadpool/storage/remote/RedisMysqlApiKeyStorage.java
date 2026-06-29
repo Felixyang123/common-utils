@@ -54,6 +54,7 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
                     (System.currentTimeMillis() - start) / 1000.0);
         } catch (Exception e) {
             log.error("Failed to load all API keys from database", e);
+            throw new RuntimeException("API key cache warmup failed", e);
         }
     }
 

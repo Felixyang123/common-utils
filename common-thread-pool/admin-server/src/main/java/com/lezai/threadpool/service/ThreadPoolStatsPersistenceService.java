@@ -61,7 +61,8 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<StatsMapper, 
         List<ThreadPoolStatsEntity> statsEntities = list(Wrappers.<ThreadPoolStatsEntity>lambdaQuery()
                         .eq(ThreadPoolStatsEntity::getAppId, appId)
                         .eq(ThreadPoolStatsEntity::getPoolName, poolName)
-                        .between(ThreadPoolStatsEntity::getUpdateTime, beginTime, endTime));
+                        .between(ThreadPoolStatsEntity::getCollectTime, beginTime, endTime)
+                        .last("LIMIT 1000"));
 
         return statsConverter.convertDtos(statsEntities);
     }

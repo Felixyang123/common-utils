@@ -32,7 +32,7 @@ public class ConfigChangeListenerManager {
         });
 
         cleaner.scheduleWithFixedDelay(() -> {
-            log.info("Clean expired listeners");
+            log.debug("Scanning for expired listeners...");
             listenerMap.entrySet().removeIf(entry -> {
                 CopyOnWriteArrayList<ConfigChangeListener> listeners = entry.getValue();
                 listeners.removeIf(ConfigChangeListener::isExpired);
