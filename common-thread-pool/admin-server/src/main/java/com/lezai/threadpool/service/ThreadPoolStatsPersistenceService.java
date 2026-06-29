@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolStatsEntity;
-import com.lezai.threadpool.dao.mapper.StatsMapper;
+import com.lezai.threadpool.dao.mapper.ThreadPoolStatsMapper;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolStatsAddCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolStatsDto;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ThreadPoolStatsPersistenceService extends ServiceImpl<StatsMapper, ThreadPoolStatsEntity> {
+public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolStatsMapper, ThreadPoolStatsEntity> {
 
     private final ThreadPoolStatsConverter statsConverter;
 

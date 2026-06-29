@@ -6,7 +6,6 @@ import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
-import com.lezai.threadpool.storage.StatsStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +23,6 @@ import java.util.Map;
 public class ConfigAdminService {
 
     private final ConfigStorage configStorage;
-    private final StatsStorage statsStorage;
     private final ConfigHistoryStorage historyStorage;
 
     /**

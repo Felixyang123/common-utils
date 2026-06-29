@@ -45,7 +45,7 @@ class RedisMysqlApiKeyStorageTest {
     private ApiKeyPersistenceService apiKeyService;
 
     @Mock
-    private ApiKeyConverter apiKeyConvertor;
+    private ApiKeyConverter apiKeyConverter;
 
     @Captor
     private ArgumentCaptor<ApiKeyUpsertCmd> upsertCmdCaptor;
@@ -58,7 +58,7 @@ class RedisMysqlApiKeyStorageTest {
     void setUp() {
         RMap rMap = createRMapProxy(realMap);
         when(redissonClient.getMap(anyString())).thenReturn(rMap);
-        storage = new RedisMysqlApiKeyStorage(redissonClient, apiKeyService, apiKeyConvertor) {
+        storage = new RedisMysqlApiKeyStorage(redissonClient, apiKeyService, apiKeyConverter) {
             @Override
             public void loadAllFromDb() {
                 // no-op: avoid concurrent mock access during constructor
@@ -71,7 +71,7 @@ class RedisMysqlApiKeyStorageTest {
     void saveApiKey() {
         ApiKey key = TestDataFactory.defaultApiKey().build();
         when(apiKeyService.upsert(any(ApiKeyUpsertCmd.class))).thenReturn(true);
-        when(apiKeyConvertor.convertUpsertCmd(key)).thenReturn(new ApiKeyUpsertCmd());
+        when(apiKeyConverter.convertUpsertCmd(key)).thenReturn(new ApiKeyUpsertCmd());
 
         storage.saveApiKey(key);
 
@@ -102,7 +102,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey expectedKey = TestDataFactory.defaultApiKey().build();
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(expectedKey);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(expectedKey);
 
         Optional<ApiKey> result = storage.getApiKey("app1");
 
@@ -130,7 +130,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey storedKey = TestDataFactory.defaultApiKey().apiKeyHash(hash).build();
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(storedKey);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(storedKey);
 
         assertThat(storage.validateApiKey("app1", plainKey)).isTrue();
     }
@@ -144,7 +144,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey storedKey = TestDataFactory.defaultApiKey().apiKeyHash(hash).build();
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(storedKey);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(storedKey);
 
         assertThat(storage.validateApiKey("app1", "wrong-key")).isFalse();
     }
@@ -157,7 +157,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey disabledKey = TestDataFactory.disabledApiKey().build();
 
         when(apiKeyService.findByAppId("disabled-app")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(disabledKey);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(disabledKey);
 
         assertThat(storage.validateApiKey("disabled-app", "any-key")).isFalse();
     }
@@ -170,7 +170,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey expiredKey = TestDataFactory.expiredApiKey().build();
 
         when(apiKeyService.findByAppId("expired-app")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(expiredKey);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(expiredKey);
 
         assertThat(storage.validateApiKey("expired-app", "any-key")).isFalse();
     }
@@ -205,7 +205,7 @@ class RedisMysqlApiKeyStorageTest {
         ApiKey key = TestDataFactory.defaultApiKey().build();
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(key);
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(key);
 
         assertThat(storage.exists("app1")).isTrue();
     }
@@ -226,7 +226,7 @@ class RedisMysqlApiKeyStorageTest {
         dto.setAppId("app1");
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto));
-        when(apiKeyConvertor.convertApiKey(dto)).thenReturn(TestDataFactory.defaultApiKey().build());
+        when(apiKeyConverter.convertApiKey(dto)).thenReturn(TestDataFactory.defaultApiKey().build());
         when(apiKeyService.update(any(ApiKeyUpsertCmd.class))).thenReturn(true);
 
         String newKey = storage.regenerateApiKey("app1");
@@ -257,8 +257,8 @@ class RedisMysqlApiKeyStorageTest {
 
         when(apiKeyService.findByAppId("app1")).thenReturn(Optional.of(dto1));
         when(apiKeyService.findByAppId("app2")).thenReturn(Optional.of(dto2));
-        when(apiKeyConvertor.convertApiKey(dto1)).thenReturn(key1);
-        when(apiKeyConvertor.convertApiKey(dto2)).thenReturn(key2);
+        when(apiKeyConverter.convertApiKey(dto1)).thenReturn(key1);
+        when(apiKeyConverter.convertApiKey(dto2)).thenReturn(key2);
 
         storage.getApiKey("app1");
         storage.getApiKey("app2");

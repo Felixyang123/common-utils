@@ -32,7 +32,7 @@ class ApiKeyPersistenceServiceTest {
     private ApiKeyMapper apiKeyMapper;
 
     @Mock
-    private ApiKeyConverter apiKeyConvertor;
+    private ApiKeyConverter apiKeyConverter;
 
     @Mock
     private OperateLogService logService;
@@ -41,7 +41,7 @@ class ApiKeyPersistenceServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ApiKeyPersistenceService(apiKeyConvertor, logService);
+        service = new ApiKeyPersistenceService(apiKeyConverter, logService);
         ReflectionTestUtils.setField(service, "baseMapper", apiKeyMapper);
     }
 
@@ -53,7 +53,7 @@ class ApiKeyPersistenceServiceTest {
         dto.setAppId("app1");
 
         when(apiKeyMapper.selectList(any())).thenReturn(List.of(entity));
-        when(apiKeyConvertor.convertDtos(List.of(entity))).thenReturn(List.of(dto));
+        when(apiKeyConverter.convertDtos(List.of(entity))).thenReturn(List.of(dto));
 
         List<ApiKeyDto> result = service.all();
 
@@ -68,7 +68,7 @@ class ApiKeyPersistenceServiceTest {
         cmd.setAppId("app1");
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
 
-        when(apiKeyConvertor.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(null);
         when(apiKeyMapper.insert(any(ApiKeyEntity.class))).thenReturn(1);
 
@@ -86,7 +86,7 @@ class ApiKeyPersistenceServiceTest {
         ApiKeyEntity newEntity = ApiKeyEntity.builder().appId("app1").build();
         ApiKeyEntity oldEntity = ApiKeyEntity.builder().id(1L).build();
 
-        when(apiKeyConvertor.convertEntity(cmd)).thenReturn(newEntity);
+        when(apiKeyConverter.convertEntity(cmd)).thenReturn(newEntity);
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(oldEntity);
         when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
 
@@ -105,7 +105,7 @@ class ApiKeyPersistenceServiceTest {
         dto.setAppId("app1");
 
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(entity);
-        when(apiKeyConvertor.convertDto(entity)).thenReturn(dto);
+        when(apiKeyConverter.convertDto(entity)).thenReturn(dto);
 
         Optional<ApiKeyDto> result = service.findByAppId("app1");
 
@@ -141,7 +141,7 @@ class ApiKeyPersistenceServiceTest {
         cmd.setId(1L);
         ApiKeyEntity entity = ApiKeyEntity.builder().id(1L).build();
 
-        when(apiKeyConvertor.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
         when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
 
         boolean result = service.update(cmd);

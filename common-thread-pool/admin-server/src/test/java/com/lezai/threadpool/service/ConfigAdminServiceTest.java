@@ -9,7 +9,6 @@ import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
-import com.lezai.threadpool.storage.StatsStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,16 +34,13 @@ class ConfigAdminServiceTest {
     private ConfigStorage configStorage;
 
     @Mock
-    private StatsStorage statsStorage;
-
-    @Mock
     private ConfigHistoryStorage historyStorage;
 
     private ConfigAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ConfigAdminService(configStorage, statsStorage, historyStorage);
+        service = new ConfigAdminService(configStorage, historyStorage);
     }
 
     // ==================== getAppConfig ====================

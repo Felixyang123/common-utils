@@ -17,7 +17,6 @@ import com.lezai.threadpool.storage.remote.RedisMysqlApiKeyStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlConfigStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -48,9 +47,6 @@ public class AdminServerAutoConfiguration {
 
     @Value("${threadpool.admin.history-max-size:100}")
     private int historyMaxSize;
-
-    @Autowired
-    private ThreadPoolConfigConverter configConverter;
 
     // ==================== Local File Storage Beans (Default) ====================
 

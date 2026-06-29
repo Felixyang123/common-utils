@@ -18,15 +18,15 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEntity> {
-    private final ApiKeyConverter apiKeyConvertor;
+    private final ApiKeyConverter apiKeyConverter;
     private final OperateLogService logService;
 
     public List<ApiKeyDto> all() {
-        return apiKeyConvertor.convertDtos(list());
+        return apiKeyConverter.convertDtos(list());
     }
 
     public boolean upsert(ApiKeyUpsertCmd cmd) {
-        ApiKeyEntity newApiKey = apiKeyConvertor.convertEntity(cmd);
+        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
         ApiKeyEntity oldApiKey = getOne(Wrappers.<ApiKeyEntity>lambdaQuery()
                 .eq(ApiKeyEntity::getAppId, cmd.getAppId()));
         OperateType operateType;
@@ -47,7 +47,7 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
 
     public Optional<ApiKeyDto> findByAppId(String appId) {
         ApiKeyEntity entity = getOne(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
-        return Optional.ofNullable(apiKeyConvertor.convertDto(entity));
+        return Optional.ofNullable(apiKeyConverter.convertDto(entity));
     }
 
     public boolean deleteByAppId(String appId) {
@@ -55,7 +55,7 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
     }
 
     public boolean update(ApiKeyUpsertCmd cmd) {
-        ApiKeyEntity newApiKey = apiKeyConvertor.convertEntity(cmd);
+        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
         boolean updated = updateById(newApiKey);
         if (updated) {
             logService.log(OperateType.UPDATE, "", newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
