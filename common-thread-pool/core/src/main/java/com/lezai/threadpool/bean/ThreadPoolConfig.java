@@ -6,7 +6,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Builder;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * 线程池配置
  */
 @Data
-@Builder
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class ThreadPoolConfig {
 
     /**

@@ -93,7 +93,12 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * @return
      */
     public Map<String, Long> countAllByAppId() {
-        return getBaseMapper().countAllByAppId();
+        Map<String, Map<String, Object>> raw = getBaseMapper().countAllByAppId();
+        Map<String, Long> result = new java.util.HashMap<>();
+        if (raw != null) {
+            raw.forEach((k, v) -> result.put(k, ((Number) v.get("count")).longValue()));
+        }
+        return result;
     }
 
     /**
@@ -102,7 +107,12 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
      * @return
      */
     public Map<String, Long> countByAppIds(List<String> appIds) {
-        return getBaseMapper().countByAppIds(appIds);
+        Map<String, Map<String, Object>> raw = getBaseMapper().countByAppIds(appIds);
+        Map<String, Long> result = new java.util.HashMap<>();
+        if (raw != null) {
+            raw.forEach((k, v) -> result.put(k, ((Number) v.get("count")).longValue()));
+        }
+        return result;
     }
 
     /**
