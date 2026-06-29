@@ -49,6 +49,8 @@ public class RemoteConfigSourceDetector {
             new TypeReference<>() {};
     private static final TypeReference<ApiResponse<ThreadPoolConfig>> CONFIG_TYPE =
             new TypeReference<>() {};
+    private static final TypeReference<ApiResponse<Object>> VOID_RESP_TYPE =
+            new TypeReference<>() {};
 
     public RemoteConfigSourceDetector(String serverUrl, String appId, String apiKey,
                                       long longPollingTimeoutMs, long pullIntervalMs,
@@ -335,14 +337,15 @@ public class RemoteConfigSourceDetector {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
-            if (response.isSuccessful()) {
+            Object result = analyzeResponse(response, VOID_RESP_TYPE);
+            if (result != null) {
                 log.info("All configs saved for appId: {}", appId);
                 // 拉取最新配置，并更新本地线程池
                 pullConfigs();
             } else {
-                log.error("Failed to save all configs, response code: {}", response.code());
+                log.error("Failed to save all configs for appId: {}", appId);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error saving all configs for appId: {}", appId, e);
         }
     }
@@ -365,6 +368,7 @@ public class RemoteConfigSourceDetector {
             }
 
             try {
+                threadPoolManager.registerPool(config);
                 threadPoolManager.updatePool(config);
                 applied++;
                 log.info("applied config for pool: {}, appId: {}", poolName, appId);

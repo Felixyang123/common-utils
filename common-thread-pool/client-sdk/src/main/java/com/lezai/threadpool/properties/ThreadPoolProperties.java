@@ -24,6 +24,7 @@ public class ThreadPoolProperties {
     /**
      * 自定义线程池配置列表
      */
+    @Valid
     private PoolConfig[] pools = new PoolConfig[0];
 
     /** 远程（CS 客户端）配置 */
@@ -84,6 +85,11 @@ public class ThreadPoolProperties {
          * 是否为守护线程
          */
         private boolean daemon = false;
+
+        @AssertTrue(message = "corePoolSize must not exceed maximumPoolSize")
+        public boolean isPoolSizeValid() {
+            return corePoolSize <= maximumPoolSize;
+        }
     }
 
     /**

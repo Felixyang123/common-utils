@@ -45,14 +45,11 @@ public class ThreadPoolManager {
     }
 
     public void updatePool(ThreadPoolConfig config) {
-        poolRegistry.compute(config.getPoolName(), (poolName, pool) -> {
-            if (pool == null) {
-                log.warn("Thread pool '{}' not found, creating a new one", poolName);
-                return createPool(config);
-            }
-            pool.updateConfig(config);
-            return pool;
-        });
+        DynamicThreadPoolWrapper pool = poolRegistry.get(config.getPoolName());
+        if (pool == null) {
+            throw new PoolNotFoundException(config.getPoolName());
+        }
+        pool.updateConfig(config);
     }
 
     /**

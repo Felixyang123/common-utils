@@ -103,7 +103,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     /**
      * 动态更新线程池配置
      */
-    public void updateConfig(ThreadPoolConfig newConfig) {
+    public synchronized void updateConfig(ThreadPoolConfig newConfig) {
         ThreadPoolConfig oldConfig = configRef.get();
 
         int newCore = newConfig.getCorePoolSize();
@@ -123,6 +123,17 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
             log.info("Thread pool [{}] max size changed: {} -> {}",
                     poolName, oldMax, newMax);
         }
+
+        // Guard: corePoolSize must not exceed the effective maximumPoolSize
+        int effectiveMax = Math.max(oldMax, newMax);
+        if (newCore > effectiveMax) {
+            log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
+                    poolName, newCore, effectiveMax);
+            throw new IllegalArgumentException(
+                    String.format("corePoolSize(%d) must not exceed maximumPoolSize(%d) for pool '%s'",
+                            newCore, effectiveMax, poolName));
+        }
+
         if (coreChanged) {
             setCorePoolSize(newCore);
             log.info("Thread pool [{}] core size changed: {} -> {}",

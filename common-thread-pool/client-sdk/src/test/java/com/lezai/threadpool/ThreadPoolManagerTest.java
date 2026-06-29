@@ -122,14 +122,10 @@ class ThreadPoolManagerTest {
     }
 
     @Test
-    @DisplayName("updatePool creates pool when it doesn't exist")
-    void updatePoolCreatesWhenMissing() {
+    @DisplayName("updatePool throws PoolNotFoundException when pool not registered (declare-before-use)")
+    void updatePoolThrowsWhenMissing() {
         ThreadPoolConfig config = config("auto-create-on-update");
-        manager.updatePool(config);
-
-        DynamicThreadPoolWrapper pool = manager.getPool("auto-create-on-update");
-        assertNotNull(pool);
-        assertEquals("auto-create-on-update", pool.getPoolName());
+        assertThrows(PoolNotFoundException.class, () -> manager.updatePool(config));
     }
 
     @Test
