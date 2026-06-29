@@ -37,9 +37,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
         }
 
         registry.addInterceptor(apiKeyAuthInterceptor)
-                .addPathPatterns("/open/api/thread-pool/**")
+                .addPathPatterns("/open/api/thread-pool/**", "/api/api-keys/**")
                 .excludePathPatterns("/open/api/thread-pool/health")
                 .order(1);
-        log.info("Registered ApiKeyAuthInterceptor for path: /open/api/thread-pool/**");
+        log.info("Registered ApiKeyAuthInterceptor for path: /open/api/thread-pool/**, /api/api-keys/**");
     }
 }

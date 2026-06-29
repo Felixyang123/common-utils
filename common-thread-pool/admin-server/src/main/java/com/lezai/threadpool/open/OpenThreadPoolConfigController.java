@@ -7,10 +7,12 @@ import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.service.SubscriptionService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 
@@ -25,6 +27,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/open/api/thread-pool")
 @RequiredArgsConstructor
+@Validated
 public class OpenThreadPoolConfigController {
 
     private final OpenThreadPoolConfigService openThreadPoolConfigService;
@@ -59,6 +62,7 @@ public class OpenThreadPoolConfigController {
             @RequestParam Long version,
             @Valid
             @Min(value = 1000, message = "timeout必须在1000-60000之间")
+            @Max(value = 60000, message = "timeout必须在1000-60000之间")
             @RequestParam(defaultValue = "30000")
             Long timeout) {
         return subscriptionService.subscribe(appId, version, timeout);
