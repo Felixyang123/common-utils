@@ -170,10 +170,11 @@ public class ThreadPoolConfigPersistenceService {
 
         return configAppOptional.map(configApp -> {
             Optional<ThreadPoolConfigEntity> configOptional = configRep.findByAppIdAndPoolName(appId, poolName);
-            configOptional.ifPresent(config -> {
-                configRep.removeById(config.getId());
-                log(List.of(config), OperateType.DELETE);
-            });
+            if (configOptional.isEmpty()) {
+                return configConverter.convertDto(configApp);
+            }
+            configRep.removeById(configOptional.get().getId());
+            log(List.of(configOptional.get()), OperateType.DELETE);
             long leftConfigCount = configRep.countByAppId(appId);
             if (leftConfigCount <= 0) {
                 configAppRep.removeById(appId);
@@ -236,7 +237,7 @@ public class ThreadPoolConfigPersistenceService {
 
         ThreadPoolConfigAppEntity configApp = configAppOptional.orElseGet(() -> ThreadPoolConfigAppEntity.builder()
                 .appId(appId).version(0L).build());
-        configApp.setVersion(configApp.getVersion());
+        configApp.setVersion(configApp.getVersion() + 1);
         configAppRep.saveOrUpdate(configApp);
 
         // 记录日志

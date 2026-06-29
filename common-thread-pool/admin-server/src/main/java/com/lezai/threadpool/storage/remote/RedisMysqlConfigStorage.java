@@ -7,6 +7,7 @@ import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
+import com.lezai.threadpool.exception.StorageException;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
@@ -186,6 +187,7 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
     private void doRefresh(ThreadPoolConfigAppRefreshPreCheckDto preCheckDto) {
         compute(preCheckDto.getAppId(), (k, currentConfigAppDto) -> {
             if (currentConfigAppDto == null || currentConfigAppDto.getVersion() != preCheckDto.getVersion()
+                    || currentConfigAppDto.getConfigs() == null
                     || currentConfigAppDto.getConfigs().size() != preCheckDto.getConfigsCount()) {
                 return configService.getConfigAppByAppId(preCheckDto.getAppId()).orElse(null);
             }
@@ -205,6 +207,9 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
 
         // 异步通知监听器和历史记录
         notifyListenersAsync(currentConfigAppDto);
+        if (currentConfigAppDto == null) {
+            throw new StorageException("Failed to add config for appId: " + appId);
+        }
         return configConverter.dtoConvertConfig(currentConfigAppDto.getConfigs().get(config.getPoolName()));
     }
 
@@ -220,6 +225,7 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
         if (oldConfigAppDto == null) {
             oldConfigAppDto = configAppDto;
         } else {
+            oldConfigAppDto.setVersion(configAppDto.getVersion());
             oldConfigAppDto.getConfigs().putAll(configAppDto.getConfigs());
         }
 
@@ -238,6 +244,9 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
 
         // 异步通知监听器和历史记录
         notifyListenersAsync(currentConfigAppDto);
+        if (currentConfigAppDto == null) {
+            throw new StorageException("Failed to add config for appId: " + appId);
+        }
 
         return configs.stream().map(config -> configConverter.dtoConvertConfig(
                 currentConfigAppDto.getConfigs().get(config.getPoolName()))).toList();
