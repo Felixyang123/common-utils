@@ -1,2 +1,3 @@
 com.lezai.threadpool.config.ThreadPoolAutoConfiguration
 com.lezai.threadpool.config.ThreadPoolMetricsAutoConfiguration
+com.lezai.threadpool.config.ThreadPoolHealthAutoConfiguration

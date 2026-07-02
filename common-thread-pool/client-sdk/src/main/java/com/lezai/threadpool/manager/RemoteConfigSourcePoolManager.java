@@ -3,6 +3,7 @@ package com.lezai.threadpool.manager;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.client.RemoteConfigSourceDetector;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
+import com.lezai.threadpool.event.ThreadPoolEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -17,8 +18,17 @@ public class RemoteConfigSourcePoolManager extends ThreadPoolManager {
         this.detector = detector;
     }
 
+    public RemoteConfigSourcePoolManager(RemoteConfigSourceDetector detector, ThreadPoolEventPublisher eventPublisher) {
+        super(eventPublisher);
+        this.detector = detector;
+    }
+
     /**
      * 注册线程池（如果不存在则创建）
+     * <p>
+     * 注：此处 HTTP 调用仍在 computeIfAbsent lambda 内执行（性能优化留给 Batch 3.5 的
+     * upsertPool 重构一并处理），故本方法暂不发布 POOL_CREATED 事件，避免在 lambda 内
+     * 触发可能读 poolRegistry 的监听器回调导致死锁。
      *
      * @param config
      * @return

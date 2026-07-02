@@ -4,6 +4,10 @@ import com.lezai.threadpool.aspect.CreateThreadPoolAspect;
 import com.lezai.threadpool.aspect.ThreadPoolAspect;
 import com.lezai.threadpool.client.RemoteConfigSourceDetector;
 import com.lezai.threadpool.client.ThreadPoolStatsReporter;
+import com.lezai.threadpool.event.DefaultEventPublisher;
+import com.lezai.threadpool.event.LoggingEventListener;
+import com.lezai.threadpool.event.ThreadPoolEventListener;
+import com.lezai.threadpool.event.ThreadPoolEventPublisher;
 import com.lezai.threadpool.init.ThreadPoolInitializer;
 import com.lezai.threadpool.manager.RemoteConfigSourcePoolManager;
 import com.lezai.threadpool.manager.ThreadPoolManager;
@@ -19,6 +23,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
+import java.util.List;
+
 /**
  * 线程池自动配置（基于策略模式重构）
  */
@@ -32,6 +38,20 @@ public class ThreadPoolAutoConfiguration {
 
     public ThreadPoolAutoConfiguration(ThreadPoolProperties properties) {
         this.properties = properties;
+    }
+
+    // ==================== 事件组件 ====================
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ThreadPoolEventListener loggingEventListener() {
+        return new LoggingEventListener();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ThreadPoolEventPublisher threadPoolEventPublisher(List<ThreadPoolEventListener> listeners) {
+        return new DefaultEventPublisher(listeners);
     }
 
     // ==================== 核心组件 ====================
@@ -58,9 +78,10 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public ThreadPoolManager remoteConfigSourceThreadPoolManager(RemoteConfigSourceDetector detector) {
+    public ThreadPoolManager remoteConfigSourceThreadPoolManager(RemoteConfigSourceDetector detector,
+                                                                  ThreadPoolEventPublisher eventPublisher) {
         // 创建远程配置源线程池管理器
-        RemoteConfigSourcePoolManager poolManager = new RemoteConfigSourcePoolManager(detector);
+        RemoteConfigSourcePoolManager poolManager = new RemoteConfigSourcePoolManager(detector, eventPublisher);
         log.info("Initialized RemoteConfigSourcePoolManager");
         return poolManager;
     }
@@ -68,9 +89,9 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
-    public ThreadPoolManager threadPoolManager() {
+    public ThreadPoolManager threadPoolManager(ThreadPoolEventPublisher eventPublisher) {
         // 返回单例实例，初始化由 ThreadPoolInitializer 处理
-        ThreadPoolManager poolManager = new ThreadPoolManager();
+        ThreadPoolManager poolManager = new ThreadPoolManager(eventPublisher);
         log.info("Initialized ThreadPoolManager");
         return poolManager;
     }

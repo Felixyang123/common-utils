@@ -239,10 +239,42 @@ thread:
 |------|------|------|
 | `threadpool.threads.{core,max,active,pool}` | Gauge | 核心/最大/活跃/当前线程数 |
 | `threadpool.queue.{size,capacity}` | Gauge | 队列大小/容量 |
+| `threadpool.queue.utilization` | Gauge | 队列使用率 = queueSize / (queueSize + remainingCapacity) |
 | `threadpool.tasks.{completed,submitted,error,rejected}` | Gauge | 已完成/已提交/出错/被拒绝任务数 |
 | `threadpool.load.factor` | Gauge | 负载率 = activeCount / maximumPoolSize |
 
-每个指标带 `pool`（池名）和 `app`（appId）tag。池被删除后，其指标返回 sentinel 值 `-1`。
+每个指标带 `pool`（池名）和 `app`（appId）tag。`app` 解析顺序：CS 模式下取 `thread.pool.remote.app-id`；否则取 `spring.application.name`；都缺失时为 `"unknown"`。池被删除后，其指标返回 sentinel 值 `-1`。
+
+### 健康检查（Actuator）
+
+classpath 存在 `spring-boot-starter-actuator` 时，自动注册 `threadPoolHealthIndicator`（`GET /actuator/health` 可见）。任一池的活跃线程占比或队列使用率超过阈值时报 `DOWN`：
+
+```yaml
+thread:
+  pool:
+    health:
+      active-thread-threshold: 0.9   # 默认 0.9
+      queue-usage-threshold: 0.9     # 默认 0.9
+```
+
+只使用标准 `UP`/`DOWN` 状态（Kubernetes 探针、Prometheus 等基础设施只识别这两种）。需要分级预警时，应基于上述 Micrometer 指标配置告警规则，而非解析 health 状态。
+
+### 事件监听（自定义告警）
+
+低频、单次有意义的运行时事件（池创建/销毁、配置变更、CS 模式配置同步）可通过 SPI 接入自定义通知渠道（IM、监控系统等）：
+
+```java
+@Bean
+public ThreadPoolEventListener myImNotifier() {
+    return event -> {
+        if (event.type() == ThreadPoolEventType.CONFIG_CHANGED) {
+            // 发送到钉钉/企业微信...
+        }
+    };
+}
+```
+
+默认已注册 `LoggingEventListener`（结构化日志），用户实现的监听器与其并存。高频事件（任务拒绝、长轮询重试退避）不通过此机制下发——应基于指标速率告警，避免通知风暴。
 
 ### HTTP 上报（CS 模式）
 

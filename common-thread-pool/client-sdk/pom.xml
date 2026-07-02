@@ -40,6 +40,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Spring Boot Actuator for health indicator (optional) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-actuator</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- OkHttp for client -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

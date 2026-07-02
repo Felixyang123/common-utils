@@ -63,6 +63,12 @@ public class ThreadPoolMetricsBinder implements MeterBinder {
         Gauge.builder("threadpool.queue.capacity", pool, p ->
                         alive(poolName) ? p.getQueueRemainingCapacity() + p.getQueueSize() : -1)
                 .tags(tags).description("Queue capacity").register(registry);
+        Gauge.builder("threadpool.queue.utilization", pool, p -> {
+                    if (!alive(poolName)) return -1.0;
+                    int capacity = p.getQueueRemainingCapacity() + p.getQueueSize();
+                    return capacity > 0 ? (double) p.getQueueSize() / capacity : 0.0;
+                })
+                .tags(tags).description("Queue utilization rate: size/capacity").register(registry);
 
         Gauge.builder("threadpool.tasks.completed", pool, p -> alive(poolName) ? p.getCompletedTaskCount() : -1)
                 .tags(tags).description("Completed tasks").register(registry);

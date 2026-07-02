@@ -51,3 +51,10 @@
 ## 订阅通知协议（CS 模式）
 
 - **变更通知（ConfigChangeNotification）**：subscribe 接口返回的轻量信号，仅含 `{appId, version}`。客户端收到后主动 pull 获取全量配置。设计意图：避免服务端高频变更时直接推送全量配置导致脏写客户端缓存。
+
+## 运行时事件（ThreadPoolEvent）
+
+- **事件语义边界**：只覆盖低频、单次有意义的信号——`POOL_CREATED`、`POOL_DESTROYED`、`CONFIG_CHANGED`、`CONFIG_SYNCED`。
+- **明确排除**：任务拒绝（`TASK_REJECTED`）、长轮询退避重试（`BACKOFF`）不建模为事件——两者都是风暴式高频场景，逐次派发会轰炸下游通知渠道。这类信号应通过指标速率告警（如 `threadpool.tasks.rejected` 的 rate()、"超过 N 分钟未成功同步"），而非事件机制。
+- **发布规则**：只由 Spring 管理的组件发布（如 `ThreadPoolManager`），线程池运行时的纯 POJO 包装类永不持有 publisher 引用、也不发布事件——避免在原子操作（如 `ConcurrentHashMap.compute`）内部触发可能读取同一注册表的回调造成死锁。
+- **扩展方式**：用户实现 `ThreadPoolEventListener` 并注册为 Spring Bean 即可接入自定义告警通道；默认已有 `LoggingEventListener` 做结构化日志，与用户监听器并存。

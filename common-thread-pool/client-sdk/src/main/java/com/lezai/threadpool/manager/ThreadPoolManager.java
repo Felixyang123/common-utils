@@ -3,6 +3,9 @@ package com.lezai.threadpool.manager;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
+import com.lezai.threadpool.event.ThreadPoolEvent;
+import com.lezai.threadpool.event.ThreadPoolEventPublisher;
+import com.lezai.threadpool.event.ThreadPoolEventType;
 import com.lezai.threadpool.exception.PoolNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,17 +27,24 @@ public class ThreadPoolManager {
     private final ConcurrentHashMap<String, DynamicThreadPoolWrapper> poolRegistry;
 
     /**
+     * 事件发布器：由 Spring 管理的组件（本类）发布，wrapper 纯 POJO 永不发布（见 CONTEXT.md）
+     */
+    private final ThreadPoolEventPublisher eventPublisher;
+
+    /**
      * 供子类（如 {@link RemoteConfigSourcePoolManager}）在自定义注册逻辑中原子操作池注册表。
      */
     protected ConcurrentHashMap<String, DynamicThreadPoolWrapper> poolRegistry() {
         return poolRegistry;
     }
 
-    /**
-     * 私有构造函数
-     */
     public ThreadPoolManager() {
+        this(event -> {});
+    }
+
+    public ThreadPoolManager(ThreadPoolEventPublisher eventPublisher) {
         this.poolRegistry = new ConcurrentHashMap<>();
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -44,7 +54,17 @@ public class ThreadPoolManager {
      * @return
      */
     public DynamicThreadPoolWrapper registerPool(ThreadPoolConfig config) {
-        return poolRegistry.computeIfAbsent(config.getPoolName(), poolName -> createPool(config));
+        boolean[] created = {false};
+        DynamicThreadPoolWrapper pool = poolRegistry.computeIfAbsent(config.getPoolName(), poolName -> {
+            created[0] = true;
+            return createPool(config);
+        });
+        // 事件发布必须在 compute lambda 之外执行：lambda 内触发回调（回调内可能读 poolRegistry）会死锁
+        if (created[0]) {
+            eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.POOL_CREATED, pool.getPoolName(),
+                    "Pool created with core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
+        }
+        return pool;
     }
 
     public void registerPools(List<ThreadPoolConfig> configs) {
@@ -57,6 +77,8 @@ public class ThreadPoolManager {
             throw new PoolNotFoundException(config.getPoolName());
         }
         pool.updateConfig(config);
+        eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.CONFIG_CHANGED, pool.getPoolName(),
+                "Pool config updated: core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
     }
 
     /**
@@ -148,6 +170,7 @@ public class ThreadPoolManager {
         if (pool != null) {
             shutdownPool(pool, 5, TimeUnit.SECONDS);
             log.info("Removed thread pool: {}", poolName);
+            eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.POOL_DESTROYED, poolName, "Pool removed"));
             return true;
         }
         return false;
