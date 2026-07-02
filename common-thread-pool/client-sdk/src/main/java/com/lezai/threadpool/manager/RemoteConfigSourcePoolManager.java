@@ -25,7 +25,7 @@ public class RemoteConfigSourcePoolManager extends ThreadPoolManager {
      */
     @Override
     public DynamicThreadPoolWrapper registerPool(ThreadPoolConfig config) {
-        return poolRegistry.computeIfAbsent(config.getPoolName(), poolName -> {
+        return poolRegistry().computeIfAbsent(config.getPoolName(), poolName -> {
             ThreadPoolConfig serverConfig = detector.registerConfig(config);
             // 服务端不可达时 registerConfig 返回 null——降级用本地配置（可用性优先，见 ADR-0001）
             return createPool(serverConfig != null ? serverConfig : config);
@@ -36,7 +36,7 @@ public class RemoteConfigSourcePoolManager extends ThreadPoolManager {
     public void registerPools(List<ThreadPoolConfig> configs) {
         // Phase 1: build pools locally first (bootstrap fallback — works even when server is down)
         for (ThreadPoolConfig config : configs) {
-            poolRegistry.computeIfAbsent(config.getPoolName(), poolName -> createPool(config));
+            poolRegistry().computeIfAbsent(config.getPoolName(), poolName -> createPool(config));
         }
         // Phase 2: push to server (fire-and-forget)
         detector.registerConfigs(configs);

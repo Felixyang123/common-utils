@@ -1,11 +1,9 @@
 package com.lezai.threadpool.storage.localfile;
 
-import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.enums.StorageType;
-import com.lezai.threadpool.exception.StorageException;
 import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
@@ -16,8 +14,6 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,38 +124,22 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
     public void deleteConfig(String appId, String poolName) {
         AtomicReference<ThreadPoolConfig> oldConfigRef = new AtomicReference<>();
         compute(appId, (k, configFile) -> {
-            Path path = getStoragePath(appId);
-            try {
-                if (Files.exists(path)) {
-                    String content = Files.readString(path);
-                    if (StringUtils.isBlank(content)) {
-                        deleteFile(path);
-                        return null;
-                    }
-
-                    configFile = JSON.parseObject(content, ThreadPoolConfigFile.class);
-
-                    if (configFile.getConfigs() == null) {
-                        deleteFile(path);
-                        return null;
-                    }
-
-                    ThreadPoolConfig oldConfig = configFile.getConfigs().remove(poolName);
-                    oldConfigRef.set(oldConfig);
-
-                    if (configFile.getConfigs().isEmpty()) {
-                        deleteFile(path);
-                        return null;
-                    } else {
-                        configFile.setVersion(configFile.getVersion() + 1);
-                        writeFile(path, configFile);
-                        return configFile;
-                    }
-                }
+            if (configFile == null || configFile.getConfigs() == null) {
                 return null;
-            } catch (IOException e) {
-                throw new StorageException("Failed to delete config for appId: " + appId + ", pool: " + poolName, e);
             }
+
+            Path path = getStoragePath(appId);
+            ThreadPoolConfig oldConfig = configFile.getConfigs().remove(poolName);
+            oldConfigRef.set(oldConfig);
+
+            if (configFile.getConfigs().isEmpty()) {
+                deleteFile(path);
+                return null;
+            }
+
+            configFile.setVersion(configFile.getVersion() + 1);
+            writeFile(path, configFile);
+            return configFile;
         });
 
         if (historyStorage != null && oldConfigRef.get() != null) {
@@ -197,6 +177,9 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
+        if (config == null || StringUtils.isBlank(config.getPoolName())) {
+            throw new IllegalArgumentException("config and poolName must not be blank");
+        }
         AtomicBoolean added = new AtomicBoolean(false);
 
         ThreadPoolConfigFile file = compute(appId, (k, configFile) -> {
@@ -233,6 +216,16 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
+        if (configs == null) {
+            throw new IllegalArgumentException("configs must not be null");
+        }
+        List<ThreadPoolConfig> validConfigs = configs.stream()
+                .filter(config -> config != null && StringUtils.isNotBlank(config.getPoolName()))
+                .toList();
+        if (validConfigs.isEmpty()) {
+            return List.of();
+        }
+
         List<ThreadPoolConfig> addedConfigs = new ArrayList<>();
         AtomicBoolean added = new AtomicBoolean(false);
 
@@ -243,7 +236,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
                 configFile.setConfigs(new HashMap<>());
             }
 
-            for (ThreadPoolConfig config : configs) {
+            for (ThreadPoolConfig config : validConfigs) {
                 configFile.getConfigs().compute(config.getPoolName(), (poolName, oldConfig) -> {
                     if (oldConfig != null) {
                         return oldConfig;

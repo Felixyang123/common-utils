@@ -13,6 +13,7 @@ import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RedissonClient;
 
 import java.util.ArrayList;
@@ -197,6 +198,10 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
 
     @Override
     public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
+        if (config == null || StringUtils.isBlank(config.getPoolName())) {
+            throw new IllegalArgumentException("config and poolName must not be blank");
+        }
+
         List<ThreadPoolConfig> addedConfigs = new ArrayList<>();
         ThreadPoolConfigAppDto currentConfigAppDto = compute(appId, (app, oldConfigAppDto) -> {
             ThreadPoolConfigAppUpsertCmd cmd = ThreadPoolConfigAppUpsertCmd.builder().appId(appId)
@@ -234,10 +239,20 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
 
     @Override
     public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
+        if (configs == null) {
+            throw new IllegalArgumentException("configs must not be null");
+        }
+        List<ThreadPoolConfig> validConfigs = configs.stream()
+                .filter(config -> config != null && StringUtils.isNotBlank(config.getPoolName()))
+                .toList();
+        if (validConfigs.isEmpty()) {
+            return List.of();
+        }
+
         List<ThreadPoolConfig> addedConfigs = new ArrayList<>();
         ThreadPoolConfigAppDto currentConfigAppDto = compute(appId, (app, oldConfigAppDto) -> {
             ThreadPoolConfigAppUpsertCmd cmd = ThreadPoolConfigAppUpsertCmd.builder().appId(appId)
-                    .configs(configConverter.configConvertUpsertCmdBatch(configs)).build();
+                    .configs(configConverter.configConvertUpsertCmdBatch(validConfigs)).build();
 
             return addAndRefreshConfigs(oldConfigAppDto, cmd, addedConfigs);
         });
@@ -248,7 +263,7 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
             throw new StorageException("Failed to add config for appId: " + appId);
         }
 
-        return configs.stream().map(config -> configConverter.dtoConvertConfig(
+        return validConfigs.stream().map(config -> configConverter.dtoConvertConfig(
                 currentConfigAppDto.getConfigs().get(config.getPoolName()))).toList();
     }
 

@@ -15,8 +15,6 @@ import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.MethodSignature;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -47,27 +45,14 @@ public class CreateThreadPoolAspect {
         Method method = getMethod(joinPoint);
         log.debug("Executing method {} in thread pool {}", getMethodName(method), pool.getPoolName());
 
-        // 异步执行方法
-        CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
-            try {
-                return joinPoint.proceed();
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-        }, pool);
-
-        if (Future.class.isAssignableFrom(method.getReturnType())) {
-            return future;
-        }
-
-        return null;
+        return AsyncExecutionSupport.execute(joinPoint, method, pool, pool.getPoolName(), annotation.awaitResult());
     }
 
     /**
      * 获取方法名称
      */
     private String getMethodName(Method method) {
-        return method.getDeclaringClass().getName() + "." + method.getName();
+        return AsyncExecutionSupport.methodName(method);
     }
 
     private Method getMethod(ProceedingJoinPoint joinPoint) {

@@ -21,7 +21,14 @@ public class ThreadPoolManager {
     /**
      * 存储所有线程池
      */
-    protected final ConcurrentHashMap<String, DynamicThreadPoolWrapper> poolRegistry;
+    private final ConcurrentHashMap<String, DynamicThreadPoolWrapper> poolRegistry;
+
+    /**
+     * 供子类（如 {@link RemoteConfigSourcePoolManager}）在自定义注册逻辑中原子操作池注册表。
+     */
+    protected ConcurrentHashMap<String, DynamicThreadPoolWrapper> poolRegistry() {
+        return poolRegistry;
+    }
 
     /**
      * 私有构造函数

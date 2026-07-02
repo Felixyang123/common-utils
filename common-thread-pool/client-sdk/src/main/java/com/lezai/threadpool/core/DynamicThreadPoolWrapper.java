@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolStats;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -272,6 +273,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                 .taskCount(getTaskCount())
                 .isShutdown(isShutdown())
                 .isTerminated(isTerminated())
+                .collectTime(LocalDateTime.now())
                 .build();
     }
 

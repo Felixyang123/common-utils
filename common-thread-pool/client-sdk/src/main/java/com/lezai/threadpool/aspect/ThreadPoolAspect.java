@@ -12,9 +12,6 @@ import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.MethodSignature;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Future;
 
 /**
  * 异步线程池切面
@@ -76,30 +73,11 @@ public class ThreadPoolAspect {
         Method method = getMethod(joinPoint);
         log.debug("Executing method {} asynchronously in thread pool {}", getMethodName(method), poolName);
 
-        CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
-            try {
-                return joinPoint.proceed();
-            } catch (Throwable e) {
-                throw new CompletionException(e);
-            }
-        }, pool);
-
-        CompletableFuture<Object> tracked = future.whenComplete((result, ex) -> {
-            if (ex != null) {
-                pool.incrementErrorCount();
-                log.error("Async task {} failed in pool {}", getMethodName(method), poolName, ex);
-            }
-        });
-
-        if (Future.class.isAssignableFrom(method.getReturnType())) {
-            return tracked;
-        }
-
-        return null;
+        return AsyncExecutionSupport.execute(joinPoint, method, pool, poolName, asyncThreadPool.awaitResult());
     }
 
     private String getMethodName(Method method) {
-        return method.getDeclaringClass().getName() + "." + method.getName();
+        return AsyncExecutionSupport.methodName(method);
     }
 
     private Method getMethod(ProceedingJoinPoint joinPoint) {

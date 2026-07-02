@@ -78,4 +78,13 @@ public @interface CreateThreadPool {
      * 是否启用
      */
     boolean enabled() default true;
+
+    /**
+     * 非 Future 返回类型时是否阻塞等待任务执行完成并返回真实结果。
+     * <p>
+     * 默认 false：fire-and-forget，方法立即返回 null（与 Spring {@code @Async} 行为一致）。
+     * 设为 true：调用者线程阻塞至任务在池线程执行完毕，返回真实结果并正确传播异常。
+     * 对 {@link java.util.concurrent.Future} 返回类型无影响（始终异步返回 Future）。
+     */
+    boolean awaitResult() default false;
 }
