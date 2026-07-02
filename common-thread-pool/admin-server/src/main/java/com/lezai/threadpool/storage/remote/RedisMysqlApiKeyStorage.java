@@ -116,7 +116,7 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     }
 
     @Override
-    public boolean putIfAbsent(ApiKey apiKey) {
+    public boolean  putIfAbsent(ApiKey apiKey) {
         if (apiKey == null || apiKey.getAppId() == null) {
             throw new ValidationException("ApiKey and appId cannot be null");
         }

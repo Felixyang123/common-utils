@@ -26,16 +26,46 @@ public class ThreadPoolAspect {
 
     private final ThreadPoolManager threadPoolManager;
 
+    // ==================== 方法级别 @AsyncThreadPool ====================
+
     @Pointcut("@annotation(com.lezai.threadpool.annotation.AsyncThreadPool)")
     public void asyncThreadPoolPointcut() {
     }
+
+    /**
+     * 方法级注解：通过 @annotation 绑定注解参数
+     */
+    @Around("asyncThreadPoolPointcut() && @annotation(asyncThreadPool)")
+    public Object around(ProceedingJoinPoint joinPoint, AsyncThreadPool asyncThreadPool) throws Throwable {
+        return doAround(joinPoint, asyncThreadPool);
+    }
+
+    // ==================== 类级别 @AsyncThreadPool ====================
 
     @Pointcut("@within(com.lezai.threadpool.annotation.AsyncThreadPool)")
     public void classLevelAsyncThreadPoolPointcut() {
     }
 
-    @Around(value = "asyncThreadPoolPointcut() || classLevelAsyncThreadPoolPointcut()", argNames = "joinPoint,asyncThreadPool")
-    public Object around(ProceedingJoinPoint joinPoint, AsyncThreadPool asyncThreadPool) throws Throwable {
+    /**
+     * 类级注解：@within 无法绑定注解值，反射从目标类提取；
+     * 若方法本身也有 @AsyncThreadPool，跳过（由 around 处理）
+     */
+    @Around("classLevelAsyncThreadPoolPointcut()")
+    public Object aroundClassLevel(ProceedingJoinPoint joinPoint) throws Throwable {
+        Method method = getMethod(joinPoint);
+        if (method.isAnnotationPresent(AsyncThreadPool.class)) {
+            return joinPoint.proceed();
+        }
+        AsyncThreadPool asyncThreadPool = joinPoint.getTarget().getClass().getAnnotation(AsyncThreadPool.class);
+        if (asyncThreadPool == null) {
+            return joinPoint.proceed();
+        }
+        return doAround(joinPoint, asyncThreadPool);
+    }
+
+    // ==================== 公共逻辑 ====================
+
+    private Object doAround(ProceedingJoinPoint joinPoint, AsyncThreadPool asyncThreadPool) throws Throwable {
         if (!asyncThreadPool.enabled()) {
             return joinPoint.proceed();
         }
@@ -44,8 +74,7 @@ public class ThreadPoolAspect {
         DynamicThreadPoolWrapper pool = threadPoolManager.getRequiredPool(poolName);
 
         Method method = getMethod(joinPoint);
-        log.debug("Executing method {} asynchronously in thread pool {}",
-                getMethodName(method), poolName);
+        log.debug("Executing method {} asynchronously in thread pool {}", getMethodName(method), poolName);
 
         CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
             try {
@@ -55,8 +84,6 @@ public class ThreadPoolAspect {
             }
         }, pool);
 
-        // 错误可见性:在 CF 完成层捕获异常(afterExecute 的 throwable 在异步路径恒为 null),
-        // 计数并记日志 —— 即便是 fire-and-forget 的非 Future 方法,异常也不再被静默吞没。
         CompletableFuture<Object> tracked = future.whenComplete((result, ex) -> {
             if (ex != null) {
                 pool.incrementErrorCount();
@@ -71,9 +98,6 @@ public class ThreadPoolAspect {
         return null;
     }
 
-    /**
-     * 获取方法名称
-     */
     private String getMethodName(Method method) {
         return method.getDeclaringClass().getName() + "." + method.getName();
     }

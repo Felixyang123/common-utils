@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Review Report — common-thread-pool</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --high: #f85149;
+    --medium: #d29922;
+    --low: #3fb950;
+    --accent: #58a6ff;
+    --code-bg: #1c2128;
+    --tag-high-bg: #490202;
+    --tag-high-fg: #ff7b72;
+    --tag-med-bg: #341a00;
+    --tag-med-fg: #d29922;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  header h1 { font-size: 2rem; font-weight: 700; color: #f0f6fc; }
+  header .meta { margin-top: 12px; color: var(--muted); font-size: 0.9rem; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+  header .meta span { display: flex; align-items: center; gap: 6px; }
+  header .meta .icon { font-size: 1.1rem; }
+
+  /* Summary cards */
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+  }
+  .summary-card .number { font-size: 2.4rem; font-weight: 700; }
+  .summary-card .label { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+  .summary-card.high .number { color: var(--high); }
+  .summary-card.med .number { color: var(--medium); }
+  .summary-card.total .number { color: var(--accent); }
+  .summary-card.files .number { color: var(--low); }
+
+  /* Section */
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #f0f6fc;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+  }
+  .high .count { background: var(--tag-high-bg); color: var(--tag-high-fg); }
+  .med .count { background: var(--tag-med-bg); color: var(--tag-med-fg); }
+
+  /* Issue card */
+  .issue {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .issue:hover { border-color: #484f58; }
+  .issue-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .issue-index {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+    min-width: 24px;
+    padding-top: 2px;
+  }
+  .issue-path {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88rem;
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  .issue-path .line { color: var(--medium); }
+  .badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .badge.bug { background: var(--tag-high-bg); color: var(--tag-high-fg); }
+  .badge.security { background: #451a03; color: #f97316; }
+  .badge.race { background: #420039; color: #f472b6; }
+  .badge.null { background: #1a1a2e; color: #a78bfa; }
+  .badge.style { background: #0f1b0f; color: #6ee7b7; }
+  .badge.naming { background: #1e1e30; color: #93c5fd; }
+  .badge.lombok { background: #2d1b2e; color: #c084fc; }
+
+  .issue-text { color: var(--text); font-size: 0.93rem; margin-bottom: 8px; }
+  .issue-text strong { color: #f0f6fc; }
+
+  .fix {
+    background: var(--code-bg);
+    border-left: 3px solid var(--low);
+    padding: 10px 16px;
+    margin-top: 10px;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.85rem;
+    color: #bdc4cc;
+  }
+  .fix .tag { color: var(--low); font-weight: 600; margin-right: 8px; }
+
+  /* Code block */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    overflow-x: auto;
+    line-height: 1.55;
+  }
+  .del { color: #f85149; }
+  .add { color: #3fb950; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 32px 0 16px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 16px 10px; }
+    .issue { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>📋 Code Review Report</h1>
+  <div class="meta">
+    <span><span class="icon">📦</span> common-thread-pool</span>
+    <span><span class="icon">🌿</span> dynamic-tp vs main</span>
+    <span><span class="icon">📅</span> 2026-06-27</span>
+    <span><span class="icon">🛠️</span> open-code-review (ocr)</span>
+  </div>
+</header>
+
+<div class="summary">
+  <div class="summary-card files">
+    <div class="number">177</div>
+    <div class="label">Files Reviewed</div>
+  </div>
+  <div class="summary-card total">
+    <div class="number">89</div>
+    <div class="label">Issues in common-thread-pool</div>
+  </div>
+  <div class="summary-card high">
+    <div class="number">18</div>
+    <div class="label">🔴 High Priority</div>
+  </div>
+  <div class="summary-card med">
+    <div class="number">65</div>
+    <div class="label">🟡 Medium Priority</div>
+  </div>
+</div>
+
+<!-- ==================== HIGH PRIORITY ==================== -->
+<div class="section high">
+<div class="section-title">🔴 High Priority <span class="count">18 issues</span></div>
+<div class="section-subtitle" style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">Bugs, security vulnerabilities, compilation blockers, and race conditions</div>
+
+<!-- #1 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#1</span>
+    <a class="issue-path" href="#">common-thread-pool/core/…/ThreadPoolConfig.java<span class="line">:18-20</span></a>
+    <span class="badge bug">Compile Error</span>
+  </div>
+  <div class="issue-text">
+    <strong>编译错误：</strong><code>@Builder</code> 与手动定义的 <code>ThreadPoolConfigBuilder</code> 静态内部类冲突，导致 <strong>重复类</strong> 编译错误，阻塞整个 <code>core</code> 模块编译。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 移除 <code>@Builder</code>，替换为 <code>@AllArgsConstructor(access = AccessLevel.PACKAGE)</code></div>
+</div>
+
+<!-- #2 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#2</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ThreadPoolConfigPersistenceService.java<span class="line">:239</span></a>
+    <span class="badge bug">Logic Bug</span>
+  </div>
+  <div class="issue-text">
+    <strong>添加线程池时版本号未递增：</strong><code>configApp.setVersion(configApp.getVersion())</code> 是空操作。CS 模式下客户端通过 <code>doRefresh()</code> 比较版本号判断是否有变更 — 版本号永远不变，导致客户端无法感知新增的线程池配置。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 改为 <code>configApp.setVersion(configApp.getVersion() + 1)</code>（与 <code>doUpsertConfigApp</code> 行为一致）</div>
+</div>
+
+<!-- #3 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#3</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ThreadPoolConfigMapper.java<span class="line">:13-14</span></a>
+    <span class="badge bug">Runtime Error</span>
+  </div>
+  <div class="issue-text">
+    <strong><code>Map&lt;String, Long&gt;</code> 返回类型不正确：</strong>MyBatis 将不带 <code>@MapKey</code> 的 <code>Map</code> 视为单行结果。当 GROUP BY 返回多行时，运行时会抛出 <code>TooManyResultsException</code>。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 添加 <code>@MapKey("app_id")</code>，将返回类型改为 <code>Map&lt;String, Map&lt;String, Object&gt;&gt;</code></div>
+</div>
+
+<!-- #4 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#4</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ThreadPoolConfigMapper.java<span class="line">:16-17</span></a>
+    <span class="badge bug">SQL Bug</span>
+  </div>
+  <div class="issue-text">
+    <strong><code>IN (#{appIds})</code> 无法展开 List 参数：</strong><code>#{}</code> 只放置单个 <code>?</code> 占位符，传入 <code>List&lt;String&gt;</code> 会被绑定为其 <code>toString()</code> 结果（如 <code>'[app1, app2]'</code>），导致错误 SQL。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 在 <code>&lt;script&gt;</code> 标签内使用 <code>&lt;foreach&gt;</code> 展开集合</div>
+</div>
+
+<!-- #5 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#5</span>
+    <a class="issue-path" href="#">common-thread-pool/client-sdk/…/ThreadPoolAspect.java<span class="line">:37-38</span></a>
+    <span class="badge bug">Startup Failure</span>
+  </div>
+  <div class="issue-text">
+    <strong>缺少 <code>@annotation(asyncThreadPool)</code> 绑定：</strong>Spring AOP 在没有显式 <code>@annotation(...)</code> 绑定的情况下无法解析 <code>asyncThreadPool</code> 参数。<code>argNames</code> 仅用于消除歧义，不执行绑定。启动时将失败。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 使用 <code>@Around(value = "asyncThreadPoolPointcut() &amp;&amp; @annotation(asyncThreadPool)")</code></div>
+</div>
+
+<!-- #6 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#6</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ThreadPoolConfigPersistenceService.java<span class="line">:173-177</span></a>
+    <span class="badge bug">Logic Bug</span>
+  </div>
+  <div class="issue-text">
+    <strong>删除不存在的线程池时仍递增版本号：</strong>当 <code>configOptional.isEmpty()</code> 时跳过删除但继续执行版本递增，向客户端发送虚假的配置变更通知。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 当池不存在时提前返回，不递增版本号</div>
+</div>
+
+<!-- #7 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#7</span>
+    <a class="issue-path" href="#">common-thread-pool/client-sdk/…/CreateThreadPoolAspect.java<span class="line">:51-63</span></a>
+    <span class="badge bug">Missing Error Count</span>
+  </div>
+  <div class="issue-text">
+    <strong>错误计数遗漏：</strong><code>CompletableFuture.supplyAsync</code> 内部捕获异常，异常无法到达 <code>afterExecute()</code>。与 <code>ThreadPoolAspect</code>（使用 <code>whenComplete</code> 正确计数）不同，<code>@CreateThreadPool</code> 方法的异常被静默吞没，错误计数不递增。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 添加 <code>future.whenComplete((result, ex) -&gt; { if (ex != null) { pool.incrementErrorCount(); log.error(...); } })</code></div>
+</div>
+
+<!-- #8 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#8</span>
+    <a class="issue-path" href="#">common-thread-pool/client-sdk/…/RemoteConfigSourceDetector.java<span class="line">:337-347</span></a>
+    <span class="badge bug">Silent Error</span>
+  </div>
+  <div class="issue-text">
+    <strong><code>registerConfigs()</code> 忽略 API 业务错误：</strong>只检查 <code>response.isSuccessful()</code>（HTTP 2xx），不解析 <code>ApiResponse.code</code>。所有业务错误（验证失败 400、重复配置 409）被静默视为成功，随后日志显示"All configs saved"并拉取配置。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 使用 <code>analyzeResponse()</code> 解析响应体（与 <code>registerConfig()</code> 行为一致）</div>
+</div>
+
+<!-- #9 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#9</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/SubscriptionService.java<span class="line">:64-65</span></a>
+    <span class="badge bug">Logic Bug</span>
+  </div>
+  <div class="issue-text">
+    <strong>长轮询通知返回空配置列表：</strong>监听器回调构建的 <code>ThreadPoolAppConfig</code> 不含 <code>configs</code>（为 null）。客户端 <code>updatePools()</code> 检查 <code>CollectionUtils.isEmpty(resp.getConfigs())</code> → 提前返回，跳过更新。客户端收到版本变更通知却永远拿不到新配置。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 从存储层获取完整配置：<code>configStorage.getAppConfig(appId).ifPresent(config -&gt; deferredResult.setResult(ApiResponse.success(config)))</code></div>
+</div>
+
+<!-- #10 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#10</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/RedisMysqlStorageSupport.java<span class="line">:40-41</span></a>
+    <span class="badge race">Self-blocking</span>
+  </div>
+  <div class="issue-text">
+    <strong>自阻塞关闭：预热线程等待自己 30 秒超时。</strong><code>gracefulShutdown()</code> 在预热执行器的单一线程上调用 <code>awaitTermination(30s)</code>。该线程正在运行 <code>whenComplete</code> 回调，<code>awaitTermination</code> 永远无法完成 → 每次必然超时 30 秒。每个存储实例浪费一个线程 30 秒。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 移除 <code>awaitTermination</code>，仅调用 <code>warmupExecutor.shutdown()</code></div>
+</div>
+
+<!-- #11 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#11</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/RedisMysqlStorageSupport.java<span class="line">:27-36</span></a>
+    <span class="badge race">Race Condition</span>
+  </div>
+  <div class="issue-text">
+    <strong>竞态条件：预热线程可能读取到未初始化的子类字段。</strong><code>loadAllFromDb()</code> 从 <code>super()</code> 构造器异步提交。子类字段（<code>apiKeyService</code>、<code>configService</code> 等）在 <code>super()</code> 返回<em>之后</em>才赋值。构造器线程与预热线程之间没有 happens-before 关系 → NPE 被 catch 静默吞没，缓存保持空状态。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 将 <code>loadCache()</code> 移至 <code>@PostConstruct</code> 或子类构造器完成后调用的 <code>init()</code> 方法</div>
+</div>
+
+<!-- #12 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#12</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ConfigChangeListenerManager.java<span class="line">:86-87</span></a>
+    <span class="badge bug">Missing Config</span>
+  </div>
+  <div class="issue-text">
+    <strong>缺少 <code>@EnableAsync</code>：</strong><code>@Async("listenerNotifyExecutor")</code> 需要任一 <code>@Configuration</code> 类上存在 <code>@EnableAsync</code>。当前没有任何地方声明该注解，因此 <code>triggerListeners</code> 同步运行在调用者线程中，阻塞配置变更传播。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 在 <code>AsyncExecutorConfig</code> 或 <code>AdminServerAutoConfiguration</code> 上添加 <code>@EnableAsync</code></div>
+</div>
+
+<!-- #13 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#13</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/RedisMysqlConfigStorage.java<span class="line">:186-243</span></a>
+    <span class="badge null">NPE Risk (×3)</span>
+  </div>
+  <div class="issue-text">
+    <strong>三处 NPE 风险：</strong><code>currentConfigAppDto.getConfigs()</code> 在 Redis 反序列化后可能为 null，且 <code>compute()</code> 在 saveBatch 失败时可能返回 null。影响 <code>doRefresh()</code>、<code>addConfig()</code> 和 <code>addConfigs()</code>。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 访问前添加 null 检查；当 compute 返回 null 时抛出 <code>StorageException</code></div>
+</div>
+
+<!-- #14 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#14</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ApiKeyAdminService.java<span class="line">:44-47</span></a>
+    <span class="badge race">Race Condition</span>
+  </div>
+  <div class="issue-text">
+    <strong>竞态条件：</strong><code>exists()</code> 和 <code>saveApiKey()</code> 之间的 check-then-act 非原子操作。两个并发请求均可通过存在性检查，第二个 upsert 覆盖第一个的 hash → 返回给第一个调用方的 API key 立即可用。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 移除显式的存在性检查，依赖存储层使用 insert-only 操作（若 key 已存在则失败）</div>
+</div>
+
+<!-- #15 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#15</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/LocalFileApiKeyStorage.java<span class="line">:125-133</span></a>
+    <span class="badge race">Race Condition</span>
+  </div>
+  <div class="issue-text">
+    <strong>并发 <code>regenerateApiKey</code> 可能导致 API key 立即失效。</strong>Key 在 <code>compute()</code> 外生成；两个并发线程均通过各自 lambda 写入 hash → 仅保留一个。返回给另一调用方的原始 key 与存储的 hash 不匹配 → 认证失败。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 在 compute 内部生成 key，通过 compute 结果返回原始 key</div>
+</div>
+
+<!-- #16 - Security -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#16</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/ApiKeyController.java<span class="line">:23-27</span></a>
+    <span class="badge security">Security</span>
+  </div>
+  <div class="issue-text">
+    <strong>安全漏洞：API key 管理端点未受保护。</strong><code>/api/api-keys/**</code> 端点不走任何认证。<code>ApiKeyAuthInterceptor</code> 仅覆盖 <code>/open/api/thread-pool/**</code>。所有 API key 的 CRUD 操作完全对外开放。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 将 <code>/api/api-keys/**</code> 路径加入拦截器注册</div>
+</div>
+
+<!-- #17 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#17</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/OpenThreadPoolConfigController.java<span class="line">:60-63</span></a>
+    <span class="badge security">DoS</span>
+  </div>
+  <div class="issue-text">
+    <strong>缺少超时上限 → 拒绝服务风险。</strong>有 <code>@Min(1000)</code> 但无 <code>@Max</code>。恶意客户端可传入 <code>Long.MAX_VALUE</code>，导致服务端持有巨量长期 <code>DeferredResult</code> 连接，耗尽线程和连接资源。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 添加 <code>@Max(value = 60000, message = "timeout必须在1000-60000之间")</code></div>
+</div>
+
+<!-- #18 -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">#18</span>
+    <a class="issue-path" href="#">common-thread-pool/admin-server/…/OpenThreadPoolConfigController.java<span class="line">:24-28</span></a>
+    <span class="badge bug">Validation Dead</span>
+  </div>
+  <div class="issue-text">
+    <strong>参数校验注解未生效：</strong>仅有 <code>@Valid</code> 无法为 <code>@RequestParam</code> 参数触发方法级校验。<code>@Min</code>/<code>@Max</code> 约束被静默忽略，需类级别 <code>@Validated</code>。
+  </div>
+  <div class="fix"><span class="tag">🔧 Fix</span> 在类上添加 <code>@Validated</code></div>
+</div>
+</div>
+
+<!-- ==================== MEDIUM PRIORITY ==================== -->
+<div class="section med">
+<div class="section-title">🟡 Medium Priority <span class="count">65 issues</span></div>
+<div class="section-subtitle" style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">合理关切但依赖上下文，以及风格/健壮性/可维护性建议</div>
+
+<!-- Category groups for Medium -->
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">19–24</span>
+    <span class="badge null">缺少空值校验</span>
+  </div>
+  <div class="issue-text">
+    <strong>6 个服务方法缺少白盒空值防御：</strong>由于这些是可直接注入调用的 <code>@Service</code> bean（绕过控制器的 <code>@Valid</code>），需要防护性校验。
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>ConfigAdminService.saveConfig/saveConfigs</code> — config/configs 参数</li>
+    <li><code>OpenThreadPoolConfigService.addConfig/addConfigs</code> — 同样缺少 appId 和 config 校验</li>
+    <li><code>ThreadPoolConfigAppRep.listByAppIds</code> — 空列表传给 MyBatis-Plus <code>.in()</code> → 无效 SQL</li>
+    <li><code>ThreadPoolConfigRep.listByAppIds</code> — 同上（且与 <code>findByAppIds</code> 重复）</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">25–26</span>
+    <span class="badge null">NPE 风险</span>
+  </div>
+  <div class="issue-text">
+    <code>ThreadPoolConfigConverter.java:58,65-66</code> — <code>dto.getConfigs()</code> 和 <code>configs</code> 参数缺少 null 检查；<code>Collectors.toMap</code> 无 merge 函数 → 重复 poolName 时抛异常。
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">27</span>
+    <span class="badge bug">Runtime Risk</span>
+  </div>
+  <div class="issue-text">
+    <code>ThreadPoolConfigRep.findByAppIdAndPoolName</code> — <code>getOne</code> 遇到多行匹配时抛 <code>TooManyResultsException</code>（缺少唯一约束）。<strong>建议：</strong>添加 <code>.last("LIMIT 1")</code>。
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">28–33</span>
+    <span class="badge lombok">Lombok / Entity</span>
+  </div>
+  <div class="issue-text">
+    <strong>6 个实体类 Lombok 配置问题：</strong>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>ThreadPoolConfigEntity</code> — 缺少 <code>@NoArgsConstructor</code>/<code>@AllArgsConstructor</code>（MyBatis-Plus 必需无参构造器）</li>
+    <li><code>ThreadPoolStatsEntity</code> — 同上 + Javadoc 中表名错误</li>
+    <li><code>ApiKeyEntity</code> — 同上 + <code>createTime</code>/<code>updateTime</code> 与 <code>BaseEntity</code> 中的字段重复（字段遮蔽）</li>
+    <li><code>ApiKeyHistoryFile</code> — Builder 无 <code>@Builder.Default</code> → <code>lastUpdateTime</code> 为 null</li>
+    <li><code>ChangeLogEntry</code> — Builder 中 <code>timestamp</code> 无默认值</li>
+    <li><code>StatsAppDto</code> — 缺少 <code>@NoArgsConstructor</code>/<code>@AllArgsConstructor</code></li>
+    <li><code>ThreadPoolStats</code> — 同上</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">34–36</span>
+    <span class="badge bug">boolean → Boolean</span>
+  </div>
+  <div class="issue-text">
+    <strong>3 处原始类型 <code>boolean</code> 导致部分更新时意外覆盖：</strong>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>UpdateApiKeyRequest.enabled</code> — 原始 boolean → 省略时为 false → 无意的 key 禁用</li>
+    <li><code>ApiKeyUpsertCmd.enabled</code> — 同样问题，regenerate 时触发</li>
+    <li><code>ApiKeyAdminService.updateApiKey</code> — 无条件应用 <code>request.isEnabled()</code></li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">37–39</span>
+    <span class="badge naming">Javadoc / 命名错误</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>ConfigNotModifiedException</code> — 类注释写的是"配置不存在异常 404"（从 ConfigNotFoundException 复制粘贴）</li>
+    <li><code>OperateLogEntity.bizId</code> — Javadoc 引用的是 <code>logType</code>/<code>logId</code> 而非 <code>bizType</code>/<code>bizId</code></li>
+    <li><code>ThreadPoolStatsEntity</code> — 类级注释说表是 <code>stats_storage</code>，但 <code>@TableName</code> 是 <code>thread_pool_stats</code></li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">40–45</span>
+    <span class="badge style">代码清理 / 冗余</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>AdminServerAutoConfiguration</code> — <code>@Autowired configConverter</code> 未被使用 / <code>redisMysqlStatsStorage</code> 方法名误导（返回不含 Redis 的 <code>MysqlStatsStorage</code>）</li>
+    <li><code>ConfigAdminService</code> — <code>statsStorage</code> 字段已注入未使用</li>
+    <li><code>ThreadPoolConfigPersistenceService</code> — <code>addedConfigs</code> 参数被修改但唯一调用方未读取</li>
+    <li><code>OperateLogEntity</code> — <code>@AllArgsConstructor</code> 与 <code>@SuperBuilder</code> 冗余 / <code>of()</code> 应接受 <code>BizType</code> 枚举而非 String</li>
+    <li><code>RedisMysqlStorageSupport</code> — <code>loadCache()</code> 应为 <code>private</code> 而非 <code>public</code></li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">46–48</span>
+    <span class="badge naming">命名 / 命名约定</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>StatsMapper</code> — 应为 <code>ThreadPoolStatsMapper</code> 以匹配实体和其余 Mapper 命名模式</li>
+    <li><code>ApiKeyPersistenceService.apiKeyConvertor</code> — 拼写错误，应为 <code>apiKeyConverter</code></li>
+    <li><code>ApiKeyStorage</code> — 接口级 Logger 导致默认方法日志写入接口名而非实现类名</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">49–58</span>
+    <span class="badge style">服务 / 存储层</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>SubscriptionService.subscribe</code> — 装箱的 Long 参数在自动拆箱时可能 NPE / 补偿检查太早（总是 1秒）</li>
+    <li><code>ThreadPoolStatsPersistenceService</code> — 时间范围过滤用 <code>updateTime</code> 而非 <code>collectTime</code> / 查询无分页限制 / 验证失败时记录整个 cmd 对象可能导致日志膨胀</li>
+    <li><code>ConfigStorage.saveConfigs</code> — 默认逐个保存，非原子操作；失败时可能部分写入</li>
+    <li><code>ConfigHistoryStorage.getHistory</code> — 两个变体返回相反排序 → API 语义困惑</li>
+    <li><code>AsyncExecutorConfig</code> — <code>stop()</code> 中未设置 <code>running = false</code> / 4 个执行器 Bean 重复结构 → 提取工厂方法</li>
+    <li><code>RateLimitInterceptor</code> — 通过省略 X-App-Id 头可绕过速率限制 / 速率限制值硬编码</li>
+    <li><code>ApiKeyAuthInterceptor</code> — 冗余的三元表达式 <code>code == 401 ? 401 : 400</code></li>
+    <li><code>GlobalExceptionHandler</code> — 通用 Exception 处理器对所有异常返回 500（包括 400 级别的 Spring MVC 异常）</li>
+    <li><code>ApiKeyPersistenceService.update</code> — 未校验 <code>newApiKey.getId()</code> 非空</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">59–67</span>
+    <span class="badge style">Redis/MySQL 存储层</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>RedisMysqlApiKeyStorage</code> — loadAllFromDb 静默吞没 DB 异常（无法健康检查） / upsert 失败时调用方无感知</li>
+    <li><code>RedisMysqlConfigStorage</code> — 合并缓存配置时版本号未传递 → 陈旧的版本号引发不必要的 DB 重载</li>
+    <li><code>ConfigChangeListenerManager</code> — Lambda 引用相等导致 unregister 静默失败 / info 日志每 30 秒触发且无内容</li>
+    <li><code>LocalFileApiKeyHistoryStorage</code> — 不必要双重排序（升序后再降序）/ 空字符串 hash 绕过校验</li>
+    <li><code>LocalFileApiKeyStorage</code> — 逐字段手动复制，新增字段时易遗漏</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">68–80</span>
+    <span class="badge style">Client SDK</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>CreateThreadPool</code> 注解 — <code>queueType</code>/<code>rejectPolicyType</code> 使用 String 而非枚举（无编译期类型安全）</li>
+    <li><code>CreateThreadPoolAspect</code> — <code>valueOf()</code> 转换仅在运行时失败，且错误信息不友好</li>
+    <li><code>DynamicThreadPoolWrapper</code> — 缺少 <code>QueueType</code>/<code>RejectPolicyType</code> 导入 / <code>updateConfig</code> 可能因 <code>corePoolSize &gt; maxPoolSize</code> 抛异常 / 非同步 → 并发修改可能产生不一致状态 / <code>PriorityBlockingQueue</code> 无视 <code>queueCapacity</code>（无界队列）</li>
+    <li><code>ThreadPoolAspect</code> — 非 Future 返回类型返回 null；Future 方法的嵌套 CompletableFuture</li>
+    <li><code>ThreadPoolMetricsBinder</code> — Gauge 注册时捕获 wrapper 引用，池重建后过时 <strong>且</strong> 在注册时快照池列表（动态注册的池对指标不可见）</li>
+    <li><code>ThreadPoolLifecycle</code> — <code>running</code> 标志在 <code>reporter.start()</code> 失败时不设置 → <code>stop()</code> 跳过清理</li>
+    <li><code>RemoteConfigSourceDetector</code> — <code>pullConfigsScheduler</code> 创建非守护线程 / 订阅线程在 stop 时未 join / 对永远无法应用的配置缺少退避</li>
+    <li><code>ThreadPoolInitializer</code> — 用户配置的 <code>default-pool</code> 被静默丢弃且无日志</li>
+    <li><code>ThreadPoolManager</code> — <code>updatePool</code> 对未声明的池名静默创建（违反声明即使用原则）/ 日志信息语义不清 / <code>getAllPoolStats</code> 缺少 null 过滤</li>
+    <li><code>ThreadPoolProperties</code> — <code>pools[]</code> 缺少 <code>@Valid</code>（子字段约束未触发）/ PoolConfig 缺少跨字段校验 <code>core &lt;= max</code></li>
+    <li><code>ThreadPoolStatsReporter</code> — check-then-act 在 <code>running</code> 标志上非原子 → 可能重复调度</li>
+  </ul>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">81–86</span>
+    <span class="badge naming">POM / Build</span>
+  </div>
+  <div class="issue-text">
+    <strong>6 个 POM 文件中声明了 SNAPSHOT 版本：</strong><code>0.0.1-SNAPSHOT</code> 出现在 <code>pom.xml</code>、<code>admin-server/pom.xml</code>、<code>client-sdk/pom.xml</code>、<code>samples/pom.xml</code>、<code>sample-local/pom.xml</code>、<code>sample-cs-client/pom.xml</code>。需更新为正式版本号。
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="issue-index">87–89</span>
+    <span class="badge bug">Sample Code</span>
+  </div>
+  <ul style="color:var(--text);font-size:0.9rem;margin:8px 0 0 24px;line-height:2;">
+    <li><code>DemoController</code> — 默认池名 <code>default-pool</code> 在 sample 配置中不存在 → 始终 404</li>
+    <li><code>DemoService</code>（两个 sample）— <code>@AsyncThreadPool</code> 方法返回 <code>CompletableFuture<String></code> → 嵌套 CompletableFuture</li>
+  </ul>
+</div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <p>Generated by <a href="https://github.com/alibaba/open-code-review" style="color:var(--accent);">open-code-review (ocr)</a> — AI-driven structured code review</p>
+  <p style="margin-top:4px;">Review scope: <code>dynamic-tp</code> branch vs <code>main</code> · common-thread-pool module</p>
+</footer>
+
+</div>
+</body>
+</html>

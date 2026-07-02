@@ -4,10 +4,10 @@ import com.lezai.threadpool.storage.ConcurrentMapStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 
+import jakarta.annotation.PostConstruct;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Redisson + MySQL 存储支持基类
@@ -31,11 +31,15 @@ public abstract class RedisMysqlStorageSupport<T> extends ConcurrentMapStorage<T
             t.setDaemon(true);
             return t;
         });
-        loadCache();
         log.info("Initialized RedisMysqlStorage for map: {}", mapName);
     }
 
-    public void loadCache() {
+    @PostConstruct
+    public void init() {
+        loadCache();
+    }
+
+    private void loadCache() {
         // 异步加载，不阻塞 Spring 启动
         CompletableFuture.runAsync(this::loadAllFromDb, warmupExecutor).whenComplete((v, t) ->
                 gracefulShutdown());
@@ -48,19 +52,6 @@ public abstract class RedisMysqlStorageSupport<T> extends ConcurrentMapStorage<T
      * 优雅关闭辅助方法
      */
     private void gracefulShutdown() {
-        if (warmupExecutor == null || warmupExecutor.isShutdown()) {
-            return;
-        }
         warmupExecutor.shutdown();
-        try {
-            if (!warmupExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                log.warn("warmupExecutor did not terminate in time, forcing shutdown");
-                warmupExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            log.warn("Interrupted while waiting for warmupExecutor to terminate");
-            warmupExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
     }
 }

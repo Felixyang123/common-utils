@@ -45,4 +45,9 @@
 - **admin-server（服务端）**：集中管理配置的独立进程，配置树为 `threadpool.admin.*`，与客户端配置完全独立。
 - **客户端（client-sdk）**：嵌入业务应用、连接 admin-server 的运行时。配置树为 `thread.pool.remote.*`，描述"客户端如何连服务端"。
 - **客户端身份**：CS 模式下，客户端以 `app-id` + `api-key` 标识自己，向 admin-server 认证。启用 CS 客户端模式（`thread.pool.remote.enabled=true`）时身份信息必填，启动期 fail-fast。
+- **管理员（Admin User）**：操作 admin-server 管理后台的人员身份。通过账号密码认证获取 JWT token，与客户端的 `app-id` + `api-key` 体系互相独立。管理员为全局角色，不做 appId 级别隔离。
 - **配置语义边界**：`thread.pool.remote.*` 是"客户端连服务端"的连接信息（如 server-url），**不是**"服务端自身"的配置。两者（`thread.pool.remote.*` vs `threadpool.admin.*`）归属不同进程，不得混用。
+
+## 订阅通知协议（CS 模式）
+
+- **变更通知（ConfigChangeNotification）**：subscribe 接口返回的轻量信号，仅含 `{appId, version}`。客户端收到后主动 pull 获取全量配置。设计意图：避免服务端高频变更时直接推送全量配置导致脏写客户端缓存。

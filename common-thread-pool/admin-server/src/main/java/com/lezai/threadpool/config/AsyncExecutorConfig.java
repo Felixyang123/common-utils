@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 @Configuration
+@EnableAsync
 public class AsyncExecutorConfig {
 
     // ==================== 监听器通知线程池配置 ====================
@@ -199,6 +201,7 @@ public class AsyncExecutorConfig {
 
             @Override
             public void stop() {
+                running = false;
                 ExecutorUtils.shutdown(subscriptionExecutor, "long polling subscription");
             }
 

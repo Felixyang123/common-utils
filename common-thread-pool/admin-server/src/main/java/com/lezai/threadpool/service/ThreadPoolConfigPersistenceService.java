@@ -181,6 +181,7 @@ public class ThreadPoolConfigPersistenceService {
                 return null;
             }
             configApp.setVersion(configApp.getVersion() + 1);
+            configAppRep.saveOrUpdate(configApp);
 
             return configConverter.convertDto(configApp);
         });
