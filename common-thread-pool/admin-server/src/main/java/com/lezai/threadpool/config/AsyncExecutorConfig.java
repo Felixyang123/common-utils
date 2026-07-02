@@ -71,26 +71,7 @@ public class AsyncExecutorConfig {
      */
     @Bean(name = "listenerNotifyExecutor", destroyMethod = "shutdown")
     public ExecutorService listenerNotifyExecutor() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                listenerCoreSize,
-                listenerMaxSize,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(listenerQueueCapacity),
-                new ThreadFactory() {
-                    private final AtomicInteger counter = new AtomicInteger(0);
-
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, "config-listener-notify-" + counter.incrementAndGet());
-                        t.setDaemon(true);
-                        return t;
-                    }
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy()
-        );
-        log.info("Created listenerNotifyExecutor: core={}, max={}, queue={}",
-                listenerCoreSize, listenerMaxSize, listenerQueueCapacity);
-        return executor;
+        return createAsyncExecutor(listenerCoreSize, listenerMaxSize, listenerQueueCapacity, "config-listener-notify");
     }
 
     /**
@@ -99,26 +80,7 @@ public class AsyncExecutorConfig {
      */
     @Bean(name = "historyRecordExecutor", destroyMethod = "shutdown")
     public ExecutorService historyRecordExecutor() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                historyCoreSize,
-                historyMaxSize,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(historyQueueCapacity),
-                new ThreadFactory() {
-                    private final AtomicInteger counter = new AtomicInteger(0);
-
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, "config-history-record-" + counter.incrementAndGet());
-                        t.setDaemon(true);
-                        return t;
-                    }
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy() // 队列满时主线程执行，保证不丢数据
-        );
-        log.info("Created historyRecordExecutor: core={}, max={}, queue={}",
-                historyCoreSize, historyMaxSize, historyQueueCapacity);
-        return executor;
+        return createAsyncExecutor(historyCoreSize, historyMaxSize, historyQueueCapacity, "config-history-record");
     }
 
     /**
@@ -127,26 +89,7 @@ public class AsyncExecutorConfig {
      */
     @Bean(name = "apiKeyHistoryRecordExecutor", destroyMethod = "shutdown")
     public ExecutorService apiKeyHistoryRecordExecutor() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                apiKeyHistoryCoreSize,
-                apiKeyHistoryMaxSize,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(apiKeyHistoryQueueCapacity),
-                new ThreadFactory() {
-                    private final AtomicInteger counter = new AtomicInteger(0);
-
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, "apikey-history-record-" + counter.incrementAndGet());
-                        t.setDaemon(true);
-                        return t;
-                    }
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy() // 队列满时主线程执行，保证不丢数据
-        );
-        log.info("Created apiKeyHistoryRecordExecutor: core={}, max={}, queue={}",
-                apiKeyHistoryCoreSize, apiKeyHistoryMaxSize, apiKeyHistoryQueueCapacity);
-        return executor;
+        return createAsyncExecutor(apiKeyHistoryCoreSize, apiKeyHistoryMaxSize, apiKeyHistoryQueueCapacity, "apikey-history-record");
     }
 
     /**
@@ -155,25 +98,31 @@ public class AsyncExecutorConfig {
      */
     @Bean(name = "statsHistoryRecordExecutor", destroyMethod = "shutdown")
     public ExecutorService statsHistoryRecordExecutor() {
+        return createAsyncExecutor(statsHistoryCoreSize, statsHistoryMaxSize, statsHistoryQueueCapacity, "stats-history-record");
+    }
+
+    /**
+     * 队列满时主线程执行（CallerRunsPolicy），保证不丢数据；守护线程，命名前缀区分用途
+     */
+    private ExecutorService createAsyncExecutor(int coreSize, int maxSize, int queueCapacity, String threadNamePrefix) {
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                statsHistoryCoreSize,
-                statsHistoryMaxSize,
+                coreSize,
+                maxSize,
                 60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(statsHistoryQueueCapacity),
+                new LinkedBlockingQueue<>(queueCapacity),
                 new ThreadFactory() {
                     private final AtomicInteger counter = new AtomicInteger(0);
 
                     @Override
                     public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, "stats-history-record-" + counter.incrementAndGet());
+                        Thread t = new Thread(r, threadNamePrefix + "-" + counter.incrementAndGet());
                         t.setDaemon(true);
                         return t;
                     }
                 },
-                new ThreadPoolExecutor.CallerRunsPolicy() // 队列满时主线程执行，保证不丢数据
+                new ThreadPoolExecutor.CallerRunsPolicy()
         );
-        log.info("Created statsHistoryRecordExecutor: core={}, max={}, queue={}",
-                statsHistoryCoreSize, statsHistoryMaxSize, statsHistoryQueueCapacity);
+        log.info("Created {}: core={}, max={}, queue={}", threadNamePrefix, coreSize, maxSize, queueCapacity);
         return executor;
     }
 
