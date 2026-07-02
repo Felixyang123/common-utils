@@ -128,11 +128,17 @@ threadpool:
   admin:
     storage:
       type: local                  # local（默认，本地 JSON 文件）或 redis-mysql
-    auth-enabled: true             # 是否开启 API 密钥认证
+    auth-enabled: true             # 是否开启 Open API 密钥认证（客户端 SDK 使用）
     history-max-size: 100          # 变更历史最大条数
     api-key-storage-path: ./data/api-keys
     config-storage-path: ./data/configs
     stats-storage-path: ./data/stats
+    auth:                          # 管理后台账号密码认证（/api/** 使用，与 Open API 密钥体系独立）
+      enabled: true
+      username: admin
+      password: changeme           # 生产环境务必修改
+      secret: <32字节以上的 JWT 签名密钥，生产环境务必修改>
+      token-expire-minutes: 30
 ```
 
 ### 存储后端
@@ -141,6 +147,20 @@ threadpool:
 |----------|------|------|------|
 | 本地文件 | `storage.type: local` | JSON 文件（`./data/`） | 零依赖，开箱即用 |
 | Redis + MySQL | `storage.type: redis-mysql` | Redisson RMap + MyBatis-Plus | 分布式、持久化，需 MySQL + Redis |
+
+local-file 模式下管理员为单账号（从上述配置读取）；redis-mysql 模式下首次启动会自动在 `admin_user` 表创建该默认账号，后续可在库中管理多个账号。
+
+### 管理员登录
+
+管理后台接口（`/api/**`，不含 `/api/auth/**`）使用账号密码 + JWT 认证，与 Open API 的 `X-App-Id` + `X-API-Key` 体系相互独立：
+
+```bash
+POST /api/auth/login
+{"username": "admin", "password": "changeme"}
+# → { "code": 0, "data": { "token": "...", "username": "admin", "expiresInSeconds": 1800 } }
+```
+
+后续管理接口带 `Authorization: Bearer <token>` 请求头。
 
 ### API 密钥管理端点
 

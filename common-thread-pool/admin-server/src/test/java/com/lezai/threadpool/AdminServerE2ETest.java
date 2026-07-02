@@ -56,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         properties = {
                 "spring.profiles.active=test",
                 "threadpool.admin.auth-enabled=false",
+                "threadpool.admin.auth.enabled=false",
                 "spring.main.allow-bean-definition-overriding=true",
                 "spring.autoconfigure.exclude=" +
                         "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration," +

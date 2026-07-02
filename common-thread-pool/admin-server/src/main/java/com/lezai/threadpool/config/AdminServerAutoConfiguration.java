@@ -3,7 +3,10 @@ package com.lezai.threadpool.config;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
+import com.lezai.threadpool.dao.rep.AdminUserRep;
+import com.lezai.threadpool.interceptor.AdminAuthInterceptor;
 import com.lezai.threadpool.interceptor.ApiKeyAuthInterceptor;
+import com.lezai.threadpool.service.AdminAuthService;
 import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
@@ -13,8 +16,10 @@ import com.lezai.threadpool.storage.localfile.*;
 import com.lezai.threadpool.storage.remote.MysqlApiKeyHistoryStorage;
 import com.lezai.threadpool.storage.remote.MysqlConfigHistoryStorage;
 import com.lezai.threadpool.storage.remote.MysqlStatsStorage;
+import com.lezai.threadpool.storage.remote.RedisMysqlAdminUserStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlApiKeyStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlConfigStorage;
+import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +52,23 @@ public class AdminServerAutoConfiguration {
 
     @Value("${threadpool.admin.history-max-size:100}")
     private int historyMaxSize;
+
+    // ==================== Admin 账号密码认证配置 ====================
+
+    @Value("${threadpool.admin.auth.enabled:true}")
+    private boolean adminAuthEnabled;
+
+    @Value("${threadpool.admin.auth.username:admin}")
+    private String adminDefaultUsername;
+
+    @Value("${threadpool.admin.auth.password:changeme}")
+    private String adminDefaultPassword;
+
+    @Value("${threadpool.admin.auth.secret:threadpool-admin-jwt-default-secret-please-change-in-production}")
+    private String adminAuthSecret;
+
+    @Value("${threadpool.admin.auth.token-expire-minutes:30}")
+    private long adminTokenExpireMinutes;
 
     // ==================== Local File Storage Beans (Default) ====================
 
@@ -175,15 +197,62 @@ public class AdminServerAutoConfiguration {
         return new MysqlConfigHistoryStorage();
     }
 
+    // ==================== Admin User Storage Beans ====================
+
+    /**
+     * 管理员账号存储 Bean - 本地文件模式（单账号，直接从配置属性读取）
+     */
+    @Bean
+    @ConditionalOnMissingBean(AdminUserStorage.class)
+    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
+    public AdminUserStorage localFileAdminUserStorage() {
+        log.info("Initializing LocalFileAdminUserStorage with username: {}", adminDefaultUsername);
+        return new LocalFileAdminUserStorage(adminDefaultUsername, PasswordUtils.hash(adminDefaultPassword));
+    }
+
+    /**
+     * 管理员账号存储 Bean - Redis + MySQL 模式（查 admin_user 表，首次启动创建默认账号）
+     */
+    @Bean
+    @ConditionalOnMissingBean(AdminUserStorage.class)
+    @ConditionalOnClass(RedissonClient.class)
+    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
+    public AdminUserStorage redisMysqlAdminUserStorage(AdminUserRep adminUserRep) {
+        log.info("Initializing RedisMysqlAdminUserStorage");
+        RedisMysqlAdminUserStorage storage = new RedisMysqlAdminUserStorage(adminUserRep);
+        storage.ensureDefaultUser(adminDefaultUsername, adminDefaultPassword);
+        return storage;
+    }
+
     // ==================== Authentication ====================
 
     /**
-     * API Key 认证拦截器
+     * API Key 认证拦截器（Open API，客户端 SDK 使用）
      */
     @Bean
     @ConditionalOnMissingBean
     public ApiKeyAuthInterceptor apiKeyAuthInterceptor(ApiKeyStorage apiKeyStorage) {
         log.info("Initializing ApiKeyAuthInterceptor, auth-enabled: {}", authEnabled);
         return new ApiKeyAuthInterceptor(apiKeyStorage, authEnabled);
+    }
+
+    /**
+     * 管理员登录认证服务
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage) {
+        log.info("Initializing AdminAuthService, auth-enabled: {}, token-expire-minutes: {}",
+                adminAuthEnabled, adminTokenExpireMinutes);
+        return new AdminAuthService(adminUserStorage, adminAuthSecret, adminTokenExpireMinutes);
+    }
+
+    /**
+     * 管理后台认证拦截器（/api/**，账号密码登录后使用 JWT）
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminAuthInterceptor adminAuthInterceptor(AdminAuthService adminAuthService) {
+        return new AdminAuthInterceptor(adminAuthService, adminAuthEnabled);
     }
 }

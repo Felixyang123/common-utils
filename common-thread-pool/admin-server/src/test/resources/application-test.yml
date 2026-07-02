@@ -22,3 +22,5 @@ threadpool:
     stats-storage-path: ${java.io.tmpdir}/threadpool-test/stats
     auth-enabled: true
     history-max-size: 50
+    auth:
+      enabled: false

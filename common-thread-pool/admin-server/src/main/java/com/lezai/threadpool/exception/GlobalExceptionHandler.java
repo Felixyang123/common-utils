@@ -48,6 +48,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理管理员认证失败异常（用户名密码错误、token 无效或过期）
+     * 返回 HTTP 200，业务码 401
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ApiResponse<Void> handleAuthentication(AuthenticationException e) {
+        log.warn("Authentication error: {}", e.getMessage());
+        return ApiResponse.error(e.getCode(), e.getMessage());
+    }
+
+    /**
      * 处理 Bean Validation 校验异常
      * 返回 HTTP 200，业务码 400
      */
