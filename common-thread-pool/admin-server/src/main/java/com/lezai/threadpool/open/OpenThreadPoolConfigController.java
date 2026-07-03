@@ -1,6 +1,7 @@
 package com.lezai.threadpool.open;
 
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
@@ -12,6 +13,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
@@ -54,10 +56,13 @@ public class OpenThreadPoolConfigController {
     }
 
     /**
-     * 长轮询订阅配置变更
+     * 长轮询订阅配置变更。
+     * <p>
+     * 只返回轻量通知（{appId, version}），不返回全量配置——客户端收到通知后应调用
+     * {@link #pullConfigs} 拉取最新全量配置。超时未变更时返回真正的 HTTP 304。
      */
     @GetMapping(value = "/configs/{appId}/subscribe", produces = MediaType.APPLICATION_JSON_VALUE)
-    public DeferredResult<ApiResponse<ThreadPoolAppConfig>> subscribe(
+    public DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> subscribe(
             @PathVariable String appId,
             @RequestParam Long version,
             @Valid
@@ -69,7 +74,10 @@ public class OpenThreadPoolConfigController {
     }
 
     /**
-     * 短轮询获取配置（兼容模式）
+     * 短轮询获取配置（兼容模式）。
+     * <p>
+     * 不传 version：无条件返回最新全量配置（订阅收到变更通知后走这条路径）。
+     * 传 version：未变更时抛 {@code ConfigNotModifiedException}（映射为 HTTP 304），供纯短轮询场景做 304 优化。
      */
     @GetMapping("/config/{appId}/pull")
     public ApiResponse<ThreadPoolAppConfig> pullConfigs(

@@ -11,7 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 线程池管理器
@@ -30,6 +32,12 @@ public class ThreadPoolManager {
      * 事件发布器：由 Spring 管理的组件（本类）发布，wrapper 纯 POJO 永不发布（见 CONTEXT.md）
      */
     private final ThreadPoolEventPublisher eventPublisher;
+
+    /**
+     * 池创建监听器：供需要持有 wrapper 引用的场景使用（如 Micrometer binder 动态注册指标）。
+     * 与 {@link #eventPublisher} 的区别见 {@link PoolLifecycleListener} 的类文档。
+     */
+    private final List<PoolLifecycleListener> poolLifecycleListeners = new CopyOnWriteArrayList<>();
 
     /**
      * 供子类（如 {@link RemoteConfigSourcePoolManager}）在自定义注册逻辑中原子操作池注册表。
@@ -54,15 +62,14 @@ public class ThreadPoolManager {
      * @return
      */
     public DynamicThreadPoolWrapper registerPool(ThreadPoolConfig config) {
-        boolean[] created = {false};
+        AtomicBoolean created = new AtomicBoolean(false);
         DynamicThreadPoolWrapper pool = poolRegistry.computeIfAbsent(config.getPoolName(), poolName -> {
-            created[0] = true;
+            created.set(true);
             return createPool(config);
         });
-        // 事件发布必须在 compute lambda 之外执行：lambda 内触发回调（回调内可能读 poolRegistry）会死锁
-        if (created[0]) {
-            eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.POOL_CREATED, pool.getPoolName(),
-                    "Pool created with core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
+        // 事件/监听器通知必须在 compute lambda 之外执行：lambda 内触发回调（回调内可能读 poolRegistry）会死锁
+        if (created.get()) {
+            notifyPoolCreated(pool, config);
         }
         return pool;
     }
@@ -77,6 +84,66 @@ public class ThreadPoolManager {
             throw new PoolNotFoundException(config.getPoolName());
         }
         pool.updateConfig(config);
+        notifyConfigChanged(pool, config);
+    }
+
+    /**
+     * 注册或更新线程池：存在则更新配置，不存在则创建。
+     * <p>
+     * 相比先调 {@link #registerPool} 再调 {@link #updatePool} 的组合（对已存在的池要做一次
+     * 无意义的 {@code computeIfAbsent} 加一次独立的 {@code get}），本方法用单次
+     * {@code compute()} 完成"有则更新、无则创建"的原子判断，减少一次 map 查找。
+     *
+     * @param config 线程池配置
+     * @return 创建或更新后的线程池包装器
+     */
+    public DynamicThreadPoolWrapper upsertPool(ThreadPoolConfig config) {
+        AtomicBoolean created = new AtomicBoolean(false);
+        DynamicThreadPoolWrapper pool = poolRegistry.compute(config.getPoolName(), (poolName, existing) -> {
+            if (existing == null) {
+                created.set(true);
+                return createPool(config);
+            }
+            return existing;
+        });
+
+        // 事件/监听器通知、以及已存在池的 updateConfig() 调用，都必须在 compute() 之外执行——
+        // 原子操作内触发可能读 poolRegistry 的回调会死锁。
+        if (created.get()) {
+            notifyPoolCreated(pool, config);
+        } else {
+            pool.updateConfig(config);
+            notifyConfigChanged(pool, config);
+        }
+        return pool;
+    }
+
+    /**
+     * 注册池创建监听器：供需要持有 wrapper 引用的可观测性组件使用（如 Micrometer binder
+     * 在 {@code bindTo()} 之后创建的池也能被动态注册指标）。
+     */
+    public void addPoolCreationListener(PoolLifecycleListener listener) {
+        poolLifecycleListeners.add(listener);
+    }
+
+    public void removePoolCreationListener(PoolLifecycleListener listener) {
+        poolLifecycleListeners.remove(listener);
+    }
+
+    private void notifyPoolCreated(DynamicThreadPoolWrapper pool, ThreadPoolConfig config) {
+        eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.POOL_CREATED, pool.getPoolName(),
+                "Pool created with core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
+        for (PoolLifecycleListener listener : poolLifecycleListeners) {
+            try {
+                listener.onPoolCreated(pool);
+            } catch (Exception e) {
+                log.error("PoolLifecycleListener {} threw while handling pool creation of {}",
+                        listener.getClass().getName(), pool.getPoolName(), e);
+            }
+        }
+    }
+
+    private void notifyConfigChanged(DynamicThreadPoolWrapper pool, ThreadPoolConfig config) {
         eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.CONFIG_CHANGED, pool.getPoolName(),
                 "Pool config updated: core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
     }

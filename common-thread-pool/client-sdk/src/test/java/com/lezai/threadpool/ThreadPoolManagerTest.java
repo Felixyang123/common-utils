@@ -129,6 +129,38 @@ class ThreadPoolManagerTest {
     }
 
     @Test
+    @DisplayName("upsertPool creates a new pool when it does not exist")
+    void upsertPoolCreatesNew() {
+        DynamicThreadPoolWrapper pool = manager.upsertPool(config("upsert-new"));
+
+        assertNotNull(pool);
+        assertEquals("upsert-new", pool.getPoolName());
+        assertFalse(pool.isShutdown());
+    }
+
+    @Test
+    @DisplayName("upsertPool updates an existing pool's config instead of recreating it")
+    void upsertPoolUpdatesExisting() {
+        DynamicThreadPoolWrapper first = manager.upsertPool(config("upsert-existing"));
+
+        ThreadPoolConfig updatedConfig = ThreadPoolConfig.builder()
+                .poolName("upsert-existing")
+                .corePoolSize(2)
+                .maximumPoolSize(4)
+                .keepAliveTime(5)
+                .timeUnit(TimeUnit.SECONDS)
+                .queueCapacity(10)
+                .build();
+
+        DynamicThreadPoolWrapper second = manager.upsertPool(updatedConfig);
+
+        assertSame(first, second, "upsertPool must reuse the same wrapper instance on update");
+        assertEquals(2, second.getCorePoolSize());
+        assertEquals(4, second.getMaximumPoolSize());
+        assertEquals(5, second.getKeepAliveTime(TimeUnit.SECONDS));
+    }
+
+    @Test
     @DisplayName("getAllPoolStats returns stats for all registered pools")
     void getAllPoolStats() {
         manager.registerPool(config("stats-a"));

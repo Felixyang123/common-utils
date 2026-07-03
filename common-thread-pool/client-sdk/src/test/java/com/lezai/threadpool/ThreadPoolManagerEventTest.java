@@ -103,4 +103,28 @@ class ThreadPoolManagerEventTest {
         assertDoesNotThrow(() -> defaultManager.registerPool(config("no-listener-pool")));
         defaultManager.shutdownNow();
     }
+
+    @Test
+    @DisplayName("upsertPool on a new pool publishes POOL_CREATED, not CONFIG_CHANGED")
+    void upsertPool_newPool_publishesPoolCreated() {
+        manager.upsertPool(config("upsert-evt-pool"));
+
+        assertEquals(1, published.size());
+        assertEquals(ThreadPoolEventType.POOL_CREATED, published.get(0).type());
+    }
+
+    @Test
+    @DisplayName("upsertPool on an existing pool publishes CONFIG_CHANGED, not POOL_CREATED")
+    void upsertPool_existingPool_publishesConfigChanged() {
+        manager.upsertPool(config("upsert-evt-pool"));
+        published.clear();
+
+        ThreadPoolConfig updated = ThreadPoolConfig.builder()
+                .poolName("upsert-evt-pool").corePoolSize(1).maximumPoolSize(2)
+                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS).queueCapacity(10).build();
+        manager.upsertPool(updated);
+
+        assertEquals(1, published.size());
+        assertEquals(ThreadPoolEventType.CONFIG_CHANGED, published.get(0).type());
+    }
 }

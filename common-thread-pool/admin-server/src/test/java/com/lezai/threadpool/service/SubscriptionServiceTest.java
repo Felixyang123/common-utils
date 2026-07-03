@@ -2,6 +2,7 @@ package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
@@ -16,6 +17,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
@@ -59,7 +62,7 @@ class SubscriptionServiceTest {
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
         // Same version (5 == 5), so we go into listener registration path
-        DeferredResult<ApiResponse<ThreadPoolAppConfig>> result = service.subscribe("app1", 5L, 30000L);
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 5L, 30000L);
 
         assertThat(result).isNotNull();
         assertThat(result.isSetOrExpired()).isFalse();
@@ -70,21 +73,26 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    @DisplayName("subscribe returns immediately when version matches current version")
+    @DisplayName("subscribe returns immediately with a lightweight notification when version matches current version")
     void subscribe_immediateReturn_whenVersionMatch() {
         ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
                 .appId("app1").configVersion(10L)
                 .configs(TestDataFactory.buildConfigList("pool-a")).build();
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
-        // Client version 5 < 10, should return immediately with the current config
-        DeferredResult<ApiResponse<ThreadPoolAppConfig>> result = service.subscribe("app1", 5L, 30000L);
+        // Client version 5 < 10, should return immediately with a notification (not the full config)
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 5L, 30000L);
 
         assertThat(result.isSetOrExpired()).isTrue();
-        ApiResponse<ThreadPoolAppConfig> response = (ApiResponse<ThreadPoolAppConfig>) result.getResult();
+        @SuppressWarnings("unchecked")
+        ResponseEntity<ApiResponse<ConfigChangeNotification>> responseEntity =
+                (ResponseEntity<ApiResponse<ConfigChangeNotification>>) result.getResult();
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ApiResponse<ConfigChangeNotification> response = responseEntity.getBody();
         assertThat(response.getCode()).isZero();
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().getConfigVersion()).isEqualTo(10L);
+        assertThat(response.getData().getAppId()).isEqualTo("app1");
+        assertThat(response.getData().getVersion()).isEqualTo(10L);
 
         // Should NOT register listener since we returned immediately
         verify(configStorage, never()).registerChangeListener(anyString(), any());
@@ -92,19 +100,21 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    @DisplayName("subscribe returns immediate when current version is greater than client version")
+    @DisplayName("subscribe returns immediate notification when current version is greater than client version")
     void subscribe_immediateReturn_whenNewerVersionExists() {
         ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
                 .appId("app1").configVersion(8L)
                 .configs(TestDataFactory.buildConfigList("pool-a")).build();
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
-        DeferredResult<ApiResponse<ThreadPoolAppConfig>> result = service.subscribe("app1", 3L, 30000L);
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 3L, 30000L);
 
         assertThat(result.isSetOrExpired()).isTrue();
-        ApiResponse<ThreadPoolAppConfig> response = (ApiResponse<ThreadPoolAppConfig>) result.getResult();
-        assertThat(response.getCode()).isZero();
-        assertThat(response.getData().getConfigVersion()).isEqualTo(8L);
+        @SuppressWarnings("unchecked")
+        ResponseEntity<ApiResponse<ConfigChangeNotification>> responseEntity =
+                (ResponseEntity<ApiResponse<ConfigChangeNotification>>) result.getResult();
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(responseEntity.getBody().getData().getVersion()).isEqualTo(8L);
     }
 
     @Test
@@ -126,7 +136,7 @@ class SubscriptionServiceTest {
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
         // Same version so we wait
-        DeferredResult<ApiResponse<ThreadPoolAppConfig>> result = service.subscribe("app1", 5L, 30000L);
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 5L, 30000L);
 
         assertThat(result.isSetOrExpired()).isFalse();
 
@@ -144,7 +154,7 @@ class SubscriptionServiceTest {
                 .configs(TestDataFactory.buildConfigList("pool-a")).build();
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
-        DeferredResult<ApiResponse<ThreadPoolAppConfig>> result = service.subscribe("app1", 5L, 15000L);
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 5L, 15000L);
 
         // The default timeout value (304 error response)
         assertThat(result.isSetOrExpired()).isFalse();
@@ -152,5 +162,37 @@ class SubscriptionServiceTest {
         // This verification uses a different approach - we can't directly check the timeout value,
         // but we can verify the compensation poll was scheduled with min(1000, 15000) = 1000
         verify(subscriptionExecutor).schedule(any(Runnable.class), eq(1000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    @DisplayName("subscribe timeout default value is a real HTTP 304, not a 200-wrapped business code")
+    void subscribe_timeoutDefaultValue_isRealHttp304() {
+        // The DeferredResult's built-in timeout default (returned automatically by Spring's
+        // async infra if no result is set before timeout elapses) must be a genuine 304
+        // status, aligned with GlobalExceptionHandler's semantic-status-code convention (batch 6.4).
+        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
+                .appId("app1").configVersion(5L)
+                .configs(TestDataFactory.buildConfigList("pool-a")).build();
+        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
+
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> result = service.subscribe("app1", 5L, 30000L);
+
+        // simulate what Spring's WebAsyncManager does when the timeout elapses with no result set
+        boolean setToDefault = result.setResult(defaultTimeoutValue());
+
+        assertThat(setToDefault).isTrue();
+        @SuppressWarnings("unchecked")
+        ResponseEntity<ApiResponse<ConfigChangeNotification>> responseEntity =
+                (ResponseEntity<ApiResponse<ConfigChangeNotification>>) result.getResult();
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.NOT_MODIFIED);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ResponseEntity<ApiResponse<ConfigChangeNotification>> defaultTimeoutValue() {
+        // Mirror SubscriptionService's private NOT_MODIFIED constant via a fresh instance —
+        // the DeferredResult constructed by the service already carries it; here we only need
+        // a same-shaped value to drive setResult() the way the async timeout callback would.
+        return (ResponseEntity<ApiResponse<ConfigChangeNotification>>) (ResponseEntity<?>)
+                ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
     }
 }

@@ -94,4 +94,32 @@ class ThreadPoolMetricsBinderTest {
 
         assertEquals(0.0, registry.get("threadpool.tasks.rejected").gauge().value());
     }
+
+    @Test
+    @DisplayName("pools created after bindTo() are dynamically registered")
+    void poolCreatedAfterBind_isDynamicallyRegistered() {
+        new ThreadPoolMetricsBinder(manager, "test-app").bindTo(registry);
+
+        manager.registerPool(ThreadPoolConfig.builder()
+                .poolName("late-pool").corePoolSize(2).maximumPoolSize(4)
+                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS).queueCapacity(10).build());
+
+        assertEquals(2.0, registry.get("threadpool.threads.core")
+                .tag("pool", "late-pool").gauge().value());
+        assertEquals("test-app", registry.get("threadpool.threads.core")
+                .tag("pool", "late-pool").meter().getId().getTag("app"));
+    }
+
+    @Test
+    @DisplayName("pool created via upsertPool after bindTo() is dynamically registered")
+    void poolCreatedViaUpsertAfterBind_isDynamicallyRegistered() {
+        new ThreadPoolMetricsBinder(manager, "test-app").bindTo(registry);
+
+        manager.upsertPool(ThreadPoolConfig.builder()
+                .poolName("late-upsert-pool").corePoolSize(3).maximumPoolSize(6)
+                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS).queueCapacity(10).build());
+
+        assertEquals(3.0, registry.get("threadpool.threads.core")
+                .tag("pool", "late-upsert-pool").gauge().value());
+    }
 }

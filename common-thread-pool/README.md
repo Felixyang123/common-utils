@@ -197,8 +197,9 @@ GET  /open/api/thread-pool/configs/{appId}/subscribe?version=N # 长轮询订阅
 POST /open/api/thread-pool/stats/report                        # 统计上报
 ```
 
-> **长轮询订阅**：客户端调用 `subscribe` 接口并携带当前版本号，服务端通过 `DeferredResult` 挂起请求，配置变更时即时推送（超时返回无变更，客户端立即重新订阅）。
-> **启动拉取**：客户端启动时调用 `pull`（不带 version）拉取最新全量配置；本地通过版本号 + 内容 hash 双重去重，避免无意义的池重建。
+> **长轮询订阅**：客户端调用 `subscribe` 接口并携带当前版本号，服务端通过 `DeferredResult` 挂起请求。响应体只携带轻量变更通知 `{appId, version}`，不携带全量配置——避免服务端高频变更时直接推送全量配置脏写客户端缓存。客户端收到通知后主动调用 `pull`（不带 version）拉取最新全量配置。超时未变更时返回真正的 HTTP 304，客户端立即重新订阅。
+> **启动拉取**：客户端启动时调用 `pull`（不带 version）拉取最新全量配置；本地通过版本号去重，避免无意义的池重建。
+> **短轮询补偿**：`pull` 带 version 时，未变更服务端返回 HTTP 304，减少全量配置的重复传输。
 
 ### 客户端配置（CS 模式）
 

@@ -1,6 +1,7 @@
 package com.lezai.threadpool.metrics;
 
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
+import com.lezai.threadpool.manager.PoolLifecycleListener;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -17,17 +18,21 @@ import java.util.List;
  * 在 {@link MeterRegistry} 可用时装配（可选依赖）。每个池注册一组 gauge，
  * 以 {@code pool} 和 {@code app} tag 区分。
  * <p>
- * 使用快照模式：bind 时遍历当前所有池注册 Gauge。Gauge 函数持有 wrapper 引用
- * 以零开销读取实时值；通过 {@code threadPoolManager.getPool(name)} 检查存活——
- * 已移除的池返回 sentinel (-1) 供监控系统识别。
+ * 使用快照 + 动态注册结合的模式：{@code bindTo()} 时遍历当前所有池注册 Gauge，
+ * 同时向 {@link ThreadPoolManager} 注册自身为 {@link PoolLifecycleListener}——
+ * 之后（包括 CS 模式配置同步、编程式 {@code registerPool}/{@code upsertPool}）新建的池
+ * 也会被动态注册指标，而不是只覆盖 {@code bindTo()} 那一刻已存在的池。
+ * Gauge 函数持有 wrapper 引用以零开销读取实时值；通过 {@code threadPoolManager.getPool(name)}
+ * 检查存活——已移除的池返回 sentinel (-1) 供监控系统识别。
  * <p>
  * 指标前缀: {@code threadpool.}
  */
 @Slf4j
-public class ThreadPoolMetricsBinder implements MeterBinder {
+public class ThreadPoolMetricsBinder implements MeterBinder, PoolLifecycleListener {
 
     private final ThreadPoolManager threadPoolManager;
     private final String appId;
+    private volatile MeterRegistry registry;
 
     public ThreadPoolMetricsBinder(ThreadPoolManager threadPoolManager, String appId) {
         this.threadPoolManager = threadPoolManager;
@@ -36,13 +41,26 @@ public class ThreadPoolMetricsBinder implements MeterBinder {
 
     @Override
     public void bindTo(MeterRegistry registry) {
+        this.registry = registry;
         log.info("Binding thread pool metrics for appId: {}", appId);
 
         List<DynamicThreadPoolWrapper> pools = getAllWrappers();
         for (DynamicThreadPoolWrapper pool : pools) {
             registerPoolMetrics(registry, pool);
         }
+        threadPoolManager.addPoolCreationListener(this);
         log.info("Registered metrics for {} thread pools", pools.size());
+    }
+
+    @Override
+    public void onPoolCreated(DynamicThreadPoolWrapper pool) {
+        MeterRegistry boundRegistry = this.registry;
+        if (boundRegistry == null) {
+            // bindTo() 尚未被调用（理论上不会发生：addPoolCreationListener 只在 bindTo() 内注册）
+            return;
+        }
+        registerPoolMetrics(boundRegistry, pool);
+        log.info("Dynamically registered metrics for late-created pool: {}", pool.getPoolName());
     }
 
     private void registerPoolMetrics(MeterRegistry registry, DynamicThreadPoolWrapper pool) {

@@ -2,6 +2,7 @@ package com.lezai.threadpool.open;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.TestDataFactory;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
@@ -16,7 +17,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -175,20 +178,18 @@ class OpenThreadPoolConfigControllerTest {
     }
 
     @Test
-    @DisplayName("GET /open/api/thread-pool/configs/{appId}/subscribe returns immediately when version is outdated")
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/subscribe returns a lightweight notification when version is outdated")
     void subscribe_immediateReturnWhenOutdated() throws Exception {
-        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
+        ConfigChangeNotification notification = ConfigChangeNotification.builder()
                 .appId("app1")
-                .configVersion(5)
-                .configs(TestDataFactory.buildConfigList("pool-a"))
+                .version(5L)
                 .build();
 
-        DeferredResult<com.lezai.threadpool.bean.ApiResponse<ThreadPoolAppConfig>> deferredResult =
+        DeferredResult<ResponseEntity<com.lezai.threadpool.bean.ApiResponse<ConfigChangeNotification>>> deferredResult =
                 new DeferredResult<>(30000L);
-        deferredResult.setResult(com.lezai.threadpool.bean.ApiResponse.success(appConfig));
+        deferredResult.setResult(ResponseEntity.ok(com.lezai.threadpool.bean.ApiResponse.success(notification)));
 
-        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(
-                (DeferredResult) deferredResult);
+        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(deferredResult);
 
         MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "3"))
@@ -198,6 +199,26 @@ class OpenThreadPoolConfigControllerTest {
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.configVersion").value(5));
+                .andExpect(jsonPath("$.data.appId").value("app1"))
+                .andExpect(jsonPath("$.data.version").value(5))
+                .andExpect(jsonPath("$.data.configs").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/subscribe returns a real HTTP 304 on timeout, not a 200-wrapped code")
+    void subscribe_timeoutReturnsRealHttp304() throws Exception {
+        DeferredResult<ResponseEntity<com.lezai.threadpool.bean.ApiResponse<ConfigChangeNotification>>> deferredResult =
+                new DeferredResult<>(30000L);
+        deferredResult.setResult(ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
+
+        when(subscriptionService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(deferredResult);
+
+        MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
+                        .param("version", "5"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isNotModified());
     }
 }

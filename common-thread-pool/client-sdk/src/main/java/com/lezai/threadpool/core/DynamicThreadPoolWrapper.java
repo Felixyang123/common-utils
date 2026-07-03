@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 动态线程池包装类
@@ -28,6 +29,7 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     private final AtomicLong submittedTaskCount = new AtomicLong(0);
     private final AtomicLong errorTaskCount = new AtomicLong(0);
     private final AtomicLong rejectedTaskCount = new AtomicLong(0);
+    private final ReentrantLock configLock = new ReentrantLock();
 
     public DynamicThreadPoolWrapper(ThreadPoolConfig config) {
         super(
@@ -96,81 +98,87 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         completedTaskCount.incrementAndGet();
-        if (t != null) {
-            errorTaskCount.incrementAndGet();
-        }
+        // 注意：不在此处累加 errorTaskCount。对 CompletableFuture.supplyAsync() 提交的任务
+        // （@AsyncThreadPool/@CreateThreadPool 的路径），异常被 CompletableFuture 内部捕获，
+        // 此处 t 恒为 null——错误计数由切面通过 whenComplete() 观察后调用 incrementErrorCount()，
+        // 这是唯一计数源，避免重复统计（见 CONTEXT.md 任务计数术语）。
     }
 
     /**
      * 动态更新线程池配置
      */
-    public synchronized void updateConfig(ThreadPoolConfig newConfig) {
-        ThreadPoolConfig oldConfig = configRef.get();
+    public void updateConfig(ThreadPoolConfig newConfig) {
+        configLock.lock();
+        try {
+            ThreadPoolConfig oldConfig = configRef.get();
 
-        int newCore = newConfig.getCorePoolSize();
-        int newMax = newConfig.getMaximumPoolSize();
-        int oldCore = oldConfig.getCorePoolSize();
-        int oldMax = oldConfig.getMaximumPoolSize();
+            int newCore = newConfig.getCorePoolSize();
+            int newMax = newConfig.getMaximumPoolSize();
+            int oldCore = oldConfig.getCorePoolSize();
+            int oldMax = oldConfig.getMaximumPoolSize();
 
-        boolean coreChanged = newCore != oldCore;
-        boolean maxChanged = newMax != oldMax;
+            boolean coreChanged = newCore != oldCore;
+            boolean maxChanged = newMax != oldMax;
 
-        // Update pool size params in safe order:
-        //   1. Expand max first to make room for a larger core
-        //   2. Set core
-        //   3. Shrink max after core is reduced
-        if (maxChanged && newMax > oldMax) {
-            setMaximumPoolSize(newMax);
-            log.info("Thread pool [{}] max size changed: {} -> {}",
-                    poolName, oldMax, newMax);
+            // Update pool size params in safe order:
+            //   1. Expand max first to make room for a larger core
+            //   2. Set core
+            //   3. Shrink max after core is reduced
+            if (maxChanged && newMax > oldMax) {
+                setMaximumPoolSize(newMax);
+                log.info("Thread pool [{}] max size changed: {} -> {}",
+                        poolName, oldMax, newMax);
+            }
+
+            // Guard: corePoolSize must not exceed the effective maximumPoolSize
+            int effectiveMax = Math.max(oldMax, newMax);
+            if (newCore > effectiveMax) {
+                log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
+                        poolName, newCore, effectiveMax);
+                throw new IllegalArgumentException(
+                        String.format("corePoolSize(%d) must not exceed maximumPoolSize(%d) for pool '%s'",
+                                newCore, effectiveMax, poolName));
+            }
+
+            if (coreChanged) {
+                setCorePoolSize(newCore);
+                log.info("Thread pool [{}] core size changed: {} -> {}",
+                        poolName, oldCore, newCore);
+            }
+            if (maxChanged && newMax <= oldMax) {
+                setMaximumPoolSize(newMax);
+                log.info("Thread pool [{}] max size changed: {} -> {}",
+                        poolName, oldMax, newMax);
+            }
+
+            // 更新空闲线程存活时间
+            if (newConfig.getKeepAliveTime() != oldConfig.getKeepAliveTime() ||
+                    !newConfig.getTimeUnit().equals(oldConfig.getTimeUnit())) {
+                setKeepAliveTime(newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
+                log.info("Thread pool [{}] keep alive time changed: {} {} -> {} {}",
+                        poolName, oldConfig.getKeepAliveTime(), oldConfig.getTimeUnit(),
+                        newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
+            }
+
+            // 更新是否允许核心线程超时
+            if (newConfig.isAllowCoreThreadTimeout() != oldConfig.isAllowCoreThreadTimeout()) {
+                allowCoreThreadTimeOut(newConfig.isAllowCoreThreadTimeout());
+                log.info("Thread pool [{}] allow core thread timeout changed: {} -> {}",
+                        poolName, oldConfig.isAllowCoreThreadTimeout(), newConfig.isAllowCoreThreadTimeout());
+            }
+
+            // 更新拒绝策略
+            if (newConfig.getRejectPolicyType() != oldConfig.getRejectPolicyType()) {
+                setRejectedExecutionHandler(withRejectedCounting(createRejectPolicy(newConfig)));
+                log.info("Thread pool [{}] reject policy changed: {} -> {}",
+                        poolName, oldConfig.getRejectPolicyType(), newConfig.getRejectPolicyType());
+            }
+
+            configRef.set(newConfig);
+            log.info("Thread pool [{}] configuration updated successfully", poolName);
+        } finally {
+            configLock.unlock();
         }
-
-        // Guard: corePoolSize must not exceed the effective maximumPoolSize
-        int effectiveMax = Math.max(oldMax, newMax);
-        if (newCore > effectiveMax) {
-            log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
-                    poolName, newCore, effectiveMax);
-            throw new IllegalArgumentException(
-                    String.format("corePoolSize(%d) must not exceed maximumPoolSize(%d) for pool '%s'",
-                            newCore, effectiveMax, poolName));
-        }
-
-        if (coreChanged) {
-            setCorePoolSize(newCore);
-            log.info("Thread pool [{}] core size changed: {} -> {}",
-                    poolName, oldCore, newCore);
-        }
-        if (maxChanged && newMax <= oldMax) {
-            setMaximumPoolSize(newMax);
-            log.info("Thread pool [{}] max size changed: {} -> {}",
-                    poolName, oldMax, newMax);
-        }
-
-        // 更新空闲线程存活时间
-        if (newConfig.getKeepAliveTime() != oldConfig.getKeepAliveTime() ||
-                !newConfig.getTimeUnit().equals(oldConfig.getTimeUnit())) {
-            setKeepAliveTime(newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
-            log.info("Thread pool [{}] keep alive time changed: {} {} -> {} {}",
-                    poolName, oldConfig.getKeepAliveTime(), oldConfig.getTimeUnit(),
-                    newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
-        }
-
-        // 更新是否允许核心线程超时
-        if (newConfig.isAllowCoreThreadTimeout() != oldConfig.isAllowCoreThreadTimeout()) {
-            allowCoreThreadTimeOut(newConfig.isAllowCoreThreadTimeout());
-            log.info("Thread pool [{}] allow core thread timeout changed: {} -> {}",
-                    poolName, oldConfig.isAllowCoreThreadTimeout(), newConfig.isAllowCoreThreadTimeout());
-        }
-
-        // 更新拒绝策略
-        if (newConfig.getRejectPolicyType() != oldConfig.getRejectPolicyType()) {
-            setRejectedExecutionHandler(withRejectedCounting(createRejectPolicy(newConfig)));
-            log.info("Thread pool [{}] reject policy changed: {} -> {}",
-                    poolName, oldConfig.getRejectPolicyType(), newConfig.getRejectPolicyType());
-        }
-
-        configRef.set(newConfig);
-        log.info("Thread pool [{}] configuration updated successfully", poolName);
     }
 
     /** 装饰 RejectedExecutionHandler，在调用真实处理器前累加 rejectedTaskCount */

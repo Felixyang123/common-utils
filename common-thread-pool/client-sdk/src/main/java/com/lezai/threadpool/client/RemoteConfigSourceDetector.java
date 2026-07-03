@@ -3,6 +3,7 @@ package com.lezai.threadpool.client;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.manager.ThreadPoolManager;
@@ -10,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.DigestUtils;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -20,7 +20,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 远程配置源策略实现（CS 模式）
@@ -41,11 +40,12 @@ public class RemoteConfigSourceDetector {
     private final AtomicLong configVersion;
     private final Thread subscriptionThread;
     private volatile boolean running;
-    private final AtomicReference<String> configHash;
     private final ScheduledExecutorService pullConfigsScheduler;
     private final ThreadPoolManager threadPoolManager;
 
     private static final TypeReference<ApiResponse<ThreadPoolConfigResp>> CONFIG_RESP_TYPE =
+            new TypeReference<>() {};
+    private static final TypeReference<ApiResponse<ConfigChangeNotification>> NOTIFICATION_TYPE =
             new TypeReference<>() {};
     private static final TypeReference<ApiResponse<ThreadPoolConfig>> CONFIG_TYPE =
             new TypeReference<>() {};
@@ -73,7 +73,6 @@ public class RemoteConfigSourceDetector {
         this.running = false;
         this.subscriptionThread = new Thread(this::subscribeWithLongPolling, "config-subscription-thread");
         this.subscriptionThread.setDaemon(true);
-        this.configHash = new AtomicReference<>();
         this.pullConfigsScheduler = Executors.newSingleThreadScheduledExecutor();
         this.threadPoolManager = threadPoolManager;
     }
@@ -85,9 +84,9 @@ public class RemoteConfigSourceDetector {
         if (!running) {
             running = true;
             log.info("Starting remote config source for appId: {}", appId);
-            pullConfigs();
+            pullConfigsUnconditional(); // 启动引导：无条件拉取最新全量配置，保证不比 LOCAL 模式差（见 ADR-0001）
             if (pullIntervalMs > 0) {
-                this.pullConfigsScheduler.scheduleAtFixedRate(this::pullConfigs, pullIntervalMs, pullIntervalMs, TimeUnit.MILLISECONDS);
+                this.pullConfigsScheduler.scheduleAtFixedRate(this::pullConfigsWithVersionCheck, pullIntervalMs, pullIntervalMs, TimeUnit.MILLISECONDS);
                 log.info("Short-polling enabled: interval={}ms", pullIntervalMs);
             } else {
                 log.info("Short-polling disabled (pullIntervalMs={})", pullIntervalMs);
@@ -130,7 +129,10 @@ public class RemoteConfigSourceDetector {
     }
 
     /**
-     * 长轮询订阅
+     * 长轮询订阅：收到变更通知（仅 {appId, version}）后主动拉取全量配置。
+     * <p>
+     * 服务端不再在 subscribe 响应中携带全量配置——高频变更时直接推送全量会脏写客户端缓存
+     * （见 CONTEXT.md「订阅通知协议」）。这里收到通知即触发 {@link #pullConfigsUnconditional()}。
      */
     private void subscribeWithLongPolling() {
         while (running) {
@@ -149,12 +151,16 @@ public class RemoteConfigSourceDetector {
 
             try (Response response = httpClient.newCall(request).execute()) {
                 backoffMs = 0; // Reset backoff on successful connection
-                ThreadPoolConfigResp resp = analyzeResponse(response, CONFIG_RESP_TYPE);
-                if (resp != null) {
-                    log.info("Received long polling notification for appId: {}, version: {}", appId, resp.getConfigVersion());
-                    updatePools(resp);
+                if (response.code() == 304) {
+                    log.debug("Long polling subscription not modified for appId: {}", appId);
                 } else {
-                    log.debug("No new config received from long polling for appId: {}", appId);
+                    ConfigChangeNotification notification = analyzeResponse(response, NOTIFICATION_TYPE);
+                    if (notification != null) {
+                        log.info("Received long polling notification for appId: {}, version: {}", appId, notification.getVersion());
+                        pullConfigsUnconditional();
+                    } else {
+                        log.debug("No new config received from long polling for appId: {}", appId);
+                    }
                 }
             } catch (Exception e) {
                 log.error("Error in long polling subscription for appId: {}", appId, e);
@@ -177,11 +183,26 @@ public class RemoteConfigSourceDetector {
     }
 
     /**
-     * 拉取配置
+     * 拉取全量配置：无条件请求，不传 version（用于启动引导、以及订阅收到变更通知后的主动拉取）。
      */
-    private void pullConfigs() {
-        String url = String.format("%s/open/api/thread-pool/config/%s/pull",
-                serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8));
+    private void pullConfigsUnconditional() {
+        pullConfigs(null);
+    }
+
+    /**
+     * 拉取全量配置：带 version 参数（用于周期性短轮询补偿），未变更时服务端返回 HTTP 304，
+     * 避免每次短轮询周期都传输全量配置。
+     */
+    private void pullConfigsWithVersionCheck() {
+        pullConfigs(configVersion.get());
+    }
+
+    private void pullConfigs(Long version) {
+        String url = version == null
+                ? String.format("%s/open/api/thread-pool/config/%s/pull",
+                        serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8))
+                : String.format("%s/open/api/thread-pool/config/%s/pull?version=%d",
+                        serverUrl, URLEncoder.encode(appId, StandardCharsets.UTF_8), version);
 
         Request request = new Request.Builder()
                 .url(url)
@@ -192,6 +213,10 @@ public class RemoteConfigSourceDetector {
                 .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
+            if (response.code() == 304) {
+                log.debug("Config not modified for appId: {}", appId);
+                return;
+            }
             ThreadPoolConfigResp resp = analyzeResponse(response, CONFIG_RESP_TYPE);
             if (resp != null) {
                 log.info("Pulled configs for appId: {}, version: {}", appId, resp.getConfigVersion());
@@ -250,20 +275,12 @@ public class RemoteConfigSourceDetector {
             return;
         }
 
-        // 计算新的配置的 hash
-        String newConfigHash = DigestUtils.md5DigestAsHex(JSON.toJSONString(resp.getConfigs()).getBytes(StandardCharsets.UTF_8));
-        if (StringUtils.equals(newConfigHash, configHash.get())) {
-            log.warn("Configs not modified for appId: {}", appId);
-            return;
-        }
-
         // 更新线程池配置
         int applied = applyConfigs(appId, resp.getConfigs());
 
         // 至少一个池成功应用后才推进版本——防止全局失败后永久忽略同一版本
         if (applied > 0) {
             configVersion.set(currentVersion);
-            this.configHash.set(newConfigHash);
             log.info("Thread pools updated for appId: {}, version: {}, applied: {}/{}",
                     appId, currentVersion, applied, resp.getConfigs().size());
         } else {
@@ -341,7 +358,7 @@ public class RemoteConfigSourceDetector {
             if (result != null) {
                 log.info("All configs saved for appId: {}", appId);
                 // 拉取最新配置，并更新本地线程池
-                pullConfigs();
+                pullConfigsUnconditional();
             } else {
                 log.error("Failed to save all configs for appId: {}", appId);
             }
@@ -352,6 +369,9 @@ public class RemoteConfigSourceDetector {
 
     /**
      * 应用配置到本地线程池（模板方法）
+     * <p>
+     * 用 {@link ThreadPoolManager#upsertPool} 单次原子操作完成"有则更新、无则创建"，
+     * 避免先 {@code registerPool} 再 {@code updatePool} 对已存在的池做两次多余的 map 查找。
      */
     public int applyConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (CollectionUtils.isEmpty(configs)) {
@@ -368,8 +388,7 @@ public class RemoteConfigSourceDetector {
             }
 
             try {
-                threadPoolManager.registerPool(config);
-                threadPoolManager.updatePool(config);
+                threadPoolManager.upsertPool(config);
                 applied++;
                 log.info("applied config for pool: {}, appId: {}", poolName, appId);
             } catch (Exception e) {
