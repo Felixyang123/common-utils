@@ -73,8 +73,7 @@ class ThreadPoolConfigControllerTest {
                 .thenThrow(new ConfigNotFoundException("Config not found for appId: unknown"));
 
         mockMvc.perform(get("/api/thread-pool/configs/unknown"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -96,8 +95,7 @@ class ThreadPoolConfigControllerTest {
                 .thenThrow(new ConfigNotFoundException("Config not found for pool: unknown-pool"));
 
         mockMvc.perform(get("/api/thread-pool/configs/app1/unknown-pool"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test

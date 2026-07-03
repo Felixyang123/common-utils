@@ -111,8 +111,7 @@ class OpenThreadPoolConfigControllerTest {
 
         mockMvc.perform(get("/open/api/thread-pool/config/app1/pull")
                         .param("version", "5"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(304));
+                .andExpect(status().isNotModified());
     }
 
     @Test
@@ -157,8 +156,7 @@ class OpenThreadPoolConfigControllerTest {
         mockMvc.perform(post("/open/api/thread-pool/stats/report")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -246,8 +246,7 @@ class AdminServerE2ETest {
                 .andExpect(jsonPath("$.code").value(0));
 
         mockMvc.perform(get("/api/api-keys/{appId}", APP_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     // ===================== 2. 线程池配置 CRUD 流程 =====================
@@ -479,8 +478,7 @@ class AdminServerE2ETest {
                 .andExpect(jsonPath("$.code").value(0));
 
         mockMvc.perform(get("/api/thread-pool/configs/{appId}", CONFIG_APP_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     // ===================== 3. 错误处理测试 =====================
@@ -489,7 +487,7 @@ class AdminServerE2ETest {
     @Order(31)
     @DisplayName("POST /api/api-keys — 创建重复的 API Key → 409 错误")
     void createDuplicateApiKey() throws Exception {
-        String appId = "e2e-duplicate-test";
+        String appId = "e2e-duplicate-test-" + System.currentTimeMillis();
         String body = """
                 {"appId": "%s", "appName": "Dup Test"}
                 """.formatted(appId);
@@ -503,8 +501,7 @@ class AdminServerE2ETest {
         mockMvc.perform(post("/api/api-keys")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(409));
+                .andExpect(status().isConflict());
 
         mockMvc.perform(delete("/api/api-keys/{appId}", appId));
     }
@@ -514,8 +511,7 @@ class AdminServerE2ETest {
     @DisplayName("GET /api/api-keys/{appId} — 获取不存在的 API Key → 404 错误")
     void getNonExistentApiKey() throws Exception {
         mockMvc.perform(get("/api/api-keys/{appId}", "e2e-nonexistent"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -523,8 +519,7 @@ class AdminServerE2ETest {
     @DisplayName("GET /api/thread-pool/configs/{appId} — 获取不存在的配置 → 404 错误")
     void getNonExistentConfig() throws Exception {
         mockMvc.perform(get("/api/thread-pool/configs/{appId}", "e2e-nonexistent-config"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -533,8 +528,7 @@ class AdminServerE2ETest {
     void getNonExistentSingleConfig() throws Exception {
         mockMvc.perform(get("/api/thread-pool/configs/{appId}/{poolName}",
                         "any-app", "nonexistent-pool"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -548,8 +542,7 @@ class AdminServerE2ETest {
         mockMvc.perform(post("/api/api-keys")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -559,8 +552,7 @@ class AdminServerE2ETest {
         mockMvc.perform(post("/api/api-keys")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -568,8 +560,7 @@ class AdminServerE2ETest {
     @DisplayName("DELETE /api/api-keys/{appId} — 删除不存在的 API Key → 404 错误")
     void deleteNonExistentApiKey() throws Exception {
         mockMvc.perform(delete("/api/api-keys/{appId}", "e2e-nonexistent-delete"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     // ===================== 4. 历史记录验证 =====================

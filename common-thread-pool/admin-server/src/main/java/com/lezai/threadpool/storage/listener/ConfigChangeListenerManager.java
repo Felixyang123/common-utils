@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import java.util.ArrayList;
 import java.util.concurrent.*;
 
 /**
@@ -85,14 +85,17 @@ public class ConfigChangeListenerManager {
      */
     @Async("listenerNotifyExecutor")
     public void triggerListeners(String appId, long version) {
-        Optional.ofNullable(listenerMap.remove(appId)).ifPresent(listeners -> {
-            for (ConfigChangeListener listener : listeners) {
-                try {
-                    listener.onConfigChanged(appId, version);
-                } catch (Exception e) {
-                    log.error("Error in listener for appId: {}, version: {}", appId, version, e);
-                }
+        CopyOnWriteArrayList<ConfigChangeListener> removed = listenerMap.remove(appId);
+        if (removed == null) {
+            return;
+        }
+        // 原子快照后迭代，防止并发 register() 重新创建列表后丢变更
+        for (ConfigChangeListener listener : new ArrayList<>(removed)) {
+            try {
+                listener.onConfigChanged(appId, version);
+            } catch (Exception e) {
+                log.error("Error in listener for appId: {}, version: {}", appId, version, e);
             }
-        });
+        }
     }
 }

@@ -95,8 +95,7 @@ class ApiKeyControllerTest {
         mockMvc.perform(post("/api/api-keys")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON.toJSONString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(409));
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -123,8 +122,7 @@ class ApiKeyControllerTest {
                 .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(get("/api/api-keys/unknown"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -144,8 +142,7 @@ class ApiKeyControllerTest {
                 .when(apiKeyAdminService).deleteApiKey("unknown");
 
         mockMvc.perform(delete("/api/api-keys/unknown"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -195,8 +192,7 @@ class ApiKeyControllerTest {
         mockMvc.perform(put("/api/api-keys/unknown")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON.toJSONString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -221,8 +217,7 @@ class ApiKeyControllerTest {
                 .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(post("/api/api-keys/unknown/regenerate"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -262,7 +257,6 @@ class ApiKeyControllerTest {
                 .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(get("/api/api-keys/unknown/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(status().isNotFound());
     }
 }

@@ -7,8 +7,6 @@ import com.lezai.threadpool.enumeration.RejectPolicyType;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import com.lezai.threadpool.properties.ThreadPoolProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,8 +23,6 @@ import java.util.concurrent.TimeUnit;
  * </ol>
  */
 @Slf4j
-@Component
-@EnableConfigurationProperties(ThreadPoolProperties.class)
 public class ThreadPoolInitializer {
 
     private final ThreadPoolProperties properties;
