@@ -1,13 +1,14 @@
 package com.lezai.threadpool.config;
 
 import com.lezai.threadpool.health.ThreadPoolHealthIndicator;
+import com.lezai.threadpool.health.ThreadPoolHealthProperties;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,21 +21,17 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
+@EnableConfigurationProperties(ThreadPoolHealthProperties.class)
 @ConditionalOnClass(HealthIndicator.class)
 public class ThreadPoolHealthAutoConfiguration {
-
-    @Value("${thread.pool.health.active-thread-threshold:0.9}")
-    private double activeThreadThreshold;
-
-    @Value("${thread.pool.health.queue-usage-threshold:0.9}")
-    private double queueUsageThreshold;
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(ThreadPoolManager.class)
-    public ThreadPoolHealthIndicator threadPoolHealthIndicator(ThreadPoolManager threadPoolManager) {
+    public ThreadPoolHealthIndicator threadPoolHealthIndicator(ThreadPoolManager threadPoolManager,
+                                                                ThreadPoolHealthProperties healthProperties) {
         log.info("Actuator detected, registering ThreadPoolHealthIndicator: activeThreadThreshold={}, queueUsageThreshold={}",
-                activeThreadThreshold, queueUsageThreshold);
-        return new ThreadPoolHealthIndicator(threadPoolManager, activeThreadThreshold, queueUsageThreshold);
+                healthProperties.getActiveThreadThreshold(), healthProperties.getQueueUsageThreshold());
+        return new ThreadPoolHealthIndicator(threadPoolManager, healthProperties.getActiveThreadThreshold(), healthProperties.getQueueUsageThreshold());
     }
 }
