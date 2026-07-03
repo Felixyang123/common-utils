@@ -130,7 +130,7 @@ public class ThreadPoolManager {
         poolLifecycleListeners.remove(listener);
     }
 
-    private void notifyPoolCreated(DynamicThreadPoolWrapper pool, ThreadPoolConfig config) {
+    protected void notifyPoolCreated(DynamicThreadPoolWrapper pool, ThreadPoolConfig config) {
         eventPublisher.publish(ThreadPoolEvent.of(ThreadPoolEventType.POOL_CREATED, pool.getPoolName(),
                 "Pool created with core=%d, max=%d".formatted(config.getCorePoolSize(), config.getMaximumPoolSize())));
         for (PoolLifecycleListener listener : poolLifecycleListeners) {

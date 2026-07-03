@@ -1,7 +1,7 @@
 package com.lezai.threadpool.init;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.client.RemoteConfigSourceDetector;
+import com.lezai.threadpool.client.ConfigPollingService;
 import com.lezai.threadpool.enumeration.QueueType;
 import com.lezai.threadpool.enumeration.RejectPolicyType;
 import com.lezai.threadpool.manager.ThreadPoolManager;
@@ -30,14 +30,14 @@ import java.util.concurrent.TimeUnit;
 public class ThreadPoolInitializer {
 
     private final ThreadPoolProperties properties;
-    private final RemoteConfigSourceDetector remoteConfigSourceDetector;
+    private final ConfigPollingService pollingService;
     private final ThreadPoolManager threadPoolManager;
 
     public ThreadPoolInitializer(ThreadPoolProperties properties,
-                                 RemoteConfigSourceDetector remoteConfigSourceDetector,
+                                 ConfigPollingService pollingService,
                                  ThreadPoolManager threadPoolManager) {
         this.properties = properties;
-        this.remoteConfigSourceDetector = remoteConfigSourceDetector;
+        this.pollingService = pollingService;
         this.threadPoolManager = threadPoolManager;
     }
 
@@ -60,9 +60,9 @@ public class ThreadPoolInitializer {
             log.debug("Phase 2: Loading configs from config source and applying...");
             loadConfiguredPools();
 
-            // 阶段 3: 查询服务端当前 appId 下的所有线程池配置，委托给RemoteConfigSourceDetector
-            if (remoteConfigSourceDetector != null) {
-                remoteConfigSourceDetector.start();
+            // 阶段 3: 启动配置轮询（CS 模式）
+            if (pollingService != null) {
+                pollingService.start();
             }
 
             log.info("Thread pool initialization completed");

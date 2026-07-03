@@ -2,7 +2,8 @@ package com.lezai.threadpool.config;
 
 import com.lezai.threadpool.aspect.CreateThreadPoolAspect;
 import com.lezai.threadpool.aspect.ThreadPoolAspect;
-import com.lezai.threadpool.client.RemoteConfigSourceDetector;
+import com.lezai.threadpool.client.ConfigPollingService;
+import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.client.ThreadPoolStatsReporter;
 import com.lezai.threadpool.event.DefaultEventPublisher;
 import com.lezai.threadpool.event.LoggingEventListener;
@@ -14,14 +15,11 @@ import com.lezai.threadpool.manager.ThreadPoolManager;
 import com.lezai.threadpool.properties.ThreadPoolProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
 
 import java.util.List;
 
@@ -54,34 +52,33 @@ public class ThreadPoolAutoConfiguration {
         return new DefaultEventPublisher(listeners);
     }
 
-    // ==================== 核心组件 ====================
+    // ==================== CS 模式组件 ====================
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public RemoteConfigSourceDetector remoteConfigSourceDetector(@Lazy ThreadPoolManager threadPoolManager) {
-        // 创建远程配置源监听器
-        // 通过方法参数注入 ThreadPoolManager 而非直接调用 threadPoolManager()——
-        // CS 模式下 LOCAL bean 不存在,CGLIB 直接调方法体会创建新的孤立实例，
-        // 导致 detector 操作的是另一个 pool registry（远程配置变更静默丢失）。
+    public ConfigServerClient configServerClient() {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-        return new RemoteConfigSourceDetector(
-                remote.getServerUrl(),
-                remote.getAppId(),
-                remote.getApiKey(),
-                remote.getLongPollingTimeoutMs(),
-                remote.getPullIntervalMs(),
-                remote.getBackoffInitialMs(),
-                remote.getBackoffMaxMs(),
-                threadPoolManager);
+        return new ConfigServerClient(remote.getServerUrl(), remote.getAppId(), remote.getApiKey(),
+                remote.getLongPollingTimeoutMs() + 5000);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public ThreadPoolManager remoteConfigSourceThreadPoolManager(RemoteConfigSourceDetector detector,
+    public ConfigPollingService configPollingService(ConfigServerClient client, ThreadPoolManager threadPoolManager) {
+        ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
+        return new ConfigPollingService(client, threadPoolManager, remote.getAppId(),
+                remote.getLongPollingTimeoutMs(), remote.getPullIntervalMs(),
+                remote.getBackoffInitialMs(), remote.getBackoffMaxMs());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    public ThreadPoolManager remoteConfigSourceThreadPoolManager(ConfigServerClient client,
                                                                   ThreadPoolEventPublisher eventPublisher) {
-        // 创建远程配置源线程池管理器
-        RemoteConfigSourcePoolManager poolManager = new RemoteConfigSourcePoolManager(detector, eventPublisher);
+        RemoteConfigSourcePoolManager poolManager = new RemoteConfigSourcePoolManager(client, eventPublisher);
         log.info("Initialized RemoteConfigSourcePoolManager");
         return poolManager;
     }
@@ -90,7 +87,6 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
     public ThreadPoolManager threadPoolManager(ThreadPoolEventPublisher eventPublisher) {
-        // 返回单例实例，初始化由 ThreadPoolInitializer 处理
         ThreadPoolManager poolManager = new ThreadPoolManager(eventPublisher);
         log.info("Initialized ThreadPoolManager");
         return poolManager;
@@ -109,25 +105,17 @@ public class ThreadPoolAutoConfiguration {
     }
 
     // ==================== 统计上报组件 ====================
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ThreadPoolStatsReporter threadPoolStatsReporter(ThreadPoolManager threadPoolManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-
-        if (!remote.isReportEnabled()) {
-            log.info("ThreadPoolStatsReporter is disabled");
-            return null;
-        }
-
+        if (!remote.isReportEnabled()) { log.info("ThreadPoolStatsReporter is disabled"); return null; }
         ThreadPoolStatsReporter reporter = new ThreadPoolStatsReporter(
-                remote.getServerUrl(),
-                remote.getAppId(),
-                remote.getApiKey(),
-                remote.getReportIntervalMs(),
-                threadPoolManager
-        );
-        log.info("Created ThreadPoolStatsReporter, interval: {}ms (will be started by ThreadPoolLifecycle)", remote.getReportIntervalMs());
+                remote.getServerUrl(), remote.getAppId(), remote.getApiKey(),
+                remote.getReportIntervalMs(), threadPoolManager);
+        log.info("Created ThreadPoolStatsReporter, interval: {}ms", remote.getReportIntervalMs());
         return reporter;
     }
 
@@ -137,17 +125,15 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled", havingValue = false, matchIfMissing = true)
     public ThreadPoolInitializer threadPoolInitializerLocal(ThreadPoolManager threadPoolManager) {
-        log.info("Creating ThreadPoolInitializer (LOCAL mode)");
         return new ThreadPoolInitializer(properties, null, threadPoolManager);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public ThreadPoolInitializer threadPoolInitializerRemote(RemoteConfigSourceDetector detector,
+    public ThreadPoolInitializer threadPoolInitializerRemote(ConfigPollingService pollingService,
                                                               ThreadPoolManager threadPoolManager) {
-        log.info("Creating ThreadPoolInitializer (REMOTE/CS mode)");
-        return new ThreadPoolInitializer(properties, detector, threadPoolManager);
+        return new ThreadPoolInitializer(properties, pollingService, threadPoolManager);
     }
 
     // ==================== Lifecycle 编排 ====================
@@ -155,12 +141,10 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ThreadPoolLifecycle threadPoolLifecycle(
-            @Autowired(required = false) RemoteConfigSourceDetector detector,
+            @Autowired(required = false) ConfigPollingService pollingService,
             @Autowired(required = false) ThreadPoolStatsReporter reporter,
             ThreadPoolInitializer initializer,
             ThreadPoolManager threadPoolManager) {
-        log.info("Creating ThreadPoolLifecycle");
-        return new ThreadPoolLifecycle(detector, reporter, initializer, threadPoolManager);
+        return new ThreadPoolLifecycle(pollingService, reporter, initializer, threadPoolManager);
     }
-
 }
