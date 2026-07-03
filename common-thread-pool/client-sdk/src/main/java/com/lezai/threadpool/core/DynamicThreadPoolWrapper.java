@@ -2,6 +2,7 @@ package com.lezai.threadpool.core;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
+import com.lezai.threadpool.enumeration.QueueType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,18 +13,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 动态线程池包装类
- * 支持运行时动态调整线程池参数
+ * 动态线程池包装类，支持运行时动态调整线程池参数。
+ * <p>
+ * 使用组合模式（而非继承 ThreadPoolExecutor），仅暴露必要的 API，
+ * 避免外部直接调用 TPE 的 30+ 个公开方法绕过自定义计数。
  */
 @Slf4j
-public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
+public class DynamicThreadPoolWrapper implements Executor {
 
-    /**
-     * -- GETTER --
-     * 获取线程池名称
-     */
     @Getter
     private final String poolName;
+    private final ThreadPoolExecutor delegate;
     private final AtomicReference<ThreadPoolConfig> configRef;
     private final AtomicLong completedTaskCount = new AtomicLong(0);
     private final AtomicLong submittedTaskCount = new AtomicLong(0);
@@ -32,7 +32,9 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
     private final ReentrantLock configLock = new ReentrantLock();
 
     public DynamicThreadPoolWrapper(ThreadPoolConfig config) {
-        super(
+        this.poolName = config.getPoolName();
+        this.configRef = new AtomicReference<>(config);
+        this.delegate = new ThreadPoolExecutor(
                 config.getCorePoolSize(),
                 config.getMaximumPoolSize(),
                 config.getKeepAliveTime(),
@@ -41,72 +43,85 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                 createThreadFactory(config),
                 createRejectPolicy(config)
         );
-        this.poolName = config.getPoolName();
-        this.configRef = new AtomicReference<>(config);
-
-        // 装饰拒绝策略，统计拒绝次数
-        setRejectedExecutionHandler(withRejectedCounting(getRejectedExecutionHandler()));
+        this.delegate.setRejectedExecutionHandler(withRejectedCounting(delegate.getRejectedExecutionHandler()));
 
         log.info("Created dynamic thread pool [{}]: coreSize={}, maxSize={}, queueSize={}",
                 poolName, config.getCorePoolSize(), config.getMaximumPoolSize(), config.getQueueCapacity());
     }
 
-    private static BlockingQueue<Runnable> createBlockingQueue(ThreadPoolConfig config) {
-        return switch (config.getQueueType()) {
-            case ARRAY_BLOCKING_QUEUE -> new ArrayBlockingQueue<>(config.getQueueCapacity());
-            case PRIORITY_BLOCKING_QUEUE -> new PriorityBlockingQueue<>(config.getQueueCapacity());
-//            case DELAY_QUEUE:
-//                return new DelayQueue();
-            case SYNCHRONOUS_QUEUE -> new SynchronousQueue<>();
-            default -> new LinkedBlockingQueue<>(config.getQueueCapacity());
-        };
-    }
-
-    private static ThreadFactory createThreadFactory(ThreadPoolConfig config) {
-        // 防御 null：JSON 反序列化可能跳过 Builder 的默认值（threadNamePrefix 默认 poolName）
-        String prefix = config.getThreadNamePrefix() != null ? config.getThreadNamePrefix() : config.getPoolName();
-        boolean daemon = config.isDaemon();
-        AtomicLong threadNumber = new AtomicLong(1);
-
-        return r -> {
-            Thread thread = new Thread(r, prefix + "-thread-" + threadNumber.getAndIncrement());
-            thread.setDaemon(daemon);
-            if (thread.getPriority() != Thread.NORM_PRIORITY) {
-                thread.setPriority(Thread.NORM_PRIORITY);
-            }
-            return thread;
-        };
-    }
-
-    private static RejectedExecutionHandler createRejectPolicy(ThreadPoolConfig config) {
-        return switch (config.getRejectPolicyType()) {
-            case DISCARD -> new DiscardPolicy();
-            case DISCARD_OLDEST -> new DiscardOldestPolicy();
-            case CALLER_RUNS -> new CallerRunsPolicy();
-            case BLOCKED -> new BlockedPolicy();
-            default -> new AbortPolicy();
-        };
-    }
+    // ────────── Executor ──────────
 
     @Override
     public void execute(Runnable command) {
         submittedTaskCount.incrementAndGet();
-        super.execute(command);
-    }
-
-    @Override
-    protected void afterExecute(Runnable r, Throwable t) {
-        super.afterExecute(r, t);
-        completedTaskCount.incrementAndGet();
-        // 注意：不在此处累加 errorTaskCount。对 CompletableFuture.supplyAsync() 提交的任务
-        // （@AsyncThreadPool/@CreateThreadPool 的路径），异常被 CompletableFuture 内部捕获，
-        // 此处 t 恒为 null——错误计数由切面通过 whenComplete() 观察后调用 incrementErrorCount()，
-        // 这是唯一计数源，避免重复统计（见 CONTEXT.md 任务计数术语）。
+        delegate.execute(wrap(command));
     }
 
     /**
-     * 动态更新线程池配置
+     * 包装 Runnable：在 finally 中自增 completedTaskCount，补偿组合模式下无法覆写 afterExecute() 的不足。
      */
+    private Runnable wrap(Runnable command) {
+        return () -> {
+            try {
+                command.run();
+            } finally {
+                completedTaskCount.incrementAndGet();
+            }
+        };
+    }
+
+    // ────────── submit + error counting ──────────
+
+    public <T> CompletableFuture<T> submit(Callable<T> task) {
+        return CompletableFuture.supplyAsync(() -> {
+            try { return task.call(); }
+            catch (Exception e) { throw new CompletionException(e); }
+        }, this).whenComplete((r, ex) -> {
+            if (ex != null) incrementErrorCount();
+        });
+    }
+
+    public void incrementErrorCount() {
+        errorTaskCount.incrementAndGet();
+    }
+
+    // ────────── lifecycle ──────────
+
+    public void shutdown() { delegate.shutdown(); }
+    public void shutdownNow() { delegate.shutdownNow(); }
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        return delegate.awaitTermination(timeout, unit);
+    }
+    public boolean isShutdown() { return delegate.isShutdown(); }
+    public boolean isTerminated() { return delegate.isTerminated(); }
+
+    // ────────── config query ──────────
+
+    public ThreadPoolConfig getCurrentConfig() { return configRef.get(); }
+
+    public int getCorePoolSize() { return delegate.getCorePoolSize(); }
+    public int getMaximumPoolSize() { return delegate.getMaximumPoolSize(); }
+    public long getKeepAliveTime(TimeUnit unit) { return delegate.getKeepAliveTime(unit); }
+    public int getActiveCount() { return delegate.getActiveCount(); }
+    public int getPoolSize() { return delegate.getPoolSize(); }
+    public int getLargestPoolSize() { return delegate.getLargestPoolSize(); }
+    public long getTaskCount() { return delegate.getTaskCount(); }
+
+    // ────────── queue ──────────
+
+    public int getQueueSize() { return delegate.getQueue().size(); }
+    public int getQueueRemainingCapacity() { return delegate.getQueue().remainingCapacity(); }
+    public BlockingQueue<Runnable> getQueue() { return delegate.getQueue(); }
+
+    // ────────── counters ──────────
+
+    public long getCompletedTaskCount() { return completedTaskCount.get(); }
+    public long getSubmittedTaskCount() { return submittedTaskCount.get(); }
+    public long getErrorTaskCount() { return errorTaskCount.get(); }
+    public long getRejectedTaskCount() { return rejectedTaskCount.get(); }
+
+    // ────────── config update ──────────
+
     public void updateConfig(ThreadPoolConfig newConfig) {
         configLock.lock();
         try {
@@ -120,17 +135,12 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
             boolean coreChanged = newCore != oldCore;
             boolean maxChanged = newMax != oldMax;
 
-            // Update pool size params in safe order:
-            //   1. Expand max first to make room for a larger core
-            //   2. Set core
-            //   3. Shrink max after core is reduced
+            // Safe order: expand max first, set core, then shrink max
             if (maxChanged && newMax > oldMax) {
-                setMaximumPoolSize(newMax);
-                log.info("Thread pool [{}] max size changed: {} -> {}",
-                        poolName, oldMax, newMax);
+                delegate.setMaximumPoolSize(newMax);
+                log.info("Thread pool [{}] max size changed: {} -> {}", poolName, oldMax, newMax);
             }
 
-            // Guard: corePoolSize must not exceed the effective maximumPoolSize
             int effectiveMax = Math.max(oldMax, newMax);
             if (newCore > effectiveMax) {
                 log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
@@ -141,37 +151,44 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
             }
 
             if (coreChanged) {
-                setCorePoolSize(newCore);
-                log.info("Thread pool [{}] core size changed: {} -> {}",
-                        poolName, oldCore, newCore);
+                delegate.setCorePoolSize(newCore);
+                log.info("Thread pool [{}] core size changed: {} -> {}", poolName, oldCore, newCore);
             }
             if (maxChanged && newMax <= oldMax) {
-                setMaximumPoolSize(newMax);
-                log.info("Thread pool [{}] max size changed: {} -> {}",
-                        poolName, oldMax, newMax);
+                delegate.setMaximumPoolSize(newMax);
+                log.info("Thread pool [{}] max size changed: {} -> {}", poolName, oldMax, newMax);
             }
 
-            // 更新空闲线程存活时间
             if (newConfig.getKeepAliveTime() != oldConfig.getKeepAliveTime() ||
                     !newConfig.getTimeUnit().equals(oldConfig.getTimeUnit())) {
-                setKeepAliveTime(newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
+                delegate.setKeepAliveTime(newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
                 log.info("Thread pool [{}] keep alive time changed: {} {} -> {} {}",
                         poolName, oldConfig.getKeepAliveTime(), oldConfig.getTimeUnit(),
                         newConfig.getKeepAliveTime(), newConfig.getTimeUnit());
             }
 
-            // 更新是否允许核心线程超时
             if (newConfig.isAllowCoreThreadTimeout() != oldConfig.isAllowCoreThreadTimeout()) {
-                allowCoreThreadTimeOut(newConfig.isAllowCoreThreadTimeout());
+                delegate.allowCoreThreadTimeOut(newConfig.isAllowCoreThreadTimeout());
                 log.info("Thread pool [{}] allow core thread timeout changed: {} -> {}",
                         poolName, oldConfig.isAllowCoreThreadTimeout(), newConfig.isAllowCoreThreadTimeout());
             }
 
-            // 更新拒绝策略
             if (newConfig.getRejectPolicyType() != oldConfig.getRejectPolicyType()) {
-                setRejectedExecutionHandler(withRejectedCounting(createRejectPolicy(newConfig)));
+                delegate.setRejectedExecutionHandler(withRejectedCounting(createRejectPolicy(newConfig)));
                 log.info("Thread pool [{}] reject policy changed: {} -> {}",
                         poolName, oldConfig.getRejectPolicyType(), newConfig.getRejectPolicyType());
+            }
+
+            // queue capacity runtime adjustment (only for ResizableCapacityLinkedBlockingQueue)
+            if (newConfig.getQueueCapacity() != oldConfig.getQueueCapacity() &&
+                    delegate.getQueue() instanceof ResizableCapacityLinkedBlockingQueue) {
+                ((ResizableCapacityLinkedBlockingQueue<Runnable>) delegate.getQueue()).setCapacity(newConfig.getQueueCapacity());
+                log.info("Thread pool [{}] queue capacity changed: {} -> {}", poolName, oldConfig.getQueueCapacity(), newConfig.getQueueCapacity());
+            } else if (newConfig.getQueueCapacity() != oldConfig.getQueueCapacity()) {
+                log.warn("Thread pool [{}] queue capacity change ignored — queue type {} does not support runtime resizing", poolName, oldConfig.getQueueType());
+            }
+            if (newConfig.getQueueType() != oldConfig.getQueueType()) {
+                log.warn("Thread pool [{}] queue type change ignored ({} -> {}): rebuilding the pool is required to change queue type", poolName, oldConfig.getQueueType(), newConfig.getQueueType());
             }
 
             configRef.set(newConfig);
@@ -181,87 +198,8 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
         }
     }
 
-    /** 装饰 RejectedExecutionHandler，在调用真实处理器前累加 rejectedTaskCount */
-    private RejectedExecutionHandler withRejectedCounting(RejectedExecutionHandler handler) {
-        return (r, executor) -> {
-            rejectedTaskCount.incrementAndGet();
-            handler.rejectedExecution(r, executor);
-        };
-    }
+    // ────────── stats ──────────
 
-    /**
-     * 获取当前配置
-     */
-    public ThreadPoolConfig getCurrentConfig() {
-        return configRef.get();
-    }
-
-    /**
-     * 获取活跃线程数
-     */
-    public int getActiveCount() {
-        return super.getActiveCount();
-    }
-
-    /**
-     * 获取当前线程总数
-     */
-    public int getPoolSize() {
-        return super.getPoolSize();
-    }
-
-    /**
-     * 获取队列大小
-     */
-    public int getQueueSize() {
-        return super.getQueue().size();
-    }
-
-    /**
-     * 获取队列剩余容量
-     */
-    public int getQueueRemainingCapacity() {
-        return super.getQueue().remainingCapacity();
-    }
-
-    /**
-     * 获取已完成任务数
-     */
-    public long getCompletedTaskCount() {
-        return completedTaskCount.get();
-    }
-
-    /**
-     * 获取已提交任务数
-     */
-    public long getSubmittedTaskCount() {
-        return submittedTaskCount.get();
-    }
-
-    /**
-     * 获取异常任务数
-     */
-    public long getErrorTaskCount() {
-        return errorTaskCount.get();
-    }
-
-    /**
-     * 由异步提交层(如切面)在任务异常完成时调用,累加错误计数。
-     */
-    public void incrementErrorCount() {
-        errorTaskCount.incrementAndGet();
-    }
-
-    /**
-     * 获取被拒绝的任务数
-     */
-    public long getRejectedTaskCount() {
-        return rejectedTaskCount.get();
-    }
-
-    /**
-     * 获取线程池统计信息
-     */
     public ThreadPoolStats getStats() {
         ThreadPoolConfig config = configRef.get();
         return ThreadPoolStats.builder()
@@ -285,15 +223,57 @@ public class DynamicThreadPoolWrapper extends ThreadPoolExecutor {
                 .build();
     }
 
-    /**
-     * 阻塞拒绝策略实现
-     */
+    // ────────── static helpers ──────────
+
+    private static BlockingQueue<Runnable> createBlockingQueue(ThreadPoolConfig config) {
+        return switch (config.getQueueType()) {
+            case ARRAY_BLOCKING_QUEUE -> new ArrayBlockingQueue<>(config.getQueueCapacity());
+            case PRIORITY_BLOCKING_QUEUE -> new PriorityBlockingQueue<>(config.getQueueCapacity());
+            case SYNCHRONOUS_QUEUE -> new SynchronousQueue<>();
+            case LINKED_BLOCKING_QUEUE, BLOCKING_QUEUE -> new ResizableCapacityLinkedBlockingQueue<>(config.getQueueCapacity());
+            default -> new ResizableCapacityLinkedBlockingQueue<>(config.getQueueCapacity());
+        };
+    }
+
+    private static ThreadFactory createThreadFactory(ThreadPoolConfig config) {
+        String prefix = config.getThreadNamePrefix() != null ? config.getThreadNamePrefix() : config.getPoolName();
+        boolean daemon = config.isDaemon();
+        AtomicLong threadNumber = new AtomicLong(1);
+
+        return r -> {
+            Thread thread = new Thread(r, prefix + "-thread-" + threadNumber.getAndIncrement());
+            thread.setDaemon(daemon);
+            if (thread.getPriority() != Thread.NORM_PRIORITY) {
+                thread.setPriority(Thread.NORM_PRIORITY);
+            }
+            return thread;
+        };
+    }
+
+    private static RejectedExecutionHandler createRejectPolicy(ThreadPoolConfig config) {
+        return switch (config.getRejectPolicyType()) {
+            case DISCARD -> new ThreadPoolExecutor.DiscardPolicy();
+            case DISCARD_OLDEST -> new ThreadPoolExecutor.DiscardOldestPolicy();
+            case CALLER_RUNS -> new ThreadPoolExecutor.CallerRunsPolicy();
+            case BLOCKED -> new BlockedPolicy();
+            default -> new ThreadPoolExecutor.AbortPolicy();
+        };
+    }
+
+    private RejectedExecutionHandler withRejectedCounting(RejectedExecutionHandler handler) {
+        return (r, executor) -> {
+            rejectedTaskCount.incrementAndGet();
+            handler.rejectedExecution(r, executor);
+        };
+    }
+
+    // ────────── BlockedPolicy ──────────
+
     private static class BlockedPolicy implements RejectedExecutionHandler {
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             if (!executor.isShutdown()) {
                 try {
-                    // 尝试将任务放入队列，如果队列满则阻塞等待
                     executor.getQueue().put(r);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

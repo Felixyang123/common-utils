@@ -92,12 +92,12 @@ class DynamicThreadPoolWrapperTest {
     }
 
     @Test
-    @DisplayName("default queue is LinkedBlockingQueue")
-    void defaultIsLinkedBlockingQueue() {
+    @DisplayName("default queue is ResizableCapacityLinkedBlockingQueue (supports runtime capacity adjustment)")
+    void defaultIsResizableQueue() {
         ThreadPoolConfig config = defaultConfig();
         DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(config);
 
-        assertInstanceOf(java.util.concurrent.LinkedBlockingQueue.class, pool.getQueue());
+        assertInstanceOf(com.lezai.threadpool.core.ResizableCapacityLinkedBlockingQueue.class, pool.getQueue());
         pool.shutdownNow();
     }
 
@@ -204,5 +204,25 @@ class DynamicThreadPoolWrapperTest {
         assertTrue(pool.awaitTermination(3, TimeUnit.SECONDS));
         assertTrue(pool.isShutdown());
         assertTrue(pool.isTerminated());
+    }
+
+    @Test
+    @DisplayName("updateConfig adjusts queue capacity at runtime via ResizableCapacityLinkedBlockingQueue")
+    void updateConfigChangesQueueCapacity() throws Exception {
+        ThreadPoolConfig config = defaultConfig();
+        DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(config);
+
+        ThreadPoolConfig newConfig = ThreadPoolConfig.builder()
+                .poolName("test-pool")
+                .corePoolSize(1).maximumPoolSize(2)
+                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS)
+                .queueCapacity(20)
+                .build();
+
+        pool.updateConfig(newConfig);
+
+        assertEquals(20, pool.getQueueRemainingCapacity(),
+                "remaining capacity should reflect the new capacity after resize");
+        pool.shutdownNow();
     }
 }
