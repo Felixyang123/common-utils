@@ -1,9 +1,8 @@
-package com.lezai.threadpool.storage.remote;
+package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.AdminUser;
 import com.lezai.threadpool.dao.entity.AdminUserEntity;
 import com.lezai.threadpool.dao.rep.AdminUserRep;
-import com.lezai.threadpool.storage.AdminUserStorage;
 import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,14 +10,17 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Optional;
 
 /**
- * redis-mysql 模式下的管理员账号存储 —— 直接查 admin_user 表。
+ * 基于 MyBatis 的管理员账号存储。
  * <p>
- * 登录请求频率低、账号数量少，不需要 Redis 缓存层（与 {@link MysqlStatsStorage} 同类直通模式）。
+ * 在 local / db 两个 profile 下共用——持久化层是唯一的不变量，
+ * 仅缓存层（{@link CacheService}）随 profile 切换。
+ * <p>
+ * 登录请求频率低、账号数量少，不需要缓存层（直通查询 MyBatis 即可）。
  * 首次启动若表为空，自动创建配置提供的默认管理员账号。
  */
 @Slf4j
 @RequiredArgsConstructor
-public class RedisMysqlAdminUserStorage implements AdminUserStorage {
+public class MyBatisAdminUserStorage implements AdminUserStorage {
 
     private final AdminUserRep adminUserRep;
 

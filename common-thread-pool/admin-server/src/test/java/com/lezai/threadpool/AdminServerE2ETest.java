@@ -18,8 +18,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.context.SpringBootTestContextBootstrapper;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -51,13 +53,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 本地文件存储避免 MySQL / Redis 依赖。
  */
 @SpringBootTest(
-        classes = AdminServerE2ETest.TestApplication.class,
+        classes = {AdminServerE2ETest.TestApplication.class, AdminServerE2ETest.MockConfig.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "spring.profiles.active=test",
                 "threadpool.admin.auth-enabled=false",
                 "threadpool.admin.auth.enabled=false",
+                "threadpool.admin.rate-limit.enabled=false",
                 "spring.main.allow-bean-definition-overriding=true",
+                "spring.datasource.url=jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
+                "spring.datasource.driver-class-name=org.h2.Driver",
+                "spring.sql.init.mode=embedded",
+                "spring.sql.init.schema-locations=classpath:schema.sql",
                 "spring.autoconfigure.exclude=" +
                         "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration," +
                         "org.redisson.spring.starter.RedissonAutoConfigurationV2"
@@ -81,9 +88,23 @@ class AdminServerE2ETest {
         }
     }
 
-    /** Mock RedissonClient to avoid Redis connection in tests */
+    /**
+     * 测试环境覆盖：
+     * <ul>
+     *   <li>用进程内 {@link com.lezai.threadpool.storage.localfile.LocalCacheService}
+     *       作为 {@link com.lezai.threadpool.storage.CacheService}（{@code @Primary} 覆盖）</li>
+     *   <li>Mock 一个 {@link RedissonClient}（虽然不会被 CacheService 用到，
+     *       但 ApiKeyAuthInterceptor 等其他组件的依赖路径可能间接需要它存在）</li>
+     * </ul>
+     */
     @TestConfiguration
     static class MockConfig {
+        @Bean
+        @Primary
+        public com.lezai.threadpool.storage.CacheService cacheService() {
+            return new com.lezai.threadpool.storage.localfile.LocalCacheService();
+        }
+
         @Bean
         @Primary
         public RedissonClient redissonClient() {
@@ -93,6 +114,8 @@ class AdminServerE2ETest {
                     .thenReturn(true);
             when(rateLimiter.tryAcquire(1)).thenReturn(true);
             when(mockClient.getRateLimiter(anyString())).thenReturn(rateLimiter);
+            // 即便有调用方走 RedissonCacheService 路径，也返回进程内 Map 避免空指针
+            when(mockClient.getMap(anyString())).thenAnswer(inv -> new java.util.concurrent.ConcurrentHashMap<>());
             return mockClient;
         }
     }

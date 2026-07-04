@@ -11,48 +11,40 @@ import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import com.lezai.threadpool.storage.*;
+import com.lezai.threadpool.storage.localfile.LocalCacheService;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
-import com.lezai.threadpool.storage.localfile.*;
-import com.lezai.threadpool.storage.remote.MysqlConfigSnapshotStorage;
-import com.lezai.threadpool.storage.remote.MysqlStatsStorage;
-import com.lezai.threadpool.storage.remote.RedisMysqlAdminUserStorage;
-import com.lezai.threadpool.storage.remote.RedisMysqlApiKeyStorage;
-import com.lezai.threadpool.storage.remote.RedisMysqlConfigStorage;
+import com.lezai.threadpool.storage.remote.RedissonCacheService;
 import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Admin Server 自动配置
- * 配置 API Key 存储、配置存储、配置快照存储和认证拦截器
- * 支持两种存储模式：本地文件（默认）和 Redis + MySQL
+ * Admin Server 自动配置。
+ * <p>
+ * 持久化层（MyBatis）统一启用，不再分 local / db 两套 storage 实现。
+ * 唯一按 profile 切换的是 {@link CacheService}：
+ * <ul>
+ *   <li>local：{@link LocalCacheService}（进程内 ConcurrentHashMap，无外部依赖）</li>
+ *   <li>db：{@link RedissonCacheService}（Redisson RMap，跨进程原子性）</li>
+ * </ul>
+ * profile 切换由 spring.profiles.active + Bean 上的 {@code @ConditionalOnClass} 控制：
+ * local profile 排除 Redisson auto-config，使 RedissonClient 不在 classpath → RedissonCacheService 不装配，
+ * LocalCacheService 兜底胜出。
  */
 @Slf4j
 @Configuration
 public class AdminServerAutoConfiguration {
 
-    @Value("${threadpool.admin.api-key-storage-path:./data/api-keys}")
-    private String apiKeyStoragePath;
-
-    @Value("${threadpool.admin.config-storage-path:./data/configs}")
-    private String configStoragePath;
-
-    @Value("${threadpool.admin.snapshot-storage-path:./data/config-snapshots}")
-    private String snapshotStoragePath;
-
-    @Value("${threadpool.admin.stats-storage-path:./data/stats}")
-    private String statsStoragePath;
-
     @Value("${threadpool.admin.auth-enabled:true}")
     private boolean authEnabled;
 
-    // ==================== Admin 账号密码认证配置 ====================
+    // ==================== Admin 认证配置 ====================
 
     @Value("${threadpool.admin.auth.enabled:true}")
     private boolean adminAuthEnabled;
@@ -72,139 +64,73 @@ public class AdminServerAutoConfiguration {
     @Value("${threadpool.admin.auth.renew-threshold-minutes:30}")
     private long renewThresholdMinutes;
 
-    // ==================== Local File Storage Beans (Default) ====================
+    // ==================== CacheService（按 profile 二选一）====================
 
     /**
-     * 配置快照存储 Bean - 本地文件实现
+     * db profile：Redisson 缓存（仅当 classpath 上存在 {@link RedissonClient} 时生效）。
+     * <p>
+     * local profile 通过 application-local.yml 的 spring.autoconfigure.exclude
+     * 排除 Redisson auto-config，使 RedissonClient bean 缺失 → 本 Bean 不创建 → 兜底 Bean 胜出。
      */
     @Bean
-    @ConditionalOnMissingBean(ConfigSnapshotStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ConfigSnapshotStorage localFileConfigSnapshotStorage() {
-        log.info("Initializing LocalFileConfigSnapshotStorage with path: {}", snapshotStoragePath);
-        return new LocalFileConfigSnapshotStorage(snapshotStoragePath);
+    @ConditionalOnMissingBean(CacheService.class)
+    @ConditionalOnBean(RedissonClient.class)
+    public CacheService redissonCacheService(RedissonClient redissonClient) {
+        log.info("Initializing RedissonCacheService");
+        return new RedissonCacheService(redissonClient);
     }
 
     /**
-     * API Key 存储 Bean - 本地文件实现（不再依赖历史存储，API Key 历史走审计日志）
+     * local profile：进程内 {@link java.util.concurrent.ConcurrentHashMap} 缓存。
+     * 仅在没有其他 CacheService 时兜底装配。
      */
     @Bean
-    @ConditionalOnMissingBean(ApiKeyStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ApiKeyStorage localFileApiKeyStorage() {
-        log.info("Initializing LocalFileApiKeyStorage with path: {}", apiKeyStoragePath);
-        return new LocalFileApiKeyStorage(apiKeyStoragePath);
+    @ConditionalOnMissingBean(CacheService.class)
+    public CacheService localCacheService() {
+        log.info("Initializing LocalCacheService (in-process ConcurrentHashMap)");
+        return new LocalCacheService();
     }
 
-    /**
-     * 配置存储 Bean - 本地文件实现
-     */
+    // ==================== Storage Beans（持久化统一为 MyBatis，缓存按 CacheService 注入）====================
+
     @Bean
     @ConditionalOnMissingBean(ConfigStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ConfigStorage localFileConfigStorage(ConfigChangeListenerManager listenerManager) {
-        log.info("Initializing LocalFileConfigStorage with path: {}", configStoragePath);
-        return new LocalFileConfigStorage(configStoragePath, listenerManager);
+    public ConfigStorage configStorage(CacheService cacheService,
+                                       ThreadPoolConfigPersistenceService configService,
+                                       ThreadPoolConfigConverter configConverter,
+                                       ConfigChangeListenerManager listenerManager) {
+        log.info("Initializing MyBatisConfigStorage with cache impl: {}", cacheService.getClass().getSimpleName());
+        return new MyBatisConfigStorage(cacheService.getMap("config-storage"), configService, configConverter, listenerManager);
     }
 
-    /**
-     * 统计信息存储 Bean - 本地文件实现
-     */
-    @Bean
-    @ConditionalOnMissingBean(StatsStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public StatsStorage localFileStatsStorage() {
-        log.info("Initializing LocalFileStatsStorage with path: {}", statsStoragePath);
-        return new LocalFileStatsStorage(statsStoragePath);
-    }
-
-    // ==================== Redis + MySQL Storage Beans ====================
-
-    /**
-     * 配置快照存储 Bean - MySQL 实现（基于 config_history 表）
-     */
-    @Bean
-    @ConditionalOnMissingBean(ConfigSnapshotStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public ConfigSnapshotStorage mysqlConfigSnapshotStorage() {
-        log.info("Initializing MysqlConfigSnapshotStorage");
-        return new MysqlConfigSnapshotStorage();
-    }
-
-    /**
-     * API Key 存储 Bean - Redis + MySQL 实现
-     */
     @Bean
     @ConditionalOnMissingBean(ApiKeyStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public ApiKeyStorage redisMysqlApiKeyStorage(RedissonClient redissonClient,
-                                                 ApiKeyPersistenceService apiKeyService,
-                                                 ApiKeyConverter apiKeyConverter) {
-        log.info("Initializing RedisMysqlApiKeyStorage");
-        return new RedisMysqlApiKeyStorage(redissonClient, apiKeyService, apiKeyConverter);
+    public ApiKeyStorage apiKeyStorage(CacheService cacheService,
+                                       ApiKeyPersistenceService apiKeyService,
+                                       ApiKeyConverter apiKeyConverter) {
+        log.info("Initializing MyBatisApiKeyStorage with cache impl: {}", cacheService.getClass().getSimpleName());
+        return new MyBatisApiKeyStorage(cacheService.getMap("api-key-storage"), apiKeyService, apiKeyConverter);
     }
 
-    /**
-     * 配置存储 Bean - Redis + MySQL 实现
-     */
-    @Bean
-    @ConditionalOnMissingBean(ConfigStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public ConfigStorage redisMysqlConfigStorage(RedissonClient redissonClient,
-                                                 ThreadPoolConfigPersistenceService configService,
-                                                 ThreadPoolConfigConverter configConverter,
-                                                 ConfigChangeListenerManager listenerManager) {
-        log.info("Initializing RedisMysqlConfigStorage");
-        return new RedisMysqlConfigStorage(redissonClient, configService, configConverter, listenerManager);
-    }
-
-    /**
-     * 统计信息存储 Bean - Redis + MySQL 实现
-     */
     @Bean
     @ConditionalOnMissingBean(StatsStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public StatsStorage redisMysqlStatsStorage(ThreadPoolStatsPersistenceService statsService, ThreadPoolStatsConverter statsConverter) {
-        log.info("Initializing RedisMysqlStatsStorage");
-        return new MysqlStatsStorage(statsService, statsConverter);
+    public StatsStorage statsStorage(ThreadPoolStatsPersistenceService statsService,
+                                     ThreadPoolStatsConverter statsConverter) {
+        log.info("Initializing MyBatisStatsStorage");
+        return new MyBatisStatsStorage(statsService, statsConverter);
     }
 
-    // ==================== Admin User Storage Beans ====================
-
-    /**
-     * 管理员账号存储 Bean - 本地文件模式（单账号，直接从配置属性读取）
-     */
     @Bean
     @ConditionalOnMissingBean(AdminUserStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public AdminUserStorage localFileAdminUserStorage() {
-        log.info("Initializing LocalFileAdminUserStorage with username: {}", adminDefaultUsername);
-        return new LocalFileAdminUserStorage(adminDefaultUsername, PasswordUtils.hash(adminDefaultPassword));
-    }
-
-    /**
-     * 管理员账号存储 Bean - Redis + MySQL 模式（查 admin_user 表，首次启动创建默认账号）
-     */
-    @Bean
-    @ConditionalOnMissingBean(AdminUserStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public AdminUserStorage redisMysqlAdminUserStorage(AdminUserRep adminUserRep) {
-        log.info("Initializing RedisMysqlAdminUserStorage");
-        RedisMysqlAdminUserStorage storage = new RedisMysqlAdminUserStorage(adminUserRep);
+    public MyBatisAdminUserStorage adminUserStorage(AdminUserRep adminUserRep) {
+        log.info("Initializing MyBatisAdminUserStorage");
+        MyBatisAdminUserStorage storage = new MyBatisAdminUserStorage(adminUserRep);
         storage.ensureDefaultUser(adminDefaultUsername, adminDefaultPassword);
         return storage;
     }
 
-    // ==================== Authentication ====================
+    // ==================== 认证拦截器 ====================
 
-    /**
-     * API Key 认证拦截器（Open API，客户端 SDK 使用）
-     */
     @Bean
     @ConditionalOnMissingBean
     public ApiKeyAuthInterceptor apiKeyAuthInterceptor(ApiKeyStorage apiKeyStorage) {
@@ -212,9 +138,6 @@ public class AdminServerAutoConfiguration {
         return new ApiKeyAuthInterceptor(apiKeyStorage, authEnabled);
     }
 
-    /**
-     * 管理员登录认证服务
-     */
     @Bean
     @ConditionalOnMissingBean
     public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage) {
@@ -223,9 +146,6 @@ public class AdminServerAutoConfiguration {
         return new AdminAuthService(adminUserStorage, adminAuthSecret, adminTokenExpireMinutes);
     }
 
-    /**
-     * 管理后台认证拦截器（/api/**，账号密码登录后使用 JWT）
-     */
     @Bean
     @ConditionalOnMissingBean
     public AdminAuthInterceptor adminAuthInterceptor(AdminAuthService adminAuthService) {

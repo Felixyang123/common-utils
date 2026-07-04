@@ -1,6 +1,8 @@
-# local profile：H2 内存数据库，无 Redis、无 MySQL，单条命令即可启动。
+# local profile：H2 文件持久化 + 进程内 ConcurrentHashMap 缓存
+# 单条命令即可启动，无任何外部进程依赖。
 #
 # 启动：mvn -pl common-thread-pool/admin-server spring-boot:run
+#   或：java -jar admin-server.jar
 
 spring:
   datasource:
@@ -10,18 +12,14 @@ spring:
     password: ""
   sql:
     init:
-      mode: embedded           # 启动时执行 schema.sql
+      mode: always                  # local 每次启动都执行 schema.sql（CREATE TABLE IF NOT EXISTS 是幂等的）
       schema-locations: classpath:schema.sql
   autoconfigure:
     exclude:
-      # local 模式不连 Redis，禁用 Redisson 自动配置
+      # local 模式不连 Redis，禁用 Redisson 自动配置（使 RedissonCacheService 不装配，LocalCacheService 兜底）
       org.redisson.spring.starter.RedissonAutoConfigurationV2
 
-# local 模式强制使用本地文件存储
 threadpool:
   admin:
-    storage:
-      type: local
-    # local 模式不连 Redis，关闭限流（依赖 RedissonClient）
     rate-limit:
-      enabled: false
+      enabled: false            # local 模式不连 Redis，关闭限流（依赖 RedissonClient）

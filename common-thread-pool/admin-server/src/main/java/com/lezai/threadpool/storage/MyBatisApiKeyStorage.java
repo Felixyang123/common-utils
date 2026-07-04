@@ -1,4 +1,4 @@
-package com.lezai.threadpool.storage.remote;
+package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.converter.ApiKeyConverter;
@@ -7,33 +7,33 @@ import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ApiKeyDto;
 import com.lezai.threadpool.service.ApiKeyPersistenceService;
-import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RedissonClient;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Redis + MySQL 实现 API Key 存储
- * 使用 Redisson RMap 作为缓存，MySQL 作为持久化存储
- * 利用 RMap.compute() 保证分布式原子性
+ * MyBatis 持久化 + {@link CacheService} 缓存 的 {@link ApiKeyStorage} 实现。
+ * <p>
+ * local profile：缓存为进程内 {@link java.util.concurrent.ConcurrentHashMap}
+ * db profile：缓存为 Redisson {@code RMap}，用于跨进程原子写。
  */
 @Slf4j
-public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> implements ApiKeyStorage {
+public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implements ApiKeyStorage {
 
     private final ApiKeyPersistenceService apiKeyService;
     private final ApiKeyConverter apiKeyConverter;
 
-    public RedisMysqlApiKeyStorage(RedissonClient redissonClient,
-                                   ApiKeyPersistenceService apiKeyService,
-                                   ApiKeyConverter apiKeyConverter) {
-        super(redissonClient, "api-key-storage");
+    public MyBatisApiKeyStorage(ConcurrentMap<String, ApiKey> cache,
+                                ApiKeyPersistenceService apiKeyService,
+                                ApiKeyConverter apiKeyConverter) {
+        super(cache, "api-key-storage");
         this.apiKeyService = apiKeyService;
         this.apiKeyConverter = apiKeyConverter;
     }
@@ -42,14 +42,12 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     public void loadAllFromDb() {
         long start = System.currentTimeMillis();
         log.info("Begin load all API keys from database...");
-
         try {
             List<ApiKeyDto> allKeys = apiKeyService.all();
-            for (ApiKeyDto apiKeyDto : allKeys) {
-                ApiKey apiKey = apiKeyConverter.convertApiKey(apiKeyDto);
+            for (ApiKeyDto dto : allKeys) {
+                ApiKey apiKey = apiKeyConverter.convertApiKey(dto);
                 cache.putIfAbsent(apiKey.getAppId(), apiKey);
             }
-
             log.info("Loaded {} API keys from database, cost: {}s", allKeys.size(),
                     (System.currentTimeMillis() - start) / 1000.0);
         } catch (Exception e) {
@@ -63,31 +61,24 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
         if (apiKey == null || apiKey.getAppId() == null) {
             throw new ValidationException("ApiKey and appId cannot be null");
         }
-
         if (apiKey.getApiKeyHash() == null) {
             throw new ValidationException("ApiKey hash cannot be null");
         }
-
         compute(apiKey.getAppId(), (appId, existing) -> {
             boolean upsert = apiKeyService.upsert(apiKeyConverter.convertUpsertCmd(apiKey));
             if (upsert) {
                 log.info("Saved API key for appId: {}", apiKey.getAppId());
                 return apiKey;
             }
-
             log.info("Failed to update API key for appId: {}", apiKey.getAppId());
             return existing;
         });
-
     }
 
     @Override
     public Optional<ApiKey> getApiKey(String appId) {
         ApiKey apiKey = compute(appId, (k, existing) -> {
-            if (existing != null) {
-                return existing;
-            }
-
+            if (existing != null) return existing;
             return apiKeyService.findByAppId(appId).map(apiKeyConverter::convertApiKey).orElse(null);
         });
         return Optional.ofNullable(apiKey);
@@ -96,12 +87,9 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     @Override
     public void deleteApiKey(String appId) {
         compute(appId, (k, existing) -> {
-            if (apiKeyService.deleteByAppId(appId)) {
-                return null;
-            }
+            if (apiKeyService.deleteByAppId(appId)) return null;
             return existing;
         });
-
         log.info("Deleted API key for appId: {}", appId);
     }
 
@@ -116,26 +104,18 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     }
 
     @Override
-    public boolean  putIfAbsent(ApiKey apiKey) {
+    public boolean putIfAbsent(ApiKey apiKey) {
         if (apiKey == null || apiKey.getAppId() == null) {
             throw new ValidationException("ApiKey and appId cannot be null");
         }
         if (apiKey.getApiKeyHash() == null) {
             throw new ValidationException("ApiKey hash cannot be null");
         }
-
         AtomicBoolean inserted = new AtomicBoolean(false);
         compute(apiKey.getAppId(), (appId, existing) -> {
-            // 1. 缓存命中 → 已存在
-            if (existing != null) {
-                return existing;
-            }
-            // 2. 缓存未命中，查 DB
+            if (existing != null) return existing;
             Optional<ApiKeyDto> dbKey = apiKeyService.findByAppId(appId);
-            if (dbKey.isPresent()) {
-                return apiKeyConverter.convertApiKey(dbKey.get());
-            }
-            // 3. 真正不存在，执行插入
+            if (dbKey.isPresent()) return apiKeyConverter.convertApiKey(dbKey.get());
             boolean success = apiKeyService.upsert(apiKeyConverter.convertUpsertCmd(apiKey));
             if (success) {
                 inserted.set(true);
@@ -151,31 +131,26 @@ public class RedisMysqlApiKeyStorage extends RedisMysqlStorageSupport<ApiKey> im
     @Override
     @Transactional
     public String regenerateApiKey(String appId) {
-        AtomicReference<String> apiKeyValRef = new AtomicReference<>();
-
+        AtomicReference<String> ref = new AtomicReference<>();
         compute(appId, (k, existing) -> {
-            Optional<ApiKeyDto> apiKeyOptional = apiKeyService.findByAppId(appId);
-            if (apiKeyOptional.isEmpty()) {
+            Optional<ApiKeyDto> opt = apiKeyService.findByAppId(appId);
+            if (opt.isEmpty()) {
                 throw new ConfigNotFoundException("ApiKey not found for appId: " + appId);
             }
-
             String newApiKey = ApiKeyUtils.generateRandomApiKey();
-            apiKeyValRef.set(newApiKey);
-
-            ApiKeyDto apiKeyDto = apiKeyOptional.get();
-            existing = apiKeyConverter.convertApiKey(apiKeyDto);
+            ref.set(newApiKey);
+            ApiKeyDto dto = opt.get();
+            existing = apiKeyConverter.convertApiKey(dto);
             ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
-            cmd.setId(apiKeyDto.getId());
+            cmd.setId(dto.getId());
             cmd.setAppId(appId);
             cmd.setApiKeyHash(ApiKeyUtils.hashApiKey(newApiKey));
             if (apiKeyService.update(cmd)) {
                 existing.setApiKeyHash(cmd.getApiKeyHash());
             }
-
             log.info("Regenerated API key for appId: {}", appId);
             return existing;
         });
-
-        return apiKeyValRef.get();
+        return ref.get();
     }
 }

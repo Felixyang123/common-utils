@@ -15,7 +15,8 @@ class OperateTypeTest {
                 OperateType.UPDATE,
                 OperateType.DELETE,
                 OperateType.REGENERATE,
-                OperateType.UPSERT
+                OperateType.UPSERT,
+                OperateType.ROLLBACK
         );
     }
 }
