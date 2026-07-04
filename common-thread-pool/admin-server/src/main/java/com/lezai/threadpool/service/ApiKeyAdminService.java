@@ -1,7 +1,6 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.bean.ChangeLogEntry;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
@@ -9,7 +8,6 @@ import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +20,9 @@ import java.util.stream.Collectors;
 
 /**
  * API Key 管理应用服务
- * 封装 API Key 的增删改查、重新生成和历史查询等业务逻辑
+ * <p>
+ * API Key 的历史操作通过审计日志（OperateLogService）承载，不再记录独立快照。
+ * API Key 不支持回滚（安全性质：轮换即重置，回滚会让旧泄露凭证复活）。
  */
 @Slf4j
 @Service
@@ -30,22 +30,16 @@ import java.util.stream.Collectors;
 public class ApiKeyAdminService {
 
     private final ApiKeyStorage apiKeyStorage;
-    private final ApiKeyHistoryStorage historyStorage;
 
     /**
      * 创建 API Key
-     *
-     * @param request 创建请求
-     * @return 包含明文 API Key 的响应
      */
     public CreateApiKeyResponse createApiKey(CreateApiKeyRequest request) {
         log.info("Creating API key for appId: {}", request.getAppId());
 
-        // 生成随机 API Key
         String plainApiKey = ApiKeyUtils.generateRandomApiKey();
         String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
 
-        // 创建 ApiKey 对象
         ApiKey apiKey = ApiKey.builder()
                 .appId(request.getAppId())
                 .apiKeyHash(apiKeyHash)
@@ -56,7 +50,6 @@ public class ApiKeyAdminService {
                 .description(request.getDescription())
                 .build();
 
-        // 原子插入：仅当 appId 不存在时写入，消除 check-then-act 竞态
         if (!apiKeyStorage.putIfAbsent(apiKey)) {
             throw new ConfigAlreadyExistsException("API key already exists for appId: " + request.getAppId());
         }
@@ -65,7 +58,7 @@ public class ApiKeyAdminService {
 
         CreateApiKeyResponse response = new CreateApiKeyResponse();
         response.setAppId(apiKey.getAppId());
-        response.setApiKey(plainApiKey); // 仅在此返回明文 API Key
+        response.setApiKey(plainApiKey);
         response.setAppName(apiKey.getAppName());
         response.setEnabled(apiKey.isEnabled());
         response.setCreateTime(apiKey.getCreateTime());
@@ -77,25 +70,18 @@ public class ApiKeyAdminService {
 
     /**
      * 删除 API Key
-     *
-     * @param appId 应用 ID
      */
     public void deleteApiKey(String appId) {
         log.info("Deleting API key for appId: {}", appId);
-
         if (!apiKeyStorage.exists(appId)) {
             throw new ConfigNotFoundException("API key not found for appId: " + appId);
         }
-
         apiKeyStorage.deleteApiKey(appId);
         log.info("API key deleted successfully for appId: {}", appId);
     }
 
     /**
      * 获取单个 API Key 信息（脱敏）
-     *
-     * @param appId 应用 ID
-     * @return API Key 信息
      */
     public ApiKeyInfoResponse getApiKey(String appId) {
         return apiKeyStorage.getApiKey(appId)
@@ -105,8 +91,6 @@ public class ApiKeyAdminService {
 
     /**
      * 列出所有 API Key（脱敏）
-     *
-     * @return API Key 列表
      */
     public List<ApiKeyInfoResponse> listAllApiKeys() {
         return apiKeyStorage.listAllApiKeys()
@@ -117,15 +101,10 @@ public class ApiKeyAdminService {
 
     /**
      * 更新 API Key
-     *
-     * @param appId   应用 ID
-     * @param request 更新请求
      */
     public void updateApiKey(String appId, UpdateApiKeyRequest request) {
         log.info("Updating API key for appId: {}", appId);
 
-        // 加载现有实体：更新仅修改元数据，必须保留凭证哈希与创建时间，
-        // 否则 saveApiKey 会因 apiKeyHash 为空抛 ValidationException，且会清空真实凭证。
         ApiKey existing = apiKeyStorage.getApiKey(appId)
                 .orElseThrow(() -> new ConfigNotFoundException("API key not found for appId: " + appId));
 
@@ -144,9 +123,6 @@ public class ApiKeyAdminService {
 
     /**
      * 重新生成 API Key
-     *
-     * @param appId 应用 ID
-     * @return 新的明文 API Key
      */
     public RegenerateApiKeyResponse regenerateApiKey(String appId) {
         log.info("Regenerating API key for appId: {}", appId);
@@ -164,29 +140,6 @@ public class ApiKeyAdminService {
         return response;
     }
 
-    /**
-     * 获取 API Key 变更历史
-     *
-     * @param appId 应用 ID
-     * @param limit 限制条数（可选，null 表示返回全部）
-     * @return 变更历史列表
-     */
-    public List<ChangeLogEntry<ApiKey>> getHistory(String appId, Integer limit) {
-        log.info("Getting API key history for appId: {}, limit: {}", appId, limit);
-
-        // 变更历史是独立的审计日志，与 API Key 当前是否存在解耦：
-        // 删除 Key 后仍需能读到 DELETE 记录，因此这里不校验 exists。
-        // 未知 appId 时历史存储返回空列表。
-        if (limit != null && limit > 0) {
-            return historyStorage.getHistory(appId, limit);
-        } else {
-            return historyStorage.getHistory(appId);
-        }
-    }
-
-    /**
-     * 转换为脱敏的 API Key 信息
-     */
     private ApiKeyInfoResponse toApiKeyInfo(ApiKey apiKey) {
         ApiKeyInfoResponse info = new ApiKeyInfoResponse();
         info.setAppId(apiKey.getAppId());

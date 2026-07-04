@@ -1,8 +1,6 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.ChangeLogEntry;
-import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
@@ -18,7 +16,10 @@ import java.util.List;
 
 /**
  * API Key 管理控制器
- * 提供创建、删除、查询、更新 API Key 的接口
+ * 提供创建、删除、查询、更新、重新生成 API Key 的接口
+ * <p>
+ * API Key 的历史操作通过审计日志查询（GET /api/operate-logs/list?biz_type=APIKEY），
+ * 不再提供独立的 history 接口。
  */
 @Slf4j
 @RestController
@@ -30,9 +31,6 @@ public class ApiKeyController {
 
     /**
      * 创建 API Key
-     *
-     * @param request 创建请求
-     * @return 包含明文 API Key 的响应
      */
     @PostMapping
     public ApiResponse<CreateApiKeyResponse> createApiKey(@Valid @RequestBody CreateApiKeyRequest request) {
@@ -41,9 +39,6 @@ public class ApiKeyController {
 
     /**
      * 删除 API Key
-     *
-     * @param appId 应用 ID
-     * @return 操作结果
      */
     @DeleteMapping("/{appId}")
     public ApiResponse<Void> deleteApiKey(@PathVariable String appId) {
@@ -53,9 +48,6 @@ public class ApiKeyController {
 
     /**
      * 获取单个 API Key 信息（脱敏）
-     *
-     * @param appId 应用 ID
-     * @return API Key 信息
      */
     @GetMapping("/{appId}")
     public ApiResponse<ApiKeyInfoResponse> getApiKey(@PathVariable String appId) {
@@ -64,8 +56,6 @@ public class ApiKeyController {
 
     /**
      * 列出所有 API Key（脱敏）
-     *
-     * @return API Key 列表
      */
     @GetMapping
     public ApiResponse<List<ApiKeyInfoResponse>> listAllApiKeys() {
@@ -74,10 +64,6 @@ public class ApiKeyController {
 
     /**
      * 更新 API Key
-     *
-     * @param appId   应用 ID
-     * @param request 更新请求
-     * @return 操作结果
      */
     @PutMapping("/{appId}")
     public ApiResponse<Void> updateApiKey(
@@ -89,26 +75,9 @@ public class ApiKeyController {
 
     /**
      * 重新生成 API Key
-     *
-     * @param appId 应用 ID
-     * @return 新的明文 API Key
      */
     @PostMapping("/{appId}/regenerate")
     public ApiResponse<RegenerateApiKeyResponse> regenerateApiKey(@PathVariable String appId) {
         return ApiResponse.success(apiKeyAdminService.regenerateApiKey(appId));
-    }
-
-    /**
-     * 获取 API Key 变更历史
-     *
-     * @param appId 应用 ID
-     * @param limit 限制条数（可选，默认返回全部）
-     * @return 变更历史列表
-     */
-    @GetMapping("/{appId}/history")
-    public ApiResponse<List<ChangeLogEntry<ApiKey>>> getApiKeyHistory(
-            @PathVariable String appId,
-            @RequestParam(required = false) Integer limit) {
-        return ApiResponse.success(apiKeyAdminService.getHistory(appId, limit));
     }
 }

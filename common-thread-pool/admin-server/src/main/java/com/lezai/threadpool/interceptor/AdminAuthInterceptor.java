@@ -12,25 +12,35 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * 管理员认证拦截器
- * 拦截管理后台接口（/api/**，排除 /api/auth/**），校验 Authorization: Bearer 头中的 JWT token
+ * 拦截管理后台接口（/api/**，排除 /api/auth/**），校验 Authorization: Bearer 头中的 JWT token。
+ * <p>
+ * 校验通过后将当前管理员用户名写入 request attribute {@code currentAdminUser}，
+ * 供下游 Controller 通过 {@code @RequestAttribute} 获取操作人。
+ * <p>
+ * 滑动续期：若 token 川余有效期低于续期阈值，签发新 token 写入响应头 {@code X-New-Token}。
  */
 @Slf4j
 public class AdminAuthInterceptor implements HandlerInterceptor {
 
-    private static final String HEADER_AUTHORIZATION = "Authorization";
-    private static final String BEARER_PREFIX = "Bearer ";
+    public static final String ATTR_CURRENT_USER = "currentAdminUser";
+    static final String HEADER_AUTHORIZATION = "Authorization";
+    static final String HEADER_NEW_TOKEN = "X-New-Token";
+    static final String BEARER_PREFIX = "Bearer ";
 
     private final AdminAuthService adminAuthService;
     private final boolean authEnabled;
+    private final long renewThresholdMinutes;
 
-    public AdminAuthInterceptor(AdminAuthService adminAuthService, boolean authEnabled) {
+    public AdminAuthInterceptor(AdminAuthService adminAuthService, boolean authEnabled, long renewThresholdMinutes) {
         this.adminAuthService = adminAuthService;
         this.authEnabled = authEnabled;
+        this.renewThresholdMinutes = renewThresholdMinutes;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!authEnabled) {
+            request.setAttribute(ATTR_CURRENT_USER, "system");
             return true;
         }
 
@@ -42,13 +52,23 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         }
 
         String token = header.substring(BEARER_PREFIX.length());
+        String username;
         try {
-            adminAuthService.validateToken(token);
+            username = adminAuthService.validateToken(token);
         } catch (AuthenticationException e) {
             log.warn("Admin token validation failed for request: {}", request.getRequestURI());
             sendErrorResponse(response, 401, e.getMessage());
             return false;
         }
+
+        request.setAttribute(ATTR_CURRENT_USER, username);
+
+        adminAuthService.getRemainingMinutes(token).ifPresent(remaining -> {
+            if (remaining <= renewThresholdMinutes) {
+                String newToken = adminAuthService.renew(username);
+                response.setHeader(HEADER_NEW_TOKEN, newToken);
+            }
+        });
 
         return true;
     }

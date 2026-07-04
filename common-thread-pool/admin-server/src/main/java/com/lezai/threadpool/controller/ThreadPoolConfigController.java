@@ -1,11 +1,13 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.*;
+import com.lezai.threadpool.interceptor.AdminAuthInterceptor;
 import com.lezai.threadpool.service.ConfigAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestAttribute;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,14 @@ import java.util.Map;
 public class ThreadPoolConfigController {
 
     private final ConfigAdminService configAdminService;
+
+    /**
+     * 列出所有应用及其配置版本
+     */
+    @GetMapping("/configs")
+    public ApiResponse<List<AppConfigSummary>> listApps() {
+        return ApiResponse.success(configAdminService.listApps());
+    }
 
     /**
      * 获取应用的所有线程池配置
@@ -40,25 +50,27 @@ public class ThreadPoolConfigController {
     }
 
     /**
-     * 保存所有线程池配置
-     */
-    @PostMapping("/configs/{appId}")
-    public ApiResponse<Void> saveConfigs(
-            @PathVariable String appId,
-            @Valid @RequestBody List<ThreadPoolConfig> configs) {
-        configAdminService.saveConfigs(appId, configs);
-        return ApiResponse.success();
-    }
-
-    /**
      * 保存单个线程池配置
      */
     @PostMapping("/configs/{appId}/{poolName}")
     public ApiResponse<Void> saveConfig(
             @PathVariable String appId,
             @PathVariable String poolName,
-            @Valid @RequestBody ThreadPoolConfig config) {
-        configAdminService.saveConfig(appId, config);
+            @Valid @RequestBody ThreadPoolConfig config,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        configAdminService.saveConfig(appId, config, operator);
+        return ApiResponse.success();
+    }
+
+    /**
+     * 保存所有线程池配置
+     */
+    @PostMapping("/configs/{appId}")
+    public ApiResponse<Void> saveConfigs(
+            @PathVariable String appId,
+            @Valid @RequestBody List<ThreadPoolConfig> configs,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        configAdminService.saveConfigs(appId, configs, operator);
         return ApiResponse.success();
     }
 
@@ -66,8 +78,10 @@ public class ThreadPoolConfigController {
      * 删除所有配置
      */
     @DeleteMapping("/configs/{appId}")
-    public ApiResponse<Void> deleteConfigs(@PathVariable String appId) {
-        configAdminService.deleteConfigs(appId);
+    public ApiResponse<Void> deleteConfigs(
+            @PathVariable String appId,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        configAdminService.deleteConfigs(appId, operator);
         return ApiResponse.success();
     }
 
@@ -77,8 +91,9 @@ public class ThreadPoolConfigController {
     @DeleteMapping("/configs/{appId}/{poolName}")
     public ApiResponse<Void> deleteConfig(
             @PathVariable String appId,
-            @PathVariable String poolName) {
-        configAdminService.deleteConfig(appId, poolName);
+            @PathVariable String poolName,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        configAdminService.deleteConfig(appId, poolName, operator);
         return ApiResponse.success();
     }
 
@@ -96,8 +111,9 @@ public class ThreadPoolConfigController {
     @PostMapping("/config/{appId}/add")
     public ApiResponse<ThreadPoolConfig> addConfig(
             @PathVariable String appId,
-            @Valid @RequestBody ThreadPoolConfig config) {
-        return ApiResponse.success(configAdminService.addConfig(appId, config));
+            @Valid @RequestBody ThreadPoolConfig config,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        return ApiResponse.success(configAdminService.addConfig(appId, config, operator));
     }
 
     /**
@@ -106,29 +122,33 @@ public class ThreadPoolConfigController {
     @PostMapping("/configs/{appId}/add")
     public ApiResponse<List<ThreadPoolConfig>> addConfigs(
             @PathVariable String appId,
-            @Valid @RequestBody List<ThreadPoolConfig> configs) {
-        return ApiResponse.success(configAdminService.addConfigs(appId, configs));
+            @Valid @RequestBody List<ThreadPoolConfig> configs,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        return ApiResponse.success(configAdminService.addConfigs(appId, configs, operator));
     }
 
-    // ==================== 统计信息查询接口 ====================
+    // ==================== 配置快照与回滚 ====================
 
     /**
-     * 获取应用的所有配置变更历史
+     * 获取指定线程池的配置快照列表（按 version 降序）
      */
-    @GetMapping("/configs/{appId}/history")
-    public ApiResponse<Map<String, List<ChangeLogEntry<ThreadPoolConfig>>>> getConfigHistory(
-            @PathVariable String appId) {
-        return ApiResponse.success(configAdminService.getConfigHistory(appId));
-    }
-
-    /**
-     * 获取指定线程池的配置变更历史
-     */
-    @GetMapping("/configs/{appId}/{poolName}/history")
-    public ApiResponse<List<ChangeLogEntry<ThreadPoolConfig>>> getPoolConfigHistory(
+    @GetMapping("/configs/{appId}/{poolName}/snapshots")
+    public ApiResponse<List<ConfigSnapshot>> getSnapshots(
             @PathVariable String appId,
             @PathVariable String poolName,
             @RequestParam(required = false) Integer limit) {
-        return ApiResponse.success(configAdminService.getPoolConfigHistory(appId, poolName, limit));
+        return ApiResponse.success(configAdminService.getSnapshots(appId, poolName, limit));
+    }
+
+    /**
+     * 回滚配置到指定版本
+     */
+    @PostMapping("/configs/{appId}/{poolName}/rollback")
+    public ApiResponse<ThreadPoolConfig> rollback(
+            @PathVariable String appId,
+            @PathVariable String poolName,
+            @RequestParam long version,
+            @RequestAttribute(value = AdminAuthInterceptor.ATTR_CURRENT_USER) String operator) {
+        return ApiResponse.success(configAdminService.rollback(appId, poolName, version, operator));
     }
 }

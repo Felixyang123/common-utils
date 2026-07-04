@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>操作日志 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('operate-logs.html');</script>
+
+  <div class="page">
+    <div class="page-header"><h1>操作日志</h1></div>
+
+    <div class="card mb-4">
+      <div class="filter-bar">
+        <div>
+          <label>业务类型</label>
+          <select id="f-biz"><option value="">全部</option><option value="APIKEY">APIKEY</option><option value="THREADPOOL_CONFIG">THREADPOOL_CONFIG</option></select>
+        </div>
+        <div>
+          <label>操作类型</label>
+          <select id="f-op"><option value="">全部</option>
+            <option value="CREATE">CREATE</option><option value="UPDATE">UPDATE</option>
+            <option value="DELETE">DELETE</option><option value="REGENERATE">REGENERATE</option>
+            <option value="ROLLBACK">ROLLBACK</option>
+          </select>
+        </div>
+        <div><label>操作人</label><input id="f-user" placeholder="admin" style="width:100px;"></div>
+        <div><label>业务ID</label><input id="f-bizid" placeholder="appId / poolName" style="width:140px;"></div>
+        <button class="btn btn-primary btn-sm" onclick="search()">查询</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>时间</th><th>业务类型</th><th>操作类型</th><th>业务ID</th><th>操作人</th><th>内容</th></tr></thead>
+          <tbody id="log-list"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pager"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="content-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>操作详情</h3><button class="modal-close" onclick="closeModal('content-modal')">&times;</button></div>
+      <div class="modal-body"><pre id="content-json" style="white-space:pre-wrap;font-size:12px;background:var(--gray-50);padding:12px;border-radius:6px;max-height:400px;overflow-y:auto;"></pre></div>
+      <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('content-modal')">关闭</button></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    document.getElementById('f-biz').value = params.get('biz_type') || '';
+    document.getElementById('f-bizid').value = params.get('biz_id') || '';
+
+    let page = 1, total = 0;
+    const PAGE_SIZE = 20;
+
+    async function search() {
+      page = 1;
+      await render();
+    }
+
+    async function render() {
+      const biz = document.getElementById('f-biz').value;
+      const op = document.getElementById('f-op').value;
+      const user = document.getElementById('f-user').value;
+      const bizId = document.getElementById('f-bizid').value;
+      let url = `/api/operate-logs/list?page=${page}&page_size=${PAGE_SIZE}`;
+      if (biz) url += `&biz_type=${biz}`;
+      if (op) url += `&operate_type=${op}`;
+      if (user) url += `&operator=${encodeURIComponent(user)}`;
+      if (bizId) url += `&biz_id=${encodeURIComponent(bizId)}`;
+
+      const data = await apiGet(url);
+      if (!data || data.code !== 0) return;
+      const d = data.data || { total: 0, list: [] };
+      total = d.total || 0;
+      const rows = d.list || [];
+      document.getElementById('log-list').innerHTML = rows.length ? rows.map(r =>
+        `<tr>
+          <td>${r.id}</td>
+          <td class="text-sm">${fmtTime(r.createTime)}</td>
+          <td>${badgeBizType(r.bizType)}</td>
+          <td>${badgeOpType(r.operateType)}</td>
+          <td><code class="text-sm">${r.bizId || '-'}</code></td>
+          <td>${r.operator || '-'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick='showContent(${JSON.stringify(r.content).replace(/'/g,"&#39;")})'>查看</button></td>
+        </tr>`
+      ).join('') : '<tr><td colspan="7" class="empty">暂无日志</td></tr>';
+
+      const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+      document.getElementById('pager').innerHTML = `
+        <button ${page<=1?'disabled':''} onclick="goPage(${page-1})">上一页</button>
+        <span>${page} / ${totalPages} (共${total}条)</span>
+        <button ${page>=totalPages?'disabled':''} onclick="goPage(${page+1})">下一页</button>`;
+    }
+
+    function goPage(p) { page = p; render(); }
+
+    function showContent(c) {
+      let parsed = c;
+      if (typeof c === 'string') { try { parsed = JSON.parse(c); } catch {} }
+      document.getElementById('content-json').textContent = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
+      openModal('content-modal');
+    }
+
+    render();
+  </script>
+</body>
+</html>

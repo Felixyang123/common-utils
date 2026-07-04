@@ -82,6 +82,13 @@ public interface ConfigStorage {
     long getConfigVersion(String appId);
 
     /**
+     * 获取所有应用 ID
+     *
+     * @return 应用 ID 列表
+     */
+    List<String> listAppIds();
+
+    /**
      * 注册配置变更监听器
      *
      * @param appId    应用 ID

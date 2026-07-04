@@ -27,3 +27,13 @@ mybatis-plus:
       logic-delete-field: deleted  # 全局逻辑删除字段名
       logic-not-delete-value: 0    # 未删除值
       logic-delete-value: 1        # 已删除值
+
+threadpool:
+  admin:
+    auth:
+      enabled: true
+      username: admin
+      password: changeme
+      secret: threadpool-admin-jwt-default-secret-please-change-in-production
+      token-expire-minutes: 480        # 闲置超时 8 小时
+      renew-threshold-minutes: 30      # 剩余 < 30 分钟时滑动续期

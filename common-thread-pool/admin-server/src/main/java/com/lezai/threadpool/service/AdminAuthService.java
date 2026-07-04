@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Date;
+import java.util.Optional;
 
 /**
  * 管理员登录认证服务：校验用户名密码，签发/校验 JWT。
@@ -71,13 +72,48 @@ public class AdminAuthService {
      * @throws AuthenticationException token 无效或已过期
      */
     public String validateToken(String token) {
+        return parseClaims(token).get(CLAIM_USERNAME, String.class);
+    }
+
+    /**
+     * 获取 token 川余有效期（分钟），token 无效返回空
+     */
+    public Optional<Long> getRemainingMinutes(String token) {
         try {
-            Claims claims = Jwts.parser()
+            Claims claims = parseClaims(token);
+            long remainingMs = claims.getExpiration().getTime() - System.currentTimeMillis();
+            return Optional.of(Math.max(0, remainingMs / 60000));
+        } catch (AuthenticationException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 滑动续期：为指定用户签发新 token，返回新 token 字符串
+     */
+    public String renew(String username) {
+        Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + expiry.toMillis());
+
+        String token = Jwts.builder()
+                .subject(username)
+                .claim(CLAIM_USERNAME, username)
+                .issuedAt(now)
+                .expiration(expiration)
+                .signWith(signingKey)
+                .compact();
+        log.debug("Admin token renewed for user: {}", username);
+        return token;
+    }
+
+    private Claims parseClaims(String token) {
+        try {
+            return Jwts.parser()
                     .verifyWith(signingKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return claims.get(CLAIM_USERNAME, String.class);
         } catch (JwtException | IllegalArgumentException e) {
             throw new AuthenticationException("Invalid or expired token");
         }

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配置对比 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <style>
+    .version-picker { display: flex; gap: 24px; margin-bottom: 20px; }
+    .version-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 8px; flex: 1; }
+    .version-item { padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background .1s; }
+    .version-item:hover { background: var(--gray-100); }
+    .version-item.selected { background: #dbeafe; border: 1px solid var(--primary); }
+    .version-item .v { font-weight: 600; }
+    .version-item .meta { color: var(--gray-500); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('thread-pools.html');</script>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>配置对比</h1>
+      <a class="btn btn-ghost btn-sm" href="/thread-pools.html">← 返回配置列表</a>
+    </div>
+    <div class="card mb-4" style="font-size:13px;color:var(--gray-500);" id="app-info"></div>
+
+    <div class="version-picker">
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:500;margin-bottom:8px;">选择版本 A</div>
+        <div class="version-list" id="vlist-a"></div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:500;margin-bottom:8px;">选择版本 B</div>
+        <div class="version-list" id="vlist-b"></div>
+      </div>
+    </div>
+
+    <div class="card" id="diff-card" style="display:none;">
+      <h3 style="margin-bottom:12px;">差异对比</h3>
+      <div id="diff-body"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;">
+        <button class="btn btn-warning btn-sm" id="rb-a" style="background:var(--warning);color:#fff;">回滚到版本 A</button>
+        <button class="btn btn-warning btn-sm" id="rb-b" style="background:var(--warning);color:#fff;">回滚到版本 B</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const appId = params.get('app') || '';
+    const poolName = params.get('pool') || '';
+    document.getElementById('app-info').innerHTML = `<strong>${appId}</strong> / <code>${poolName}</code>`;
+
+    let snapshots = [], selA = 0, selB = 1;
+
+    (async () => {
+      const url = `/api/thread-pool/configs/${encodeURIComponent(appId)}/${encodeURIComponent(poolName)}/snapshots`;
+      const data = await apiGet(url);
+      if (!data || data.code !== 0) return;
+      snapshots = (data.data || []).sort((a, b) => b.version - a.version);
+      if (snapshots.length < 2) selB = 0;
+      renderVersionLists();
+      doDiff();
+    })();
+
+    function renderVersionLists() {
+      ['vlist-a', 'vlist-b'].forEach((id, idx) => {
+        const sel = idx === 0 ? selA : selB;
+        document.getElementById(id).innerHTML = snapshots.map((s, i) =>
+          `<div class="version-item ${i === sel ? 'selected' : ''}" onclick="selectV(${idx},${i})">
+            <div class="v">v${s.version}</div>
+            <div class="meta">${fmtTime(s.createTime)} · ${s.operator || '-'}</div>
+          </div>`
+        ).join('');
+      });
+    }
+
+    function selectV(side, i) {
+      if (side === 0) selA = i; else selB = i;
+      renderVersionLists();
+      doDiff();
+    }
+
+    const fields = ['poolName', 'corePoolSize', 'maximumPoolSize', 'queueType', 'queueCapacity', 'rejectPolicyType', 'keepAliveTime', 'timeUnit', 'allowCoreThreadTimeout', 'threadNamePrefix', 'daemon'];
+
+    function doDiff() {
+      if (snapshots.length === 0 || selA >= snapshots.length || selB >= snapshots.length) {
+        document.getElementById('diff-card').style.display = 'none';
+        return;
+      }
+      const a = snapshots[selA].value || {};
+      const b = snapshots[selB].value || {};
+      const diffs = fields.map(f => ({ field: f, a: a[f], b: b[f], changed: a[f] !== b[f] }));
+
+      document.getElementById('diff-card').style.display = '';
+      document.getElementById('diff-body').innerHTML = `
+        <div class="diff-row">
+          <div class="diff-col">
+            <h4>版本 A: v${snapshots[selA].version} <span style="font-weight:400;font-size:12px;">${fmtTime(snapshots[selA].createTime)}</span></h4>
+            ${diffs.map(d => `<div class="diff-field ${d.changed ? 'changed' : ''}"><span class="label">${d.field}</span> <span class="val">${d.a ?? 'null'}</span></div>`).join('')}
+          </div>
+          <div class="diff-col">
+            <h4>版本 B: v${snapshots[selB].version} <span style="font-weight:400;font-size:12px;">${fmtTime(snapshots[selB].createTime)}</span></h4>
+            ${diffs.map(d => `<div class="diff-field ${d.changed ? 'changed' : ''}"><span class="label">${d.field}</span> <span class="val">${d.b ?? 'null'}</span></div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('rb-a').onclick = () => rollback(snapshots[selA].version);
+    document.getElementById('rb-b').onclick = () => rollback(snapshots[selB].version);
+
+    async function rollback(version) {
+      if (!confirm(`确认回滚到 v${version}？`)) return;
+      const url = `/api/thread-pool/configs/${encodeURIComponent(appId)}/${encodeURIComponent(poolName)}/rollback?version=${version}`;
+      const data = await apiPost(url);
+      if (data && data.code === 0) {
+        alert('回滚成功');
+        location.reload();
+      } else {
+        alert(data ? data.message : '回滚失败');
+      }
+    }
+  </script>
+</body>
+</html>

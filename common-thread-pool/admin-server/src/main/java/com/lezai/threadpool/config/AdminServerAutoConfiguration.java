@@ -13,8 +13,7 @@ import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import com.lezai.threadpool.storage.*;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import com.lezai.threadpool.storage.localfile.*;
-import com.lezai.threadpool.storage.remote.MysqlApiKeyHistoryStorage;
-import com.lezai.threadpool.storage.remote.MysqlConfigHistoryStorage;
+import com.lezai.threadpool.storage.remote.MysqlConfigSnapshotStorage;
 import com.lezai.threadpool.storage.remote.MysqlStatsStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlAdminUserStorage;
 import com.lezai.threadpool.storage.remote.RedisMysqlApiKeyStorage;
@@ -31,7 +30,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Admin Server 自动配置
- * 配置 API Key 存储、配置存储、历史记录存储和认证拦截器
+ * 配置 API Key 存储、配置存储、配置快照存储和认证拦截器
  * 支持两种存储模式：本地文件（默认）和 Redis + MySQL
  */
 @Slf4j
@@ -44,14 +43,14 @@ public class AdminServerAutoConfiguration {
     @Value("${threadpool.admin.config-storage-path:./data/configs}")
     private String configStoragePath;
 
+    @Value("${threadpool.admin.snapshot-storage-path:./data/config-snapshots}")
+    private String snapshotStoragePath;
+
     @Value("${threadpool.admin.stats-storage-path:./data/stats}")
     private String statsStoragePath;
 
     @Value("${threadpool.admin.auth-enabled:true}")
     private boolean authEnabled;
-
-    @Value("${threadpool.admin.history-max-size:100}")
-    private int historyMaxSize;
 
     // ==================== Admin 账号密码认证配置 ====================
 
@@ -67,42 +66,34 @@ public class AdminServerAutoConfiguration {
     @Value("${threadpool.admin.auth.secret:threadpool-admin-jwt-default-secret-please-change-in-production}")
     private String adminAuthSecret;
 
-    @Value("${threadpool.admin.auth.token-expire-minutes:30}")
+    @Value("${threadpool.admin.auth.token-expire-minutes:480}")
     private long adminTokenExpireMinutes;
+
+    @Value("${threadpool.admin.auth.renew-threshold-minutes:30}")
+    private long renewThresholdMinutes;
 
     // ==================== Local File Storage Beans (Default) ====================
 
     /**
-     * API Key 历史记录存储 Bean - 本地文件实现
+     * 配置快照存储 Bean - 本地文件实现
      */
     @Bean
-    @ConditionalOnMissingBean(ApiKeyHistoryStorage.class)
+    @ConditionalOnMissingBean(ConfigSnapshotStorage.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ApiKeyHistoryStorage localFileApiKeyHistoryStorage() {
-        log.info("Initializing LocalFileApiKeyHistoryStorage with path: {}, max-size: {}", apiKeyStoragePath, historyMaxSize);
-        return new LocalFileApiKeyHistoryStorage(apiKeyStoragePath, historyMaxSize);
+    public ConfigSnapshotStorage localFileConfigSnapshotStorage() {
+        log.info("Initializing LocalFileConfigSnapshotStorage with path: {}", snapshotStoragePath);
+        return new LocalFileConfigSnapshotStorage(snapshotStoragePath);
     }
 
     /**
-     * 配置历史记录存储 Bean - 本地文件实现
-     */
-    @Bean
-    @ConditionalOnMissingBean(ConfigHistoryStorage.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ConfigHistoryStorage localFileConfigHistoryStorage() {
-        log.info("Initializing LocalFileConfigHistoryStorage with path: {}, max-size: {}", configStoragePath, historyMaxSize);
-        return new LocalFileConfigHistoryStorage(configStoragePath, historyMaxSize);
-    }
-
-    /**
-     * API Key 存储 Bean - 本地文件实现
+     * API Key 存储 Bean - 本地文件实现（不再依赖历史存储，API Key 历史走审计日志）
      */
     @Bean
     @ConditionalOnMissingBean(ApiKeyStorage.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ApiKeyStorage localFileApiKeyStorage(ApiKeyHistoryStorage apiKeyHistoryStorage) {
+    public ApiKeyStorage localFileApiKeyStorage() {
         log.info("Initializing LocalFileApiKeyStorage with path: {}", apiKeyStoragePath);
-        return new LocalFileApiKeyStorage(apiKeyStoragePath, apiKeyHistoryStorage);
+        return new LocalFileApiKeyStorage(apiKeyStoragePath);
     }
 
     /**
@@ -111,10 +102,9 @@ public class AdminServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ConfigStorage.class)
     @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "local", matchIfMissing = true)
-    public ConfigStorage localFileConfigStorage(ConfigHistoryStorage configHistoryStorage,
-                                                ConfigChangeListenerManager listenerManager) {
+    public ConfigStorage localFileConfigStorage(ConfigChangeListenerManager listenerManager) {
         log.info("Initializing LocalFileConfigStorage with path: {}", configStoragePath);
-        return new LocalFileConfigStorage(configStoragePath, configHistoryStorage, listenerManager);
+        return new LocalFileConfigStorage(configStoragePath, listenerManager);
     }
 
     /**
@@ -129,6 +119,18 @@ public class AdminServerAutoConfiguration {
     }
 
     // ==================== Redis + MySQL Storage Beans ====================
+
+    /**
+     * 配置快照存储 Bean - MySQL 实现（基于 config_history 表）
+     */
+    @Bean
+    @ConditionalOnMissingBean(ConfigSnapshotStorage.class)
+    @ConditionalOnClass(RedissonClient.class)
+    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
+    public ConfigSnapshotStorage mysqlConfigSnapshotStorage() {
+        log.info("Initializing MysqlConfigSnapshotStorage");
+        return new MysqlConfigSnapshotStorage();
+    }
 
     /**
      * API Key 存储 Bean - Redis + MySQL 实现
@@ -169,32 +171,6 @@ public class AdminServerAutoConfiguration {
     public StatsStorage redisMysqlStatsStorage(ThreadPoolStatsPersistenceService statsService, ThreadPoolStatsConverter statsConverter) {
         log.info("Initializing RedisMysqlStatsStorage");
         return new MysqlStatsStorage(statsService, statsConverter);
-    }
-
-    /**
-     * API Key 历史记录存储 Bean - Redis + MySQL 实现
-     * 使用内存缓存，配合 OperateLogService 持久化日志
-     */
-    @Bean
-    @ConditionalOnMissingBean(ApiKeyHistoryStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public ApiKeyHistoryStorage mysqlApiKeyHistoryStorage() {
-        log.info("Initializing MysqlApiKeyHistoryStorage");
-        return new MysqlApiKeyHistoryStorage();
-    }
-
-    /**
-     * 配置历史记录存储 Bean - Redis + MySQL 实现
-     * 使用内存缓存，配合 OperateLogService 持久化日志
-     */
-    @Bean
-    @ConditionalOnMissingBean(ConfigHistoryStorage.class)
-    @ConditionalOnClass(RedissonClient.class)
-    @ConditionalOnProperty(name = "threadpool.admin.storage.type", havingValue = "redis-mysql")
-    public ConfigHistoryStorage mysqlConfigHistoryStorage() {
-        log.info("Initializing MysqlConfigHistoryStorage");
-        return new MysqlConfigHistoryStorage();
     }
 
     // ==================== Admin User Storage Beans ====================
@@ -253,6 +229,8 @@ public class AdminServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AdminAuthInterceptor adminAuthInterceptor(AdminAuthService adminAuthService) {
-        return new AdminAuthInterceptor(adminAuthService, adminAuthEnabled);
+        log.info("Initializing AdminAuthInterceptor, auth-enabled: {}, token-expire-minutes: {}, renew-threshold-minutes: {}",
+                adminAuthEnabled, adminTokenExpireMinutes, renewThresholdMinutes);
+        return new AdminAuthInterceptor(adminAuthService, adminAuthEnabled, renewThresholdMinutes);
     }
 }

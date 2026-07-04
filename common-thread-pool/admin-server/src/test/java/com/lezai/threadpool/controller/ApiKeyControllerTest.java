@@ -1,10 +1,7 @@
 package com.lezai.threadpool.controller;
 
 import com.alibaba.fastjson2.JSON;
-import com.lezai.threadpool.bean.ApiKey;
 import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.ChangeLogEntry;
-import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
@@ -217,46 +214,6 @@ class ApiKeyControllerTest {
                 .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(post("/api/api-keys/unknown/regenerate"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("GET /api/api-keys/{appId}/history returns history")
-    void getApiKeyHistory() throws Exception {
-        ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
-                ApiKey.builder().appId("my-app").build());
-
-        when(apiKeyAdminService.getHistory(eq("my-app"), eq(null))).thenReturn(List.of(entry));
-
-        mockMvc.perform(get("/api/api-keys/my-app/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(1));
-    }
-
-    @Test
-    @DisplayName("GET /api/api-keys/{appId}/history with limit parameter")
-    void getApiKeyHistory_withLimit() throws Exception {
-        ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
-                ApiKey.builder().appId("my-app").build());
-
-        when(apiKeyAdminService.getHistory("my-app", 5)).thenReturn(List.of(entry));
-
-        mockMvc.perform(get("/api/api-keys/my-app/history")
-                        .param("limit", "5"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data").isArray());
-    }
-
-    @Test
-    @DisplayName("GET /api/api-keys/{appId}/history returns 404 when appId not found")
-    void getApiKeyHistory_notFound() throws Exception {
-        when(apiKeyAdminService.getHistory("unknown", null))
-                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
-
-        mockMvc.perform(get("/api/api-keys/unknown/history"))
                 .andExpect(status().isNotFound());
     }
 }

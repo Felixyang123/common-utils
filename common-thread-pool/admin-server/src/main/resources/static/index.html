@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仪表盘 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('index.html');</script>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>仪表盘</h1>
+      <span class="text-sm text-muted" id="ts"></span>
+    </div>
+
+    <div class="card-grid" id="stats">
+      <div class="card stat-card"><div class="value" id="stat-apps">-</div><div class="label">应用数</div></div>
+      <div class="card stat-card"><div class="value" id="stat-keys">-</div><div class="label">API Keys</div></div>
+      <div class="card stat-card"><div class="value" id="stat-configs">-</div><div class="label">线程池配置</div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:12px;">最近操作</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>时间</th><th>类型</th><th>操作</th><th>对象</th><th>操作人</th></tr></thead>
+          <tbody id="recent-logs"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('ts').textContent = '更新于 ' + new Date().toLocaleString('zh-CN');
+
+    (async () => {
+      const data = await apiGet('/api/dashboard/summary');
+      if (!data || data.code !== 0) return;
+      const d = data.data;
+      document.getElementById('stat-apps').textContent = d.appCount || 0;
+      document.getElementById('stat-keys').textContent = d.apiKeyCount || 0;
+      document.getElementById('stat-configs').textContent = d.configCount || 0;
+
+      const logs = d.recentLogs || [];
+      document.getElementById('recent-logs').innerHTML = logs.length ? logs.map(r =>
+        `<tr><td class="text-sm">${fmtTime(r.createTime)}</td><td>${badgeBizType(r.bizType)}</td><td>${badgeOpType(r.operateType)}</td><td><code class="text-sm">${r.bizId || '-'}</code></td><td>${r.operator || '-'}</td></tr>`
+      ).join('') : '<tr><td colspan="5" class="empty">暂无操作记录</td></tr>';
+    })();
+  </script>
+</body>
+</html>

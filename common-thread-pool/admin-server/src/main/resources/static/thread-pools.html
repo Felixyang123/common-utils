@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>线程池配置 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <style>
+    .app-bar { display: flex; gap: 12px; align-items: center; }
+    .app-bar select { min-width: 200px; }
+    .app-bar .ver { font-size: 12px; color: var(--gray-400); }
+  </style>
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('thread-pools.html');</script>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>线程池配置管理</h1>
+      <button class="btn btn-primary" onclick="openCreate()">+ 新建池</button>
+    </div>
+
+    <div class="card mb-4">
+      <div class="app-bar">
+        <label style="font-weight:500;">应用：</label>
+        <select id="app-select" onchange="loadPools()"></select>
+        <span class="ver" id="app-ver"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>池名称</th><th>核心/最大</th><th>队列</th><th>拒绝策略</th><th>存活时间</th><th>操作</th></tr></thead>
+          <tbody id="pool-list"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty" style="display:none">暂无配置</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <div class="modal-header"><h3 id="edit-title">编辑配置</h3><button class="modal-close" onclick="closeModal('edit-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>池名称 *</label><input class="form-control" id="f-poolName"></div>
+        <div class="form-row">
+          <div class="form-group"><label>核心线程数</label><input class="form-control" id="f-core" type="number" min="1" max="1024"></div>
+          <div class="form-group"><label>最大线程数</label><input class="form-control" id="f-max" type="number" min="1" max="1024"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>队列类型</label>
+            <select class="form-control" id="f-queue">
+              <option>LINKED_BLOCKING_QUEUE</option><option>BLOCKING_QUEUE</option>
+              <option>ARRAY_BLOCKING_QUEUE</option><option>SYNCHRONOUS_QUEUE</option>
+              <option>PRIORITY_BLOCKING_QUEUE</option><option>DELAY_QUEUE</option>
+            </select>
+          </div>
+          <div class="form-group"><label>队列容量</label><input class="form-control" id="f-cap" type="number" min="0" max="100000" value="1024"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>拒绝策略</label>
+            <select class="form-control" id="f-reject">
+              <option>ABORT</option><option>CALLER_RUNS</option><option>DISCARD</option>
+              <option>DISCARD_OLDEST</option><option>BLOCKED</option>
+            </select>
+          </div>
+          <div class="form-group"><label>存活时间</label><input class="form-control" id="f-keep" type="number" min="0" value="60"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>时间单位</label>
+            <select class="form-control" id="f-unit"><option>SECONDS</option><option>MINUTES</option><option>MILLISECONDS</option></select>
+          </div>
+          <div class="form-group"><label>线程名前缀</label><input class="form-control" id="f-prefix" placeholder="同池名"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
+        <button class="btn btn-primary" onclick="savePool()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentAppId = null, currentPools = [], editPoolName = null;
+
+    (async () => {
+      const data = await apiGet('/api/thread-pool/configs');
+      if (!data || data.code !== 0) return;
+      const apps = data.data || [];
+      const sel = document.getElementById('app-select');
+      if (!apps.length) {
+        sel.innerHTML = '<option value="">暂无应用</option>';
+        document.getElementById('empty').style.display = '';
+        return;
+      }
+      sel.innerHTML = apps.map(a => `<option value="${a.appId}">${a.appId} (v${a.configVersion}, ${a.poolCount}池)</option>`).join('');
+      loadPools();
+    })();
+
+    async function loadPools() {
+      currentAppId = document.getElementById('app-select').value;
+      if (!currentAppId) return;
+      const data = await apiGet('/api/thread-pool/configs/' + encodeURIComponent(currentAppId));
+      if (!data || data.code !== 0) return;
+      const d = data.data;
+      document.getElementById('app-ver').textContent = '版本: v' + (d ? d.configVersion : 0);
+      currentPools = (d && d.configs) || [];
+      const tbody = document.getElementById('pool-list');
+      const empty = document.getElementById('empty');
+      if (!currentPools.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+      empty.style.display = 'none';
+      tbody.innerHTML = currentPools.map((p, i) =>
+        `<tr>
+          <td><code>${p.poolName}</code></td>
+          <td>${p.corePoolSize} / ${p.maximumPoolSize}</td>
+          <td class="text-sm">${p.queueType} (${p.queueCapacity})</td>
+          <td><span class="badge badge-gray">${p.rejectPolicyType}</span></td>
+          <td>${p.keepAliveTime} ${p.timeUnit}</td>
+          <td class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="editPool(${i})">编辑</button>
+            <button class="btn btn-ghost btn-sm" onclick="editHistory('${p.poolName}')">历史</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePool('${p.poolName}')">删除</button>
+          </td>
+        </tr>`
+      ).join('');
+    }
+
+    function editPool(i) {
+      const p = currentPools[i];
+      editPoolName = p.poolName;
+      document.getElementById('edit-title').textContent = '编辑 - ' + p.poolName;
+      document.getElementById('f-poolName').value = p.poolName;
+      document.getElementById('f-core').value = p.corePoolSize;
+      document.getElementById('f-max').value = p.maximumPoolSize;
+      document.getElementById('f-queue').value = p.queueType;
+      document.getElementById('f-cap').value = p.queueCapacity;
+      document.getElementById('f-reject').value = p.rejectPolicyType;
+      document.getElementById('f-keep').value = p.keepAliveTime;
+      document.getElementById('f-unit').value = p.timeUnit;
+      document.getElementById('f-prefix').value = p.threadNamePrefix || '';
+      openModal('edit-modal');
+    }
+
+    function openCreate() {
+      if (!currentAppId) { alert('请先选择应用'); return; }
+      editPoolName = null;
+      document.getElementById('edit-title').textContent = '新建线程池';
+      ['f-poolName','f-core','f-max','f-prefix'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('f-queue').value = 'LINKED_BLOCKING_QUEUE';
+      document.getElementById('f-reject').value = 'ABORT';
+      document.getElementById('f-unit').value = 'SECONDS';
+      document.getElementById('f-cap').value = '1024';
+      document.getElementById('f-keep').value = '60';
+      openModal('edit-modal');
+    }
+
+    async function savePool() {
+      const name = document.getElementById('f-poolName').value.trim();
+      if (!name) { alert('池名称必填'); return; }
+      const body = {
+        poolName: name,
+        corePoolSize: parseInt(document.getElementById('f-core').value) || 1,
+        maximumPoolSize: parseInt(document.getElementById('f-max').value) || 1,
+        queueType: document.getElementById('f-queue').value,
+        queueCapacity: parseInt(document.getElementById('f-cap').value) || 0,
+        rejectPolicyType: document.getElementById('f-reject').value,
+        keepAliveTime: parseInt(document.getElementById('f-keep').value) || 0,
+        timeUnit: document.getElementById('f-unit').value,
+        threadNamePrefix: document.getElementById('f-prefix').value.trim() || name,
+      };
+      const url = '/api/thread-pool/configs/' + encodeURIComponent(currentAppId) + '/' + encodeURIComponent(name);
+      const data = await apiPost(url, body);
+      if (data && data.code === 0) {
+        closeModal('edit-modal');
+        loadPools();
+      } else {
+        alert(data ? data.message : '保存失败');
+      }
+    }
+
+    async function deletePool(poolName) {
+      if (!confirm('确认删除 ' + poolName + '？')) return;
+      const url = '/api/thread-pool/configs/' + encodeURIComponent(currentAppId) + '/' + encodeURIComponent(poolName);
+      const data = await apiDelete(url);
+      if (data && data.code === 0) { loadPools(); }
+      else { alert(data ? data.message : '删除失败'); }
+    }
+
+    function editHistory(poolName) {
+      location.href = '/config-diff.html?app=' + encodeURIComponent(currentAppId) + '&pool=' + encodeURIComponent(poolName);
+    }
+  </script>
+</body>
+</html>

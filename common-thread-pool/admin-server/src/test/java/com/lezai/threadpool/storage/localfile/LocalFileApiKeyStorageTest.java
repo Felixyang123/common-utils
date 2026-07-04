@@ -26,19 +26,16 @@ class LocalFileApiKeyStorageTest {
     Path tempDir;
 
     private LocalFileApiKeyStorage storage;
-    private LocalFileApiKeyHistoryStorage historyStorage;
 
     @BeforeEach
     void setUp() {
         String storageDir = tempDir.resolve("api-keys").toString();
-        historyStorage = new LocalFileApiKeyHistoryStorage(tempDir.resolve("api-key-history").toString(), 100);
-        storage = new LocalFileApiKeyStorage(storageDir, historyStorage);
+        storage = new LocalFileApiKeyStorage(storageDir);
     }
 
     @AfterEach
     void tearDown() throws IOException {
         cleanDir(tempDir.resolve("api-keys"));
-        cleanDir(tempDir.resolve("api-key-history"));
     }
 
     private void cleanDir(Path dir) throws IOException {
@@ -195,16 +192,5 @@ class LocalFileApiKeyStorageTest {
         Optional<ApiKey> result = storage.getApiKey("test-app");
         assertThat(result).isPresent();
         assertThat(result.get().getAppName()).isEqualTo("Updated Name");
-    }
-
-    @Test
-    @DisplayName("history is recorded on saveApiKey")
-    void historyRecorded() {
-        ApiKey key = TestDataFactory.defaultApiKey().build();
-        storage.saveApiKey(key);
-
-        var history = historyStorage.getHistory("test-app");
-        assertThat(history).hasSize(1);
-        assertThat(history.get(0).getChangeType()).isEqualTo(com.lezai.threadpool.enums.ChangeType.CREATE);
     }
 }

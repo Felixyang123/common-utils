@@ -26,13 +26,13 @@ class AdminAuthInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new AdminAuthInterceptor(adminAuthService, true);
+        interceptor = new AdminAuthInterceptor(adminAuthService, true, 30L);
     }
 
     @Test
     @DisplayName("preHandle passes when auth is disabled")
     void preHandle_authDisabled_passes() throws Exception {
-        interceptor = new AdminAuthInterceptor(adminAuthService, false);
+        interceptor = new AdminAuthInterceptor(adminAuthService, false, 30L);
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Key 管理 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('api-keys.html');</script>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>API Key 管理</h1>
+      <button class="btn btn-primary" onclick="openModal('create-modal')">+ 新建 API Key</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>App ID</th><th>应用名称</th><th>状态</th><th>过期时间</th><th>创建时间</th><th>操作</th></tr>
+          </thead>
+          <tbody id="apikey-list"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>新建 API Key</h3><button class="modal-close" onclick="closeModal('create-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>App ID *</label><input class="form-control" id="f-appId" placeholder="order-service"></div>
+        <div class="form-group"><label>应用名称</label><input class="form-control" id="f-appName" placeholder="订单服务"></div>
+        <div class="form-row">
+          <div class="form-group"><label>过期时间</label><input class="form-control" id="f-expire" type="datetime-local"></div>
+          <div class="form-group"><label>描述</label><input class="form-control" id="f-desc" placeholder="可选"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('create-modal')">取消</button>
+        <button class="btn btn-primary" onclick="createKey()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="detail-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>API Key 详情</h3><button class="modal-close" onclick="closeModal('detail-modal')">&times;</button></div>
+      <div class="modal-body" id="detail-body"></div>
+      <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('detail-modal')">关闭</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="newkey-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>API Key 已创建</h3><button class="modal-close" onclick="closeModal('newkey-modal')">&times;</button></div>
+      <div class="modal-body">
+        <p style="color:var(--danger);font-size:13px;margin-bottom:12px;">请立即复制保存，此明文 Key 仅显示一次！</p>
+        <input class="form-control" id="newkey-val" readonly style="font-family:monospace;">
+      </div>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('newkey-modal')">已复制</button></div>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      await loadKeys();
+    })();
+
+    async function loadKeys() {
+      const data = await apiGet('/api/api-keys');
+      if (!data || data.code !== 0) return;
+      const keys = data.data || [];
+      document.getElementById('apikey-list').innerHTML = keys.length ? keys.map(k =>
+        `<tr>
+          <td><code>${k.appId}</code></td>
+          <td>${k.appName || '-'}</td>
+          <td>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</td>
+          <td class="text-sm">${fmtTime(k.expireTime)}</td>
+          <td class="text-sm">${fmtTime(k.createTime)}</td>
+          <td class="actions">
+            <button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(k).replace(/'/g,"&#39;")})'>查看</button>
+            <a class="btn btn-ghost btn-sm" href="/operate-logs.html?biz_type=APIKEY&biz_id=${k.appId}">历史</a>
+          </td>
+        </tr>`
+      ).join('') : '<tr><td colspan="6" class="empty">暂无 API Key</td></tr>';
+    }
+
+    function showDetail(k) {
+      document.getElementById('detail-body').innerHTML = `
+        <div class="form-group"><label>App ID</label><div><code>${k.appId}</code></div></div>
+        <div class="form-group"><label>应用名称</label><div>${k.appName || '-'}</div></div>
+        <div class="form-group"><label>状态</label><div>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</div></div>
+        <div class="form-group"><label>创建时间</label><div class="text-sm">${fmtTime(k.createTime)}</div></div>
+        <div class="form-group"><label>过期时间</label><div class="text-sm">${fmtTime(k.expireTime)}</div></div>
+        <div class="form-group"><label>描述</label><div>${k.description || '-'}</div></div>`;
+      openModal('detail-modal');
+    }
+
+    async function createKey() {
+      const appId = document.getElementById('f-appId').value.trim();
+      if (!appId) { alert('App ID 必填'); return; }
+      const body = {
+        appId,
+        appName: document.getElementById('f-appName').value.trim() || null,
+        description: document.getElementById('f-desc').value.trim() || null,
+      };
+      const expireVal = document.getElementById('f-expire').value;
+      if (expireVal) body.expireTime = expireVal + ':00';
+
+      const data = await apiPost('/api/api-keys', body);
+      if (data && data.code === 0) {
+        closeModal('create-modal');
+        document.getElementById('newkey-val').value = data.data.apiKey;
+        openModal('newkey-modal');
+        loadKeys();
+      } else {
+        alert(data ? data.message : '创建失败');
+      }
+    }
+  </script>
+</body>
+</html>

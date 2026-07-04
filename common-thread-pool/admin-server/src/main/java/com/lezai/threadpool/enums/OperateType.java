@@ -27,5 +27,10 @@ public enum OperateType {
     /**
      * 插入或更新操作
      */
-    UPSERT
+    UPSERT,
+
+    /**
+     * 回滚操作
+     */
+    ROLLBACK
 }

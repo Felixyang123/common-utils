@@ -1,13 +1,12 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.TestDataFactory;
-import com.lezai.threadpool.bean.ChangeLogEntry;
+import com.lezai.threadpool.bean.ConfigSnapshot;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
-import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.storage.ConfigHistoryStorage;
+import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,14 +15,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,13 +30,13 @@ class ConfigAdminServiceTest {
     private ConfigStorage configStorage;
 
     @Mock
-    private ConfigHistoryStorage historyStorage;
+    private ConfigSnapshotStorage snapshotStorage;
 
     private ConfigAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ConfigAdminService(configStorage, historyStorage);
+        service = new ConfigAdminService(configStorage, snapshotStorage);
     }
 
     // ==================== getAppConfig ====================
@@ -99,7 +95,7 @@ class ConfigAdminServiceTest {
     void saveConfigs() {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
 
-        service.saveConfigs("app1", configs);
+        service.saveConfigs("app1", configs, "admin");
 
         verify(configStorage).saveConfigs("app1", configs);
     }
@@ -111,7 +107,7 @@ class ConfigAdminServiceTest {
     void saveConfig() {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
 
-        service.saveConfig("app1", config);
+        service.saveConfig("app1", config, "admin");
 
         verify(configStorage).saveConfig("app1", config);
     }
@@ -121,7 +117,7 @@ class ConfigAdminServiceTest {
     @Test
     @DisplayName("deleteConfigs delegates to storage")
     void deleteConfigs() {
-        service.deleteConfigs("app1");
+        service.deleteConfigs("app1", "admin");
 
         verify(configStorage).deleteConfigs("app1");
     }
@@ -131,7 +127,7 @@ class ConfigAdminServiceTest {
     @Test
     @DisplayName("deleteConfig delegates to storage")
     void deleteConfig() {
-        service.deleteConfig("app1", "test-pool");
+        service.deleteConfig("app1", "test-pool", "admin");
 
         verify(configStorage).deleteConfig("app1", "test-pool");
     }
@@ -144,7 +140,7 @@ class ConfigAdminServiceTest {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
         when(configStorage.addConfig("app1", config)).thenReturn(config);
 
-        ThreadPoolConfig result = service.addConfig("app1", config);
+        ThreadPoolConfig result = service.addConfig("app1", config, "admin");
 
         assertThat(result).isEqualTo(config);
         verify(configStorage).addConfig("app1", config);
@@ -158,7 +154,7 @@ class ConfigAdminServiceTest {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
         when(configStorage.addConfigs("app1", configs)).thenReturn(configs);
 
-        List<ThreadPoolConfig> result = service.addConfigs("app1", configs);
+        List<ThreadPoolConfig> result = service.addConfigs("app1", configs, "admin");
 
         assertThat(result).hasSize(2);
         verify(configStorage).addConfigs("app1", configs);
@@ -176,81 +172,49 @@ class ConfigAdminServiceTest {
         assertThat(version).isEqualTo(42L);
     }
 
-    // ==================== getConfigHistory ====================
+    // ==================== getSnapshots ====================
 
     @Test
-    @DisplayName("getConfigHistory returns history grouped by pool when app exists")
-    void getConfigHistory_found() {
-        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
-                .appId("app1").configVersion(5L).configs(List.of()).build();
-        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
-
-        List<ChangeLogEntry<ThreadPoolConfig>> poolHistory = List.of(
-                ChangeLogEntry.<ThreadPoolConfig>builder()
-                        .version(1).changeType(ChangeType.CREATE).timestamp(LocalDateTime.now()).build()
-        );
-        Map<String, List<ChangeLogEntry<ThreadPoolConfig>>> historyMap = Map.of("pool-a", poolHistory);
-        when(historyStorage.getAllHistory("app1")).thenReturn(historyMap);
-
-        Map<String, List<ChangeLogEntry<ThreadPoolConfig>>> result = service.getConfigHistory("app1");
-
-        assertThat(result).containsKey("pool-a");
-        assertThat(result.get("pool-a")).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("getConfigHistory throws ConfigNotFoundException when app not found")
-    void getConfigHistory_notFound() {
-        when(configStorage.getAppConfig("unknown")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.getConfigHistory("unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
-                .hasMessageContaining("unknown");
-    }
-
-    // ==================== getPoolConfigHistory ====================
-
-    @Test
-    @DisplayName("getPoolConfigHistory returns history without limit")
-    void getPoolConfigHistory_noLimit() {
+    @DisplayName("getSnapshots returns snapshots without limit")
+    void getSnapshots_noLimit() {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
         when(configStorage.getConfig("app1", "test-pool")).thenReturn(Optional.of(config));
 
-        List<ChangeLogEntry<ThreadPoolConfig>> history = List.of(
-                ChangeLogEntry.<ThreadPoolConfig>builder().version(1).changeType(ChangeType.CREATE).build(),
-                ChangeLogEntry.<ThreadPoolConfig>builder().version(2).changeType(ChangeType.UPDATE).build()
+        List<ConfigSnapshot> snapshots = List.of(
+                ConfigSnapshot.builder().appId("app1").poolName("test-pool").version(1).build(),
+                ConfigSnapshot.builder().appId("app1").poolName("test-pool").version(2).build()
         );
-        when(historyStorage.getHistory("app1", "test-pool")).thenReturn(history);
+        when(snapshotStorage.getSnapshots("app1", "test-pool")).thenReturn(snapshots);
 
-        List<ChangeLogEntry<ThreadPoolConfig>> result = service.getPoolConfigHistory("app1", "test-pool", null);
+        List<ConfigSnapshot> result = service.getSnapshots("app1", "test-pool", null);
 
         assertThat(result).hasSize(2);
-        verify(historyStorage).getHistory("app1", "test-pool");
+        verify(snapshotStorage).getSnapshots("app1", "test-pool");
     }
 
     @Test
-    @DisplayName("getPoolConfigHistory returns history with limit")
-    void getPoolConfigHistory_withLimit() {
+    @DisplayName("getSnapshots returns snapshots with limit")
+    void getSnapshots_withLimit() {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
         when(configStorage.getConfig("app1", "test-pool")).thenReturn(Optional.of(config));
 
-        List<ChangeLogEntry<ThreadPoolConfig>> history = List.of(
-                ChangeLogEntry.<ThreadPoolConfig>builder().version(3).changeType(ChangeType.UPDATE).build()
+        List<ConfigSnapshot> snapshots = List.of(
+                ConfigSnapshot.builder().appId("app1").poolName("test-pool").version(2).build()
         );
-        when(historyStorage.getHistory("app1", "test-pool", 1)).thenReturn(history);
+        when(snapshotStorage.getSnapshots("app1", "test-pool", 1)).thenReturn(snapshots);
 
-        List<ChangeLogEntry<ThreadPoolConfig>> result = service.getPoolConfigHistory("app1", "test-pool", 1);
+        List<ConfigSnapshot> result = service.getSnapshots("app1", "test-pool", 1);
 
         assertThat(result).hasSize(1);
-        verify(historyStorage).getHistory("app1", "test-pool", 1);
+        verify(snapshotStorage).getSnapshots("app1", "test-pool", 1);
     }
 
     @Test
-    @DisplayName("getPoolConfigHistory throws ConfigNotFoundException when pool not found")
-    void getPoolConfigHistory_poolNotFound() {
+    @DisplayName("getSnapshots throws ConfigNotFoundException when pool not found")
+    void getSnapshots_poolNotFound() {
         when(configStorage.getConfig("app1", "unknown")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getPoolConfigHistory("app1", "unknown", null))
+        assertThatThrownBy(() -> service.getSnapshots("app1", "unknown", null))
                 .isInstanceOf(ConfigNotFoundException.class)
                 .hasMessageContaining("unknown");
     }

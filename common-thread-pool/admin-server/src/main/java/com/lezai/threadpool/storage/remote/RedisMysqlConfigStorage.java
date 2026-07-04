@@ -157,6 +157,11 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
                         entry.getValue().getConfigs().values())));
     }
 
+    @Override
+    public List<String> listAppIds() {
+        return configService.allAppIds();
+    }
+
     private void refreshAllCache() {
         for (ThreadPoolConfigAppRefreshPreCheckDto preCheckDto : configService.refreshAllPreCheck()) {
             doRefresh(preCheckDto);

@@ -2,9 +2,7 @@ package com.lezai.threadpool.storage.localfile;
 
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.enums.StorageType;
-import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
@@ -30,16 +28,12 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     private static final String FILE_SUFFIX = "_threadpool.json";
 
-    private final ConfigHistoryStorage historyStorage;
-
     private final ConfigChangeListenerManager listenerManager;
 
 
     public LocalFileConfigStorage(String configDir,
-                                  ConfigHistoryStorage historyStorage,
                                   ConfigChangeListenerManager listenerManager) {
         super(configDir);
-        this.historyStorage = historyStorage;
         this.listenerManager = listenerManager;
     }
 
@@ -64,9 +58,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public void saveConfig(String appId, ThreadPoolConfig config) {
-        AtomicReference<ThreadPoolConfigFile> oldConfigRef = new AtomicReference<>();
         compute(appId, (k, oldConfig) -> {
-            oldConfigRef.set(oldConfig);
             Path path = getStoragePath(appId);
             ThreadPoolConfigFile configFile = getOrBuildFile(path, ThreadPoolConfigFile.class, () -> new ThreadPoolConfigFile(appId, 0, new HashMap<>()));
             if (configFile.getConfigs() == null) {
@@ -80,15 +72,6 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             notifyListeners(configFile);
             return configFile;
         });
-
-        if (historyStorage != null) {
-            Map<String, ThreadPoolConfig> configMap = Optional.ofNullable(oldConfigRef.get())
-                    .map(ThreadPoolConfigFile::getConfigs).orElse(null);
-            ThreadPoolConfig oldConfig = Optional.ofNullable(configMap).map(map ->
-                    map.get(config.getPoolName())).orElse(null);
-            ChangeType changeType = (oldConfig == null) ? ChangeType.CREATE : ChangeType.UPDATE;
-            historyStorage.recordChange(appId, config.getPoolName(), changeType, oldConfig, config);
-        }
     }
 
     @Override
@@ -103,34 +86,24 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
 
     @Override
     public void deleteConfigs(String appId) {
-        AtomicReference<ThreadPoolConfigFile> oldConfigsRef = new AtomicReference<>();
         compute(appId, (k, configFile) -> {
-            oldConfigsRef.set(configFile);
             Path path = getStoragePath(appId);
             deleteFile(path);
             listenerManager.unregister(appId);
             return null;
         });
-
-        if (historyStorage != null && oldConfigsRef.get() != null) {
-            Optional.ofNullable(oldConfigsRef.get().getConfigs()).map(Map::values).ifPresent(
-                    configs -> configs.forEach(config ->
-                            historyStorage.recordChange(appId, config.getPoolName(), ChangeType.DELETE, config, null)));
-        }
         log.info("Deleted configs for appId: {}", appId);
     }
 
     @Override
     public void deleteConfig(String appId, String poolName) {
-        AtomicReference<ThreadPoolConfig> oldConfigRef = new AtomicReference<>();
         compute(appId, (k, configFile) -> {
             if (configFile == null || configFile.getConfigs() == null) {
                 return null;
             }
 
             Path path = getStoragePath(appId);
-            ThreadPoolConfig oldConfig = configFile.getConfigs().remove(poolName);
-            oldConfigRef.set(oldConfig);
+            configFile.getConfigs().remove(poolName);
 
             if (configFile.getConfigs().isEmpty()) {
                 deleteFile(path);
@@ -141,10 +114,6 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             writeFile(path, configFile);
             return configFile;
         });
-
-        if (historyStorage != null && oldConfigRef.get() != null) {
-            historyStorage.recordChange(appId, poolName, ChangeType.DELETE, oldConfigRef.get(), null);
-        }
     }
 
     @Override
@@ -154,6 +123,11 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
                 Map.Entry::getKey,
                 entry -> entry.getValue().getConfigs().values().stream().toList()
         ));
+    }
+
+    @Override
+    public List<String> listAppIds() {
+        return new ArrayList<>(cache.keySet());
     }
 
     @Override
@@ -207,10 +181,6 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             return configFile;
         });
 
-        if (added.get() && historyStorage != null) {
-            historyStorage.recordChange(appId, config.getPoolName(), ChangeType.CREATE, null, config);
-        }
-
         return file.getConfigs().get(config.getPoolName());
     }
 
@@ -256,12 +226,6 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
             }
             return configFile;
         });
-
-        if (historyStorage != null) {
-            for (ThreadPoolConfig config : addedConfigs) {
-                historyStorage.recordChange(appId, config.getPoolName(), ChangeType.CREATE, null, config);
-            }
-        }
 
         return addedConfigs.stream().toList();
     }

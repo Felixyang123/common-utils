@@ -30,4 +30,12 @@ public class AuthController {
     public ApiResponse<AdminLoginResponse> login(@Valid @RequestBody AdminLoginRequest request) {
         return ApiResponse.success(adminAuthService.login(request));
     }
+
+    /**
+     * 管理员登出（JWT 无状态，后端仅返回成功，前端清除本地 token）
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout() {
+        return ApiResponse.success();
+    }
 }

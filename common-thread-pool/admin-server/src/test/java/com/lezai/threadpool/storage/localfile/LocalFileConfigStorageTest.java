@@ -3,7 +3,6 @@ package com.lezai.threadpool.storage.localfile;
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.storage.ConfigHistoryStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
 import org.junit.jupiter.api.AfterEach;
@@ -29,19 +28,16 @@ class LocalFileConfigStorageTest {
     Path tempDir;
 
     private ConfigStorage storage;
-    private ConfigHistoryStorage historyStorage;
 
     @BeforeEach
     void setUp() {
         String configDir = tempDir.resolve("configs").toString();
-        historyStorage = new LocalFileConfigHistoryStorage(tempDir.resolve("history").toString(), 100);
-        storage = new LocalFileConfigStorage(configDir, historyStorage, new ConfigChangeListenerManager());
+        storage = new LocalFileConfigStorage(configDir, new ConfigChangeListenerManager());
     }
 
     @AfterEach
     void tearDown() throws IOException {
         cleanDir(tempDir.resolve("configs"));
-        cleanDir(tempDir.resolve("history"));
     }
 
     private void cleanDir(Path dir) throws IOException {
@@ -224,17 +220,5 @@ class LocalFileConfigStorageTest {
 
         assertThat(received).isTrue();
         assertThat(notifiedAppId.toString()).isEqualTo("app1");
-    }
-
-    @Test
-    @DisplayName("history is recorded on config save")
-    void historyRecorded() {
-        ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        storage.saveConfig("app1", config);
-
-        Map<String, List<com.lezai.threadpool.bean.ChangeLogEntry<ThreadPoolConfig>>> history =
-                historyStorage.getAllHistory("app1");
-        assertThat(history).isNotEmpty();
-        assertThat(history.get("test-pool")).hasSize(1);
     }
 }

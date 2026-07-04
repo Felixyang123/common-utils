@@ -1,11 +1,9 @@
 package com.lezai.threadpool.storage.localfile;
 
 import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.enums.StorageType;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.ValidationException;
-import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -22,20 +20,16 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * 本地文件存储 API Key 实现
  * 使用 JSON 文件存储，支持线程安全
+ * <p>
+ * API Key 的历史操作记录通过审计日志（OperateLogService）承载，不再在此处记录快照。
  */
 @Slf4j
 public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> implements ApiKeyStorage {
 
     private static final String FILE_SUFFIX = "_api_key.json";
-    private final ApiKeyHistoryStorage historyStorage;
 
     public LocalFileApiKeyStorage(String storageDir) {
-        this(storageDir, null);
-    }
-
-    public LocalFileApiKeyStorage(String storageDir, ApiKeyHistoryStorage historyStorage) {
         super(storageDir);
-        this.historyStorage = historyStorage;
     }
 
     @Override
@@ -72,19 +66,11 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
         }
         apiKey.setUpdateTime(now);
 
-        AtomicReference<ApiKey> oldKeyRef = new AtomicReference<>();
         compute(apiKey.getAppId(), (appId, existing) -> {
-            oldKeyRef.set(existing);
             Path path = getStoragePath(appId);
             writeFile(path, apiKey);
             return apiKey;
         });
-
-        //TODO 异步
-        if (historyStorage != null) {
-            ChangeType changeType = (oldKeyRef.get() == null) ? ChangeType.CREATE : ChangeType.UPDATE;
-            historyStorage.recordChange(apiKey.getAppId(), changeType, oldKeyRef.get(), apiKey);
-        }
 
         log.info("Saved API key for appId: {}", apiKey.getAppId());
     }
@@ -96,18 +82,11 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
 
     @Override
     public void deleteApiKey(String appId) {
-        AtomicReference<ApiKey> oldKeyRef = new AtomicReference<>();
         compute(appId, (k, existing) -> {
-            oldKeyRef.set(existing);
             Path path = getStoragePath(appId);
             deleteFile(path);
             return null;
         });
-
-        if (historyStorage != null && oldKeyRef.get() != null) {
-            historyStorage.recordChange(appId, ChangeType.DELETE, oldKeyRef.get(), null);
-        }
-
         log.info("Deleted API key for appId: {}", appId);
     }
 
@@ -146,10 +125,6 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
             writeFile(path, apiKey);
             inserted.set(true);
 
-            if (historyStorage != null) {
-                historyStorage.recordChange(appId, ChangeType.CREATE, null, apiKey);
-            }
-
             log.info("Inserted new API key for appId: {}", appId);
             return apiKey;
         });
@@ -173,10 +148,6 @@ public class LocalFileApiKeyStorage extends AbstractLocalFileStorage<ApiKey> imp
 
             Path path = getStoragePath(appId);
             writeFile(path, updateValue);
-
-            if (historyStorage != null) {
-                historyStorage.recordChange(appId, ChangeType.REGENERATE, existing, updateValue);
-            }
 
             log.info("Regenerated API key for appId: {}", appId);
             return updateValue;

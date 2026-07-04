@@ -1,18 +1,14 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.bean.ChangeLogEntry;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
-import com.lezai.threadpool.enums.ChangeType;
 import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.storage.ApiKeyHistoryStorage;
 import com.lezai.threadpool.storage.ApiKeyStorage;
-import com.lezai.threadpool.utils.ApiKeyUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,14 +36,11 @@ class ApiKeyAdminServiceTest {
     @Mock
     private ApiKeyStorage apiKeyStorage;
 
-    @Mock
-    private ApiKeyHistoryStorage historyStorage;
-
     private ApiKeyAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApiKeyAdminService(apiKeyStorage, historyStorage);
+        service = new ApiKeyAdminService(apiKeyStorage);
     }
 
     // ==================== createApiKey ====================
@@ -239,7 +231,6 @@ class ApiKeyAdminServiceTest {
 
         service.updateApiKey("my-app", request);
 
-        // 更新必须保留凭证哈希与创建时间，仅修改元数据
         ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
         verify(apiKeyStorage).saveApiKey(captor.capture());
         ApiKey saved = captor.getValue();
@@ -292,68 +283,6 @@ class ApiKeyAdminServiceTest {
                 .hasMessageContaining("unknown");
 
         verify(apiKeyStorage, never()).regenerateApiKey(anyString());
-    }
-
-    // ==================== getHistory ====================
-
-    @Test
-    @DisplayName("getHistory returns history when data exists")
-    void getHistory_withData() {
-        ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
-                ApiKey.builder().appId("my-app").build());
-        when(historyStorage.getHistory("my-app")).thenReturn(List.of(entry));
-
-        List<ChangeLogEntry<ApiKey>> result = service.getHistory("my-app", null);
-
-        assertThat(result).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("getHistory returns empty list when no data")
-    void getHistory_noData() {
-        when(historyStorage.getHistory("my-app")).thenReturn(Collections.emptyList());
-
-        List<ChangeLogEntry<ApiKey>> result = service.getHistory("my-app", null);
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("getHistory with limit parameter")
-    void getHistory_withLimit() {
-        ChangeLogEntry<ApiKey> entry = ChangeLogEntry.of(1, ChangeType.CREATE, null,
-                ApiKey.builder().appId("my-app").build());
-        when(historyStorage.getHistory("my-app", 5)).thenReturn(List.of(entry));
-
-        List<ChangeLogEntry<ApiKey>> result = service.getHistory("my-app", 5);
-
-        assertThat(result).hasSize(1);
-        verify(historyStorage).getHistory("my-app", 5);
-    }
-
-    @Test
-    @DisplayName("getHistory with limit=0 returns all history")
-    void getHistory_limitZero() {
-        when(historyStorage.getHistory("my-app")).thenReturn(Collections.emptyList());
-
-        List<ChangeLogEntry<ApiKey>> result = service.getHistory("my-app", 0);
-
-        assertThat(result).isEmpty();
-        verify(historyStorage).getHistory("my-app");
-    }
-
-    @Test
-    @DisplayName("getHistory is decoupled from key existence (audit log survives deletion)")
-    void getHistory_survivesDeletion() {
-        // Key 已被删除（exists=false），但 DELETE 审计记录仍可读取
-        ChangeLogEntry<ApiKey> deleteEntry = ChangeLogEntry.of(2, ChangeType.DELETE,
-                ApiKey.builder().appId("deleted-app").build(), null);
-        when(historyStorage.getHistory("deleted-app")).thenReturn(List.of(deleteEntry));
-
-        List<ChangeLogEntry<ApiKey>> result = service.getHistory("deleted-app", null);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getChangeType()).isEqualTo(ChangeType.DELETE);
     }
 
     // ==================== boundary cases ====================
