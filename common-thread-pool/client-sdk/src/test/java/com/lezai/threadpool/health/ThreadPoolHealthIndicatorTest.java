@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -101,5 +102,39 @@ class ThreadPoolHealthIndicatorTest {
         Health health = indicator.health();
 
         assertThat(health.getDetails()).containsKey("detail-pool");
+    }
+
+    @Test
+    @DisplayName("never-executed empty pool is marked IDLE but does NOT drag overall health to DOWN")
+    void health_idlePool_markedIdleButOverallUp() {
+        manager.registerPool(config("idle-pool", 2, 4, 10));
+        ThreadPoolHealthIndicator indicator = new ThreadPoolHealthIndicator(manager, 0.9, 0.9);
+
+        Health health = indicator.health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> poolDetail = (Map<String, Object>) health.getDetails().get("idle-pool");
+        assertThat(poolDetail.get("status")).isEqualTo("IDLE");
+        assertThat(poolDetail).containsKey("hint");
+    }
+
+    @Test
+    @DisplayName("pool that has executed tasks before but is now empty is UP, not IDLE")
+    void health_usedPool_nowEmpty_reportsUp() throws Exception {
+        manager.registerPool(config("used-pool", 1, 1, 10));
+        var pool = manager.getRequiredPool("used-pool");
+        var latch = new CountDownLatch(1);
+        pool.execute(latch::countDown);
+        latch.await(2, TimeUnit.SECONDS);
+        Thread.sleep(100); // let afterExecute/wrapper complete
+
+        ThreadPoolHealthIndicator indicator = new ThreadPoolHealthIndicator(manager, 0.9, 0.9);
+        Health health = indicator.health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> poolDetail = (Map<String, Object>) health.getDetails().get("used-pool");
+        assertThat(poolDetail.get("status")).isEqualTo("UP");
     }
 }

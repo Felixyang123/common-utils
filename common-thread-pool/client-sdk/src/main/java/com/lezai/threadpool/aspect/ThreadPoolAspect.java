@@ -71,9 +71,9 @@ public class ThreadPoolAspect {
         DynamicThreadPoolWrapper pool = threadPoolManager.getRequiredPool(poolName);
 
         Method method = getMethod(joinPoint);
-        log.debug("Executing method {} asynchronously in thread pool {}", getMethodName(method), poolName);
+        log.debug("Executing method {} asynchronously in thread pool {}", getMethodName(method), pool.getPoolName());
 
-        return AsyncExecutionSupport.execute(joinPoint, method, pool, poolName, asyncThreadPool.awaitResult());
+        return AsyncExecutionSupport.execute(joinPoint, method, pool, asyncThreadPool.awaitResult());
     }
 
     private String getMethodName(Method method) {

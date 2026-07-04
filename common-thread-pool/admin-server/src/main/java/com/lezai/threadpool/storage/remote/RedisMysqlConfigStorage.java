@@ -8,6 +8,7 @@ import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
 import com.lezai.threadpool.exception.StorageException;
+import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
@@ -204,7 +205,7 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
     @Override
     public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
         if (config == null || StringUtils.isBlank(config.getPoolName())) {
-            throw new IllegalArgumentException("config and poolName must not be blank");
+            throw new ValidationException("config and poolName must not be blank");
         }
 
         List<ThreadPoolConfig> addedConfigs = new ArrayList<>();
@@ -245,7 +246,7 @@ public class RedisMysqlConfigStorage extends RedisMysqlStorageSupport<ThreadPool
     @Override
     public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (configs == null) {
-            throw new IllegalArgumentException("configs must not be null");
+            throw new ValidationException("configs must not be null");
         }
         List<ThreadPoolConfig> validConfigs = configs.stream()
                 .filter(config -> config != null && StringUtils.isNotBlank(config.getPoolName()))

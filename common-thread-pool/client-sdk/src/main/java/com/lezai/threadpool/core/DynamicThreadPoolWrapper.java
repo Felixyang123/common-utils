@@ -145,7 +145,7 @@ public class DynamicThreadPoolWrapper implements Executor {
             if (newCore > effectiveMax) {
                 log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
                         poolName, newCore, effectiveMax);
-                throw new IllegalArgumentException(
+                throw new com.lezai.threadpool.exception.ValidationException(
                         String.format("corePoolSize(%d) must not exceed maximumPoolSize(%d) for pool '%s'",
                                 newCore, effectiveMax, poolName));
             }

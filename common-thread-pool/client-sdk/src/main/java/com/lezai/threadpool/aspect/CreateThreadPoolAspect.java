@@ -45,7 +45,7 @@ public class CreateThreadPoolAspect {
         Method method = getMethod(joinPoint);
         log.debug("Executing method {} in thread pool {}", getMethodName(method), pool.getPoolName());
 
-        return AsyncExecutionSupport.execute(joinPoint, method, pool, pool.getPoolName(), annotation.awaitResult());
+        return AsyncExecutionSupport.execute(joinPoint, method, pool, annotation.awaitResult());
     }
 
     /**

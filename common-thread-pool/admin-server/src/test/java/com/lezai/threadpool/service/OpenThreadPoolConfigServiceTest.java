@@ -136,7 +136,7 @@ class OpenThreadPoolConfigServiceTest {
     @DisplayName("reportStats with null throws exception")
     void reportStats_null() {
         assertThatThrownBy(() -> service.reportStats(null))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(com.lezai.threadpool.exception.ValidationException.class);
     }
 
     @Test
@@ -144,6 +144,6 @@ class OpenThreadPoolConfigServiceTest {
     void reportStats_nullAppId() {
         ThreadPoolStatsReport report = new ThreadPoolStatsReport();
         assertThatThrownBy(() -> service.reportStats(report))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(com.lezai.threadpool.exception.ValidationException.class);
     }
 }

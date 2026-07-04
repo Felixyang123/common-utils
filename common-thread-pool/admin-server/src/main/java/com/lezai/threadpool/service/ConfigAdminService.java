@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ConfigSnapshot;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import lombok.RequiredArgsConstructor;
@@ -70,7 +71,7 @@ public class ConfigAdminService {
      */
     public void saveConfig(String appId, ThreadPoolConfig config, String operator) {
         if (config == null) {
-            throw new IllegalArgumentException("config must not be null");
+            throw new ValidationException("config must not be null");
         }
         configStorage.saveConfig(appId, config);
         snapshotStorage.recordSnapshot(appId, config.getPoolName(), config, operator);
@@ -82,7 +83,7 @@ public class ConfigAdminService {
      */
     public void saveConfigs(String appId, List<ThreadPoolConfig> configs, String operator) {
         if (configs == null || configs.isEmpty()) {
-            throw new IllegalArgumentException("configs must not be null or empty");
+            throw new ValidationException("configs must not be null or empty");
         }
         configStorage.saveConfigs(appId, configs);
         for (ThreadPoolConfig config : configs) {

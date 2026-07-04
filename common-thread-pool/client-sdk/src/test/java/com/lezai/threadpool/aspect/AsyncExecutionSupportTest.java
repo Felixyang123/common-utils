@@ -51,7 +51,7 @@ class AsyncExecutionSupportTest {
         ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
         when(joinPoint.proceed()).thenReturn("hello");
 
-        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("futureMethod"), pool, "future-pool", false);
+        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("futureMethod"), pool, false);
 
         assertInstanceOf(CompletableFuture.class, result);
         assertEquals("hello", ((CompletableFuture<?>) result).get(2, TimeUnit.SECONDS));
@@ -70,7 +70,7 @@ class AsyncExecutionSupportTest {
             return "done";
         });
 
-        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, "fire-forget-pool", false);
+        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, false);
 
         assertNull(result, "fire-and-forget must return null without waiting for task completion");
         assertTrue(started.await(1, TimeUnit.SECONDS), "task should still be submitted to the pool");
@@ -84,7 +84,7 @@ class AsyncExecutionSupportTest {
         ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
         when(joinPoint.proceed()).thenReturn("computed-value");
 
-        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, "await-pool", true);
+        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, true);
 
         assertEquals("computed-value", result);
     }
@@ -98,7 +98,7 @@ class AsyncExecutionSupportTest {
         when(joinPoint.proceed()).thenThrow(boom);
 
         Throwable thrown = assertThrows(IllegalStateException.class, () ->
-                AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, "await-error-pool", true));
+                AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, true));
 
         assertSame(boom, thrown, "should unwrap CompletionException to the original cause");
         assertEquals(1, pool.getErrorTaskCount());
@@ -118,7 +118,7 @@ class AsyncExecutionSupportTest {
             }
         });
 
-        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("voidMethod"), pool, "void-error-pool", false);
+        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("voidMethod"), pool, false);
 
         assertNull(result);
         assertTrue(done.await(2, TimeUnit.SECONDS));
@@ -134,7 +134,7 @@ class AsyncExecutionSupportTest {
         ProceedingJoinPoint joinPoint = mock(ProceedingJoinPoint.class);
         when(joinPoint.proceed()).thenThrow(new RuntimeException("future task failed"));
 
-        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("futureMethod"), pool, "future-error-pool", false);
+        Object result = AsyncExecutionSupport.execute(joinPoint, methodOf("futureMethod"), pool, false);
 
         assertInstanceOf(CompletableFuture.class, result);
         CompletableFuture<?> future = (CompletableFuture<?>) result;

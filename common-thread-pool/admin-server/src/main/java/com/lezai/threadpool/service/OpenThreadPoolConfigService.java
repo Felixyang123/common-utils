@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.ConfigNotFoundException;
 import com.lezai.threadpool.exception.ConfigNotModifiedException;
+import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.StatsStorage;
 import lombok.RequiredArgsConstructor;
@@ -30,10 +31,10 @@ public class OpenThreadPoolConfigService {
      */
     public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
         if (appId == null || appId.isBlank()) {
-            throw new IllegalArgumentException("appId must not be blank");
+            throw new ValidationException("appId must not be blank");
         }
         if (config == null) {
-            throw new IllegalArgumentException("config must not be null");
+            throw new ValidationException("config must not be null");
         }
         return configStorage.addConfig(appId, config);
     }
@@ -43,10 +44,10 @@ public class OpenThreadPoolConfigService {
      */
     public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (appId == null || appId.isBlank()) {
-            throw new IllegalArgumentException("appId must not be blank");
+            throw new ValidationException("appId must not be blank");
         }
         if (configs == null) {
-            throw new IllegalArgumentException("configs must not be null");
+            throw new ValidationException("configs must not be null");
         }
         return configStorage.addConfigs(appId, configs);
     }
@@ -68,7 +69,7 @@ public class OpenThreadPoolConfigService {
      */
     public void reportStats(ThreadPoolStatsReport report) {
         if (report == null || report.getAppId() == null) {
-            throw new IllegalArgumentException("Report and appId cannot be null");
+            throw new ValidationException("Report and appId cannot be null");
         }
 
         log.debug("Received stats report from appId: {}, pools: {}",

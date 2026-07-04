@@ -95,7 +95,7 @@ public class ThreadPoolInitializer {
                                 .build();
                     } catch (IllegalArgumentException e) {
                         // 包装异常以携带池名和原始值，帮助快速定位 YAML 错配
-                        throw new IllegalArgumentException(
+                        throw new com.lezai.threadpool.exception.ValidationException(
                                 "Failed to parse config for pool '" + poolConfig.getName() + "': " + e.getMessage(), e);
                     }
                 }).toList();

@@ -77,7 +77,7 @@ public class ConfigServerClient {
     // ── register ──
 
     public ThreadPoolConfig registerConfig(ThreadPoolConfig config) throws IOException {
-        if (config == null) throw new IllegalArgumentException("Config cannot be null");
+        if (config == null) throw new com.lezai.threadpool.exception.ValidationException("Config cannot be null");
         String url = String.format("%s/open/api/thread-pool/config/%s/add", serverUrl, urle(appId));
         Request request = post(url, JSON.toJSONString(config));
         try (Response response = httpClient.newCall(request).execute()) {

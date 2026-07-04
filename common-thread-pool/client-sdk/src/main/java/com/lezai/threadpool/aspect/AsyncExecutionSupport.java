@@ -27,7 +27,8 @@ final class AsyncExecutionSupport {
      * </ul>
      */
     static Object execute(ProceedingJoinPoint joinPoint, Method method, DynamicThreadPoolWrapper pool,
-                           String poolName, boolean awaitResult) throws Throwable {
+                           boolean awaitResult) throws Throwable {
+        String poolName = pool.getPoolName();
         CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
             try {
                 return joinPoint.proceed();

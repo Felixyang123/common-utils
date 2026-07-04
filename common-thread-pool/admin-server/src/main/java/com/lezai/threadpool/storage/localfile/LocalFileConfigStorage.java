@@ -3,6 +3,7 @@ package com.lezai.threadpool.storage.localfile;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.enums.StorageType;
+import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
@@ -152,7 +153,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
     @Override
     public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
         if (config == null || StringUtils.isBlank(config.getPoolName())) {
-            throw new IllegalArgumentException("config and poolName must not be blank");
+            throw new ValidationException("config and poolName must not be blank");
         }
         AtomicBoolean added = new AtomicBoolean(false);
 
@@ -187,7 +188,7 @@ public class LocalFileConfigStorage extends AbstractLocalFileStorage<LocalFileCo
     @Override
     public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (configs == null) {
-            throw new IllegalArgumentException("configs must not be null");
+            throw new ValidationException("configs must not be null");
         }
         List<ThreadPoolConfig> validConfigs = configs.stream()
                 .filter(config -> config != null && StringUtils.isNotBlank(config.getPoolName()))
