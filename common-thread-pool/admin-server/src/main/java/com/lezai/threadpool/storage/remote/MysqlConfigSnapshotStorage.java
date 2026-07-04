@@ -9,7 +9,6 @@ import com.lezai.threadpool.dao.mapper.ConfigHistoryMapper;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -19,9 +18,11 @@ import java.util.Optional;
 /**
  * MySQL 实现的配置快照存储，基于 {@code config_history} 表。
  * version 按 {@code (appId, poolName)} 维度递增。
+ * <p>
+ * 不使用 {@code @Repository}：由 {@code AdminServerAutoConfiguration.mysqlConfigSnapshotStorage()}
+ * 在 redis-mysql 模式下按条件装配，避免 local 模式误注册需要的 mapper 资源。
  */
 @Slf4j
-@Repository
 public class MysqlConfigSnapshotStorage extends ServiceImpl<ConfigHistoryMapper, ConfigHistoryEntity>
         implements ConfigSnapshotStorage {
 

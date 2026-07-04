@@ -1,0 +1,27 @@
+# local profile：H2 内存数据库，无 Redis、无 MySQL，单条命令即可启动。
+#
+# 启动：mvn -pl common-thread-pool/admin-server spring-boot:run
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:threadpool_admin;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: embedded           # 启动时执行 schema.sql
+      schema-locations: classpath:schema.sql
+  autoconfigure:
+    exclude:
+      # local 模式不连 Redis，禁用 Redisson 自动配置
+      org.redisson.spring.starter.RedissonAutoConfigurationV2
+
+# local 模式强制使用本地文件存储
+threadpool:
+  admin:
+    storage:
+      type: local
+    # local 模式不连 Redis，关闭限流（依赖 RedissonClient）
+    rate-limit:
+      enabled: false

@@ -1,5 +1,6 @@
 package com.lezai.threadpool.dao.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.alibaba.fastjson2.JSON;
@@ -26,6 +27,7 @@ public class ConfigHistoryEntity extends BaseEntity {
     private String appId;
     private String poolName;
     private Long version;
+    @TableField("config_value")
     private String value;
     private String operator;
 

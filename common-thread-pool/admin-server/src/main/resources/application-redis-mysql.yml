@@ -1,0 +1,23 @@
+# redis-mysql profile：生产 / 集群部署模式，连接 Redis + MySQL。
+#
+# 启动：mvn -pl common-thread-pool/admin-server spring-boot:run -Dspring-boot.run.profiles=redis-mysql
+# 数据源可通过环境变量覆盖：DB_URL / DB_USERNAME / DB_PASSWORD
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/threadpool_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+
+threadpool:
+  admin:
+    storage:
+      type: redis-mysql
