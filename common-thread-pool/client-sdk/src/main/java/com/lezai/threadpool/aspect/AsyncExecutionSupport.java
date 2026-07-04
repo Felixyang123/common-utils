@@ -28,7 +28,6 @@ final class AsyncExecutionSupport {
      */
     static Object execute(ProceedingJoinPoint joinPoint, Method method, DynamicThreadPoolWrapper pool,
                            boolean awaitResult) throws Throwable {
-        String poolName = pool.getPoolName();
         CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
             try {
                 return joinPoint.proceed();
@@ -40,7 +39,7 @@ final class AsyncExecutionSupport {
         CompletableFuture<Object> tracked = future.whenComplete((result, ex) -> {
             if (ex != null) {
                 pool.incrementErrorCount();
-                log.error("Async task {} failed in pool {}", methodName(method), poolName, ex);
+                log.error("Async task {} failed in pool {}", methodName(method), pool.getPoolName(), ex);
             }
         });
 

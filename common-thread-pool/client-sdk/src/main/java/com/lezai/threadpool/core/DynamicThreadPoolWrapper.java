@@ -2,7 +2,7 @@ package com.lezai.threadpool.core;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
-import com.lezai.threadpool.enumeration.QueueType;
+import com.lezai.threadpool.exception.ValidationException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -145,7 +145,7 @@ public class DynamicThreadPoolWrapper implements Executor {
             if (newCore > effectiveMax) {
                 log.error("Thread pool [{}] cannot set corePoolSize={} > maximumPoolSize={}",
                         poolName, newCore, effectiveMax);
-                throw new com.lezai.threadpool.exception.ValidationException(
+                throw new ValidationException(
                         String.format("corePoolSize(%d) must not exceed maximumPoolSize(%d) for pool '%s'",
                                 newCore, effectiveMax, poolName));
             }
@@ -230,7 +230,6 @@ public class DynamicThreadPoolWrapper implements Executor {
             case ARRAY_BLOCKING_QUEUE -> new ArrayBlockingQueue<>(config.getQueueCapacity());
             case PRIORITY_BLOCKING_QUEUE -> new PriorityBlockingQueue<>(config.getQueueCapacity());
             case SYNCHRONOUS_QUEUE -> new SynchronousQueue<>();
-            case LINKED_BLOCKING_QUEUE, BLOCKING_QUEUE -> new ResizableCapacityLinkedBlockingQueue<>(config.getQueueCapacity());
             default -> new ResizableCapacityLinkedBlockingQueue<>(config.getQueueCapacity());
         };
     }

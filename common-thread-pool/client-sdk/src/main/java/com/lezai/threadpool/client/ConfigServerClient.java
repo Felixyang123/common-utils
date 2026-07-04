@@ -2,7 +2,11 @@ package com.lezai.threadpool.client;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
-import com.lezai.threadpool.bean.*;
+import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
+import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.util.CollectionUtils;
@@ -77,7 +81,7 @@ public class ConfigServerClient {
     // ── register ──
 
     public ThreadPoolConfig registerConfig(ThreadPoolConfig config) throws IOException {
-        if (config == null) throw new com.lezai.threadpool.exception.ValidationException("Config cannot be null");
+        if (config == null) throw new ValidationException("Config cannot be null");
         String url = String.format("%s/open/api/thread-pool/config/%s/add", serverUrl, urle(appId));
         Request request = post(url, JSON.toJSONString(config));
         try (Response response = httpClient.newCall(request).execute()) {
