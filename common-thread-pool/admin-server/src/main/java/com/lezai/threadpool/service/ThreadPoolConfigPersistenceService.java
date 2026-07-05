@@ -115,9 +115,11 @@ public class ThreadPoolConfigPersistenceService {
             ThreadPoolConfigEntity oldConfig = configMap.get(configCmd.getPoolName());
             if (oldConfig != null) {
                 configConverter.cmdUpdateEntity(oldConfig, configCmd);
+                oldConfig.setAppId(appId);
                 configs.add(oldConfig);
             } else {
                 ThreadPoolConfigEntity newConfig = configConverter.upsertCmdConvertEntity(configCmd);
+                newConfig.setAppId(appId);
                 newConfigs.add(newConfig);
                 configs.add(newConfig);
             }
@@ -224,7 +226,11 @@ public class ThreadPoolConfigPersistenceService {
                 ThreadPoolConfigEntity::getPoolName, Function.identity()));
 
         List<ThreadPoolConfigEntity> addConfigs = configCmds.stream().filter(configCmd ->
-                        !configMap.containsKey(configCmd.getPoolName())).map(configConverter::upsertCmdConvertEntity)
+                        !configMap.containsKey(configCmd.getPoolName())).map(configCmd -> {
+                    ThreadPoolConfigEntity entity = configConverter.upsertCmdConvertEntity(configCmd);
+                    entity.setAppId(appId);
+                    return entity;
+                })
                 .toList();
 
         boolean saved = configRep.saveBatch(addConfigs, 100);
