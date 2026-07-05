@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS config_history (
   config_value TEXT,
   operator     VARCHAR(64),
   create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time  DATETIME,
   deleted      TINYINT      NOT NULL DEFAULT 0,
   INDEX idx_app_pool_version (app_id, pool_name, version)
 );
