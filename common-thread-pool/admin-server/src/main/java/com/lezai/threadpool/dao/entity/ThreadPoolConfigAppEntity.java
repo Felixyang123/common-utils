@@ -1,14 +1,18 @@
 package com.lezai.threadpool.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+@AllArgsConstructor
 @SuperBuilder
 @TableName(value = "thread_pool_config_app", autoResultMap = true)
 public class ThreadPoolConfigAppEntity extends BaseEntity {
