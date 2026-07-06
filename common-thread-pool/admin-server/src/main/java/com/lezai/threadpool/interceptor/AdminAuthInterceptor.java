@@ -6,6 +6,7 @@ import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.service.AdminAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -20,6 +21,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 滑动续期：若 token 川余有效期低于续期阈值，签发新 token 写入响应头 {@code X-New-Token}。
  */
 @Slf4j
+@RequiredArgsConstructor
 public class AdminAuthInterceptor implements HandlerInterceptor {
 
     public static final String ATTR_CURRENT_USER = "currentAdminUser";
@@ -30,12 +32,6 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     private final AdminAuthService adminAuthService;
     private final boolean authEnabled;
     private final long renewThresholdMinutes;
-
-    public AdminAuthInterceptor(AdminAuthService adminAuthService, boolean authEnabled, long renewThresholdMinutes) {
-        this.adminAuthService = adminAuthService;
-        this.authEnabled = authEnabled;
-        this.renewThresholdMinutes = renewThresholdMinutes;
-    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {

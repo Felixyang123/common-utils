@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -14,6 +15,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 拦截 Open API 请求，验证 X-API-Key 和 X-App-Id
  */
 @Slf4j
+@RequiredArgsConstructor
 public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
     private final ApiKeyStorage apiKeyStorage;
@@ -21,11 +23,6 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
     private static final String HEADER_API_KEY = "X-API-Key";
     private static final String HEADER_APP_ID = "X-App-Id";
-
-    public ApiKeyAuthInterceptor(ApiKeyStorage apiKeyStorage, boolean authEnabled) {
-        this.apiKeyStorage = apiKeyStorage;
-        this.authEnabled = authEnabled;
-    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
