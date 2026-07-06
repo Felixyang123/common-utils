@@ -6,21 +6,22 @@ import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.dao.rep.AdminUserRep;
 import com.lezai.threadpool.interceptor.AdminAuthInterceptor;
 import com.lezai.threadpool.interceptor.ApiKeyAuthInterceptor;
+import com.lezai.threadpool.interceptor.RateLimitInterceptor;
 import com.lezai.threadpool.service.AdminAuthService;
 import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
 import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
 import com.lezai.threadpool.storage.*;
-import com.lezai.threadpool.storage.localfile.LocalCacheService;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
+import com.lezai.threadpool.storage.localfile.LocalCacheService;
 import com.lezai.threadpool.storage.remote.RedissonCacheService;
-import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -39,30 +40,11 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
+@EnableConfigurationProperties(AdminAuthProperty.class)
 public class AdminServerAutoConfiguration {
 
-    @Value("${threadpool.admin.auth-enabled:true}")
-    private boolean authEnabled;
-
-    // ==================== Admin 认证配置 ====================
-
-    @Value("${threadpool.admin.auth.enabled:true}")
-    private boolean adminAuthEnabled;
-
-    @Value("${threadpool.admin.auth.username:admin}")
-    private String adminDefaultUsername;
-
-    @Value("${threadpool.admin.auth.password:changeme}")
-    private String adminDefaultPassword;
-
-    @Value("${threadpool.admin.auth.secret:threadpool-admin-jwt-default-secret-please-change-in-production}")
-    private String adminAuthSecret;
-
-    @Value("${threadpool.admin.auth.token-expire-minutes:480}")
-    private long adminTokenExpireMinutes;
-
-    @Value("${threadpool.admin.auth.renew-threshold-minutes:30}")
-    private long renewThresholdMinutes;
+    @Value("${threadpool.app-auth-enabled:true}")
+    private boolean appAuthEnabled;
 
     // ==================== CacheService（按 profile 二选一）====================
 
@@ -122,10 +104,10 @@ public class AdminServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AdminUserStorage.class)
-    public MyBatisAdminUserStorage adminUserStorage(AdminUserRep adminUserRep) {
+    public MyBatisAdminUserStorage adminUserStorage(AdminUserRep adminUserRep, AdminAuthProperty authProperty) {
         log.info("Initializing MyBatisAdminUserStorage");
         MyBatisAdminUserStorage storage = new MyBatisAdminUserStorage(adminUserRep);
-        storage.ensureDefaultUser(adminDefaultUsername, adminDefaultPassword);
+        storage.ensureDefaultUser(authProperty.getUsername(), authProperty.getPassword());
         return storage;
     }
 
@@ -134,23 +116,29 @@ public class AdminServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ApiKeyAuthInterceptor apiKeyAuthInterceptor(ApiKeyStorage apiKeyStorage) {
-        log.info("Initializing ApiKeyAuthInterceptor, auth-enabled: {}", authEnabled);
-        return new ApiKeyAuthInterceptor(apiKeyStorage, authEnabled);
+        log.info("Initializing ApiKeyAuthInterceptor, apiKey-auth-enabled: {}", appAuthEnabled);
+        return new ApiKeyAuthInterceptor(apiKeyStorage, appAuthEnabled);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage) {
+    public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage, AdminAuthProperty authProperty) {
         log.info("Initializing AdminAuthService, auth-enabled: {}, token-expire-minutes: {}",
-                adminAuthEnabled, adminTokenExpireMinutes);
-        return new AdminAuthService(adminUserStorage, adminAuthSecret, adminTokenExpireMinutes);
+                authProperty.getEnabled(), authProperty.getTokenExpireMinutes());
+        return new AdminAuthService(adminUserStorage, authProperty.getSecret(), authProperty.getTokenExpireMinutes());
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public AdminAuthInterceptor adminAuthInterceptor(AdminAuthService adminAuthService) {
+    public AdminAuthInterceptor adminAuthInterceptor(AdminAuthService adminAuthService, AdminAuthProperty authProperty) {
         log.info("Initializing AdminAuthInterceptor, auth-enabled: {}, token-expire-minutes: {}, renew-threshold-minutes: {}",
-                adminAuthEnabled, adminTokenExpireMinutes, renewThresholdMinutes);
-        return new AdminAuthInterceptor(adminAuthService, adminAuthEnabled, renewThresholdMinutes);
+                authProperty.getEnabled(), authProperty.getTokenExpireMinutes(), authProperty.getRenewThresholdMinutes());
+        return new AdminAuthInterceptor(adminAuthService, authProperty.getEnabled(), authProperty.getRenewThresholdMinutes());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "threadpool.admin.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
+    public RateLimitInterceptor rateLimitInterceptor(RedissonClient redissonClient) {
+        return new RateLimitInterceptor(redissonClient);
     }
 }

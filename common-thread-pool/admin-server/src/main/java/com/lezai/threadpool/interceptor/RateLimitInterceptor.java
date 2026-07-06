@@ -1,5 +1,7 @@
 package com.lezai.threadpool.interceptor;
 
+import com.alibaba.fastjson2.JSON;
+import com.lezai.threadpool.bean.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -9,9 +11,7 @@ import org.redisson.api.RRateLimiter;
 import org.redisson.api.RateIntervalUnit;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
@@ -20,8 +20,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 可通过 threadpool.admin.rate-limit.enabled=false 关闭
  */
 @Slf4j
-@Component
-@ConditionalOnProperty(name = "threadpool.admin.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
 
@@ -49,7 +47,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"code\":429,\"message\":\"Too many requests, please try again later\"}");
+        ApiResponse<Object> apiResponse = ApiResponse.error(429, "Too many requests, please try again later");
+        response.getWriter().write(JSON.toJSONString(apiResponse));
         return false;
     }
 }
