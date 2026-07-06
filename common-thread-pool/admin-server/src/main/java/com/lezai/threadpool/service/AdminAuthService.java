@@ -76,7 +76,7 @@ public class AdminAuthService {
     }
 
     /**
-     * 获取 token 川余有效期（分钟），token 无效返回空
+     * 获取 token 剩余有效期（分钟），token 无效返回空
      */
     public Optional<Long> getRemainingMinutes(String token) {
         try {
