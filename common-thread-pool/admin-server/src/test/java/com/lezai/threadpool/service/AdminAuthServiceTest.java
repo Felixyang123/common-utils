@@ -1,5 +1,7 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.bean.AdminUser;
+import com.lezai.threadpool.bean.AdminUserContext;
 import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
 import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
@@ -10,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,9 +29,18 @@ class AdminAuthServiceTest {
 
     private AdminAuthService authService;
 
+    private AdminUser adminUser;
+
     @BeforeEach
     void setUp() {
         authService = new AdminAuthService(adminUserStorage, SECRET, 30L);
+        adminUser = AdminUser.builder()
+                .username("admin")
+                .passwordHash("encoded-password")
+                .enabled(true)
+                .role("SUPER_ADMIN")
+                .nickname("admin")
+                .build();
     }
 
     private AdminLoginRequest loginRequest(String username, String password) {
@@ -41,13 +54,14 @@ class AdminAuthServiceTest {
     @DisplayName("login succeeds with correct credentials and returns a validatable token")
     void login_correctCredentials_returnsToken() {
         when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
+        when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
 
         AdminLoginResponse response = authService.login(loginRequest("admin", "secret123"));
 
         assertThat(response.getToken()).isNotBlank();
         assertThat(response.getUsername()).isEqualTo("admin");
         assertThat(response.getExpiresInSeconds()).isEqualTo(30L * 60);
-        assertThat(authService.validateToken(response.getToken())).isEqualTo("admin");
+        assertThat(authService.validateToken(response.getToken()).getUsername()).isEqualTo("admin");
     }
 
     @Test
@@ -79,6 +93,7 @@ class AdminAuthServiceTest {
     @DisplayName("validateToken rejects a token signed with a different secret")
     void validateToken_wrongSigningKey_throws() {
         when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
+        when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
         String token = authService.login(loginRequest("admin", "secret123")).getToken();
 
         AdminAuthService otherService = new AdminAuthService(adminUserStorage, "a-completely-different-secret-32-bytes!!", 30L);
@@ -91,6 +106,7 @@ class AdminAuthServiceTest {
     @DisplayName("validateToken rejects an expired token")
     void validateToken_expiredToken_throws() throws InterruptedException {
         when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
+        when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
         AdminAuthService shortLivedService = new AdminAuthService(adminUserStorage, SECRET, 0L);
 
         String token = shortLivedService.login(loginRequest("admin", "secret123")).getToken();

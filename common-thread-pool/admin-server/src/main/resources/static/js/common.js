@@ -11,6 +11,24 @@ function getUsername() {
   catch { return 'admin'; }
 }
 
+function getRole() {
+  const t = getToken();
+  if (!t) return 'ADMIN';
+  try { return JSON.parse(atob(t.split('.')[1])).role || 'ADMIN'; }
+  catch { return 'ADMIN'; }
+}
+
+function getNickname() {
+  const t = getToken();
+  if (!t) return '';
+  try { return JSON.parse(atob(t.split('.')[1])).nickname || getUsername(); }
+  catch { return getUsername(); }
+}
+
+function isSuperAdmin() {
+  return getRole() === 'SUPER_ADMIN';
+}
+
 // ===== Auth guard =====
 function requireAuth() {
   if (!getToken()) { location.href = '/login.html'; return false; }
@@ -67,12 +85,14 @@ async function logout() {
 // ===== Topbar =====
 function renderTopbar(active) {
   const u = getUsername();
+  const nick = getNickname();
   const links = [
     ['index.html', '仪表盘'],
     ['api-keys.html', 'API Key'],
     ['thread-pools.html', '线程池配置'],
     ['operate-logs.html', '操作日志'],
   ];
+  if (isSuperAdmin()) links.push(['admin-users.html', '管理员管理']);
   const nav = links.map(([href, label]) =>
     `<a href="/${href}" class="${href === active ? 'active' : ''}">${label}</a>`
   ).join('');
@@ -80,7 +100,7 @@ function renderTopbar(active) {
     <header class="topbar">
       <div class="logo">ThreadPool Admin</div>
       <nav>${nav}</nav>
-      <div class="user-info">Hi, <span>${u}</span></div>
+      <div class="user-info">Hi, <span>${nick || u}</span></div>
       <button class="btn-logout" onclick="logout()">退出</button>
     </header>
   `);

@@ -5,13 +5,16 @@
 
 -- 管理员账号表
 CREATE TABLE IF NOT EXISTS admin_user (
-  id            BIGINT       PRIMARY KEY AUTO_INCREMENT,
-  username      VARCHAR(64)  NOT NULL,
-  password_hash VARCHAR(128) NOT NULL,
-  enabled       TINYINT      NOT NULL DEFAULT 1,
-  deleted       TINYINT      NOT NULL DEFAULT 0,
-  create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  update_time   DATETIME,
+  id                 BIGINT       PRIMARY KEY AUTO_INCREMENT,
+  username           VARCHAR(64)  NOT NULL,
+  password_hash      VARCHAR(128) NOT NULL,
+  enabled            TINYINT      NOT NULL DEFAULT 1,
+  role               VARCHAR(32)  NOT NULL DEFAULT 'ADMIN',
+  nickname           VARCHAR(64),
+  password_changed_at DATETIME,
+  deleted            TINYINT      NOT NULL DEFAULT 0,
+  create_time        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time        DATETIME,
   UNIQUE (username)
 );
 

@@ -19,4 +19,14 @@ public class AdminUserRep extends ServiceImpl<AdminUserMapper, AdminUserEntity> 
     public boolean existsAny() {
         return count() > 0;
     }
+
+    public boolean existsByUsername(String username) {
+        return count(Wrappers.<AdminUserEntity>lambdaQuery()
+                .eq(AdminUserEntity::getUsername, username)) > 0;
+    }
+
+    public boolean deleteByUsername(String username) {
+        return remove(Wrappers.<AdminUserEntity>lambdaQuery()
+                .eq(AdminUserEntity::getUsername, username));
+    }
 }

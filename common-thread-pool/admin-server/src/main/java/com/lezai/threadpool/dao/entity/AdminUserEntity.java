@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
+import java.time.LocalDateTime;
 
 /**
  * 管理员账号实体类
@@ -39,4 +40,20 @@ public class AdminUserEntity extends BaseEntity {
      */
     @Builder.Default
     private Boolean enabled = Boolean.TRUE;
+
+    /**
+     * 角色（SUPER_ADMIN / ADMIN）
+     */
+    @Builder.Default
+    private String role = "ADMIN";
+
+    /**
+     * 昵称（默认同 username）
+     */
+    private String nickname;
+
+    /**
+     * 密码最近修改时间（方案 C：用于 JWT iat 对比，改密码后旧 token 失效）
+     */
+    private LocalDateTime passwordChangedAt;
 }

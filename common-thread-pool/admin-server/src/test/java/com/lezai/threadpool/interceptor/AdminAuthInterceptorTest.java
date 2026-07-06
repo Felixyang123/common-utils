@@ -1,5 +1,6 @@
 package com.lezai.threadpool.interceptor;
 
+import com.lezai.threadpool.bean.AdminUserContext;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.service.AdminAuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +86,7 @@ class AdminAuthInterceptorTest {
         request.addHeader("Authorization", "Bearer good-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        when(adminAuthService.validateToken("good-token")).thenReturn("admin");
+        when(adminAuthService.validateToken("good-token")).thenReturn(AdminUserContext.builder().username("admin").build());
 
         boolean result = interceptor.preHandle(request, response, null);
         assertThat(result).isTrue();

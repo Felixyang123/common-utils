@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员管理 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('admin-users.html');</script>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>管理员管理</h1>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="badge badge-blue" id="my-role-tag" style="font-size:13px;"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-changepwd" onclick="openModal('pwd-modal')">修改密码</button>
+        <button class="btn btn-ghost btn-sm" id="btn-changenick" onclick="openModal('nick-modal')">修改昵称</button>
+        <button class="btn btn-primary" id="btn-create" onclick="openModal('create-modal')" style="display:none;">+ 新建管理员</button>
+      </div>
+    </div>
+
+    <!-- My info card -->
+    <div class="card mb-4">
+      <div style="display:flex;gap:16px;align-items:center;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;" id="my-avatar">A</div>
+        <div>
+          <div style="font-size:16px;font-weight:600;" id="my-nickname"></div>
+          <div style="font-size:13px;color:var(--gray-500);" id="my-username"></div>
+        </div>
+        <div style="margin-left:auto;">
+          <span id="my-status-badge" class="badge badge-green">启用</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin list table (only SUPER_ADMIN) -->
+    <div class="card" id="admin-list-section" style="display:none;">
+      <h3 style="margin-bottom:12px;">管理员列表</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="admin-list"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change password modal -->
+  <div class="modal-overlay" id="pwd-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>修改密码</h3><button class="modal-close" onclick="closeModal('pwd-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>旧密码 *</label><input class="form-control" id="f-oldpwd" type="password"></div>
+        <div class="form-group"><label>新密码 *</label><input class="form-control" id="f-newpwd" type="password"></div>
+        <div class="form-group"><label>确认新密码 *</label><input class="form-control" id="f-confirmpwd" type="password"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('pwd-modal')">取消</button>
+        <button class="btn btn-primary" onclick="changePassword()">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change nickname modal -->
+  <div class="modal-overlay" id="nick-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>修改昵称</h3><button class="modal-close" onclick="closeModal('nick-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>新昵称 *</label><input class="form-control" id="f-nick" placeholder="输入新昵称"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('nick-modal')">取消</button>
+        <button class="btn btn-primary" onclick="changeNickname()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create admin modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>新建管理员</h3><button class="modal-close" onclick="closeModal('create-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>用户名 *</label><input class="form-control" id="f-cu-name"></div>
+        <div class="form-group"><label>密码 *</label><input class="form-control" id="f-cu-pwd" type="password"></div>
+        <div class="form-row">
+          <div class="form-group"><label>角色</label>
+            <select class="form-control" id="f-cu-role">
+              <option value="ADMIN">普通管理员</option>
+              <option value="SUPER_ADMIN">系统管理员</option>
+            </select>
+          </div>
+          <div class="form-group"><label>昵称</label><input class="form-control" id="f-cu-nick" placeholder="默认同用户名"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('create-modal')">取消</button>
+        <button class="btn btn-primary" onclick="createAdmin()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit admin modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <div class="modal-header"><h3 id="edit-title">编辑管理员</h3><button class="modal-close" onclick="closeModal('edit-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>用户名</label><div style="font-weight:500;" id="f-eu-name"></div></div>
+        <div class="form-group"><label>密码（留空不修改）</label><input class="form-control" id="f-eu-pwd" type="password"></div>
+        <div class="form-row">
+          <div class="form-group"><label>角色</label>
+            <select class="form-control" id="f-eu-role">
+              <option value="ADMIN">普通管理员</option>
+              <option value="SUPER_ADMIN">系统管理员</option>
+            </select>
+          </div>
+          <div class="form-group"><label>昵称</label><input class="form-control" id="f-eu-nick"></div>
+        </div>
+        <div class="form-group">
+          <label>状态</label>
+          <select class="form-control" id="f-eu-enabled">
+            <option value="true">启用</option>
+            <option value="false">禁用</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
+        <button class="btn btn-primary" onclick="editAdmin()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const nick = getNickname();
+    const uname = getUsername();
+    document.getElementById('my-avatar').textContent = (nick || uname).charAt(0).toUpperCase();
+    document.getElementById('my-nickname').textContent = nick || uname;
+    document.getElementById('my-username').textContent = uname;
+    document.getElementById('my-role-tag').textContent = getRole();
+
+    if (isSuperAdmin()) {
+      document.getElementById('btn-create').style.display = '';
+      document.getElementById('admin-list-section').style.display = '';
+      loadAdminList();
+    }
+
+    let editTarget = null;
+
+    // ===== Change password =====
+    async function changePassword() {
+      const oldPwd = document.getElementById('f-oldpwd').value;
+      const newPwd = document.getElementById('f-newpwd').value;
+      const confirmPwd = document.getElementById('f-confirmpwd').value;
+      if (!oldPwd || !newPwd) { alert('密码不能为空'); return; }
+      if (newPwd !== confirmPwd) { alert('两次密码不一致'); return; }
+      const data = await apiPut('/api/admin-users/me/password', { oldPassword: oldPwd, newPassword: newPwd });
+      if (data && data.code === 0) { alert('密码修改成功'); closeModal('pwd-modal'); }
+      else { alert(data ? data.message : '修改失败'); }
+    }
+
+    // ===== Change nickname =====
+    async function changeNickname() {
+      const nick = document.getElementById('f-nick').value.trim();
+      if (!nick) { alert('昵称不能为空'); return; }
+      const data = await apiPut('/api/admin-users/me/nickname', { nickname: nick });
+      if (data && data.code === 0) {
+        alert('昵称修改成功，请重新登录生效');
+        closeModal('nick-modal');
+        location.reload();
+      } else { alert(data ? data.message : '修改失败'); }
+    }
+
+    // ===== Admin list (SUPER_ADMIN only) =====
+    async function loadAdminList() {
+      const data = await apiGet('/api/admin-users');
+      if (!data || data.code !== 0) return;
+      const list = data.data || [];
+      document.getElementById('admin-list').innerHTML = list.length ? list.map(a => {
+        const isSelf = a.username === uname;
+        const isDefault = a.username === 'admin';
+        const canDelete = !isSelf && !isDefault;
+        return `<tr>
+          <td><code>${a.username}</code></td>
+          <td>${a.nickname || '-'}</td>
+          <td>${a.role === 'SUPER_ADMIN' ? '<span class="badge badge-blue">SUPER_ADMIN</span>' : '<span class="badge badge-gray">ADMIN</span>'}</td>
+          <td>${badgeEnabled(a.enabled)}</td>
+          <td class="text-sm">${fmtTime(a.createTime)}</td>
+          <td class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="openEdit('${a.username}')">编辑</button>
+            ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteAdmin('${a.username}')">删除</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="6" class="empty">暂无管理员</td></tr>';
+    }
+
+    // ===== Create admin =====
+    async function createAdmin() {
+      const name = document.getElementById('f-cu-name').value.trim();
+      if (!name) { alert('用户名必填'); return; }
+      const body = {
+        username: name,
+        password: document.getElementById('f-cu-pwd').value,
+        role: document.getElementById('f-cu-role').value,
+      };
+      const nick = document.getElementById('f-cu-nick').value.trim();
+      if (nick) body.nickname = nick;
+      const data = await apiPost('/api/admin-users', body);
+      if (data && data.code === 0) { closeModal('create-modal'); loadAdminList(); }
+      else { alert(data ? data.message : '创建失败'); }
+    }
+
+    // ===== Edit admin =====
+    function openEdit(username) {
+      editTarget = username;
+      document.getElementById('edit-title').textContent = '编辑 - ' + username;
+      document.getElementById('f-eu-name').textContent = username;
+      document.getElementById('f-eu-pwd').value = '';
+      document.getElementById('f-eu-nick').value = '';
+      document.getElementById('f-eu-role').value = 'ADMIN';
+      document.getElementById('f-eu-enabled').value = 'true';
+      openModal('edit-modal');
+    }
+
+    async function editAdmin() {
+      if (!editTarget) return;
+      const body = {};
+      const pwd = document.getElementById('f-eu-pwd').value;
+      if (pwd) body.password = pwd;
+      const nick = document.getElementById('f-eu-nick').value.trim();
+      if (nick) body.nickname = nick;
+      body.role = document.getElementById('f-eu-role').value;
+      body.enabled = document.getElementById('f-eu-enabled').value === 'true';
+      const data = await apiPut('/api/admin-users/' + encodeURIComponent(editTarget), body);
+      if (data && data.code === 0) { closeModal('edit-modal'); loadAdminList(); }
+      else { alert(data ? data.message : '更新失败'); }
+    }
+
+    // ===== Delete admin =====
+    async function deleteAdmin(username) {
+      if (!confirm('确认删除管理员 ' + username + '？')) return;
+      const data = await apiDelete('/api/admin-users/' + encodeURIComponent(username));
+      if (data && data.code === 0) { loadAdminList(); }
+      else { alert(data ? data.message : '删除失败'); }
+    }
+  </script>
+</body>
+</html>

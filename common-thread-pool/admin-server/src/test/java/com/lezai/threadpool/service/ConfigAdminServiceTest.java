@@ -95,7 +95,7 @@ class ConfigAdminServiceTest {
     void saveConfigs() {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
 
-        service.saveConfigs("app1", configs, "admin");
+        service.saveConfigs("app1", configs);
 
         verify(configStorage).saveConfigs("app1", configs);
     }
@@ -107,7 +107,7 @@ class ConfigAdminServiceTest {
     void saveConfig() {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
 
-        service.saveConfig("app1", config, "admin");
+        service.saveConfig("app1", config);
 
         verify(configStorage).saveConfig("app1", config);
     }
@@ -117,7 +117,7 @@ class ConfigAdminServiceTest {
     @Test
     @DisplayName("deleteConfigs delegates to storage")
     void deleteConfigs() {
-        service.deleteConfigs("app1", "admin");
+        service.deleteConfigs("app1");
 
         verify(configStorage).deleteConfigs("app1");
     }
@@ -127,7 +127,7 @@ class ConfigAdminServiceTest {
     @Test
     @DisplayName("deleteConfig delegates to storage")
     void deleteConfig() {
-        service.deleteConfig("app1", "test-pool", "admin");
+        service.deleteConfig("app1", "test-pool");
 
         verify(configStorage).deleteConfig("app1", "test-pool");
     }
@@ -140,7 +140,7 @@ class ConfigAdminServiceTest {
         ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
         when(configStorage.addConfig("app1", config)).thenReturn(config);
 
-        ThreadPoolConfig result = service.addConfig("app1", config, "admin");
+        ThreadPoolConfig result = service.addConfig("app1", config);
 
         assertThat(result).isEqualTo(config);
         verify(configStorage).addConfig("app1", config);
@@ -154,7 +154,7 @@ class ConfigAdminServiceTest {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
         when(configStorage.addConfigs("app1", configs)).thenReturn(configs);
 
-        List<ThreadPoolConfig> result = service.addConfigs("app1", configs, "admin");
+        List<ThreadPoolConfig> result = service.addConfigs("app1", configs);
 
         assertThat(result).hasSize(2);
         verify(configStorage).addConfigs("app1", configs);

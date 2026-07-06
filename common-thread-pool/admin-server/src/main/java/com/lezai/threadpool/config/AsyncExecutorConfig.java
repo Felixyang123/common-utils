@@ -1,5 +1,6 @@
 package com.lezai.threadpool.config;
 
+import com.lezai.threadpool.context.AdminUserContextTaskDecorator;
 import com.lezai.threadpool.utils.ExecutorUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,6 +10,7 @@ import org.springframework.context.SmartLifecycle;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -102,28 +104,31 @@ public class AsyncExecutorConfig {
     }
 
     /**
-     * 队列满时主线程执行（CallerRunsPolicy），保证不丢数据；守护线程，命名前缀区分用途
+     * 创建带 {@link ThreadPoolTaskExecutor} 的异步执行器。
+     * <p>
+     * 使用 {@link ThreadPoolTaskExecutor} 替代裸 {@link ThreadPoolExecutor}，
+     * 以便设置 {@link AdminUserContextTaskDecorator}，自动将当前登录管理员上下文
+     * 传递到 {@code @Async} 执行线程中。
      */
     private ExecutorService createAsyncExecutor(int coreSize, int maxSize, int queueCapacity, String threadNamePrefix) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                coreSize,
-                maxSize,
-                60L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(queueCapacity),
-                new ThreadFactory() {
-                    private final AtomicInteger counter = new AtomicInteger(0);
-
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread t = new Thread(r, threadNamePrefix + "-" + counter.incrementAndGet());
-                        t.setDaemon(true);
-                        return t;
-                    }
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy()
-        );
-        log.info("Created {}: core={}, max={}, queue={}", threadNamePrefix, coreSize, maxSize, queueCapacity);
-        return executor;
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(coreSize);
+        executor.setMaxPoolSize(maxSize);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setThreadFactory(new ThreadFactory() {
+            private final AtomicInteger counter = new AtomicInteger(0);
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, threadNamePrefix + "-" + counter.incrementAndGet());
+                t.setDaemon(true);
+                return t;
+            }
+        });
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setTaskDecorator(new AdminUserContextTaskDecorator());
+        executor.initialize();
+        log.info("Created {}: core={}, max={}, queue={}, auto-context=true", threadNamePrefix, coreSize, maxSize, queueCapacity);
+        return executor.getThreadPoolExecutor();
     }
 
     @Bean

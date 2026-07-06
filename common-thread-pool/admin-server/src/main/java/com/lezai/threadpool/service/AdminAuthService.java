@@ -1,31 +1,39 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.bean.AdminUserContext;
 import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
 import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.storage.AdminUserStorage;
+import com.lezai.threadpool.bean.AdminUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.Optional;
 
 /**
  * 管理员登录认证服务：校验用户名密码，签发/校验 JWT。
  * <p>
- * 管理员（Admin User）是操作 admin-server 管理后台的人员身份，与客户端的
- * app-id + api-key 体系互相独立（见 CONTEXT.md「部署形态与身份」）。
+ * JWT payload 内含 username / role / nickname / iat 等 claims。
+ * 校验 token 时返回 {@link AdminUserContext}，供拦截器构建上下文。
+ * 方案 C：改密码后旧 token 失效（对比 iat vs passwordChangedAt）。
  */
 @Slf4j
 public class AdminAuthService {
 
     private static final String CLAIM_USERNAME = "username";
+    private static final String CLAIM_ROLE = "role";
+    private static final String CLAIM_NICKNAME = "nickname";
 
     private final AdminUserStorage adminUserStorage;
     private final SecretKey signingKey;
@@ -45,15 +53,19 @@ public class AdminAuthService {
             throw new AuthenticationException("Invalid username or password");
         }
 
+        AdminUser adminUser = adminUserStorage.getByUsername(request.getUsername())
+                .orElseThrow(() -> new AuthenticationException("User not found after validation"));
+
         Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + expiry.toMillis());
 
         String token = Jwts.builder()
                 .subject(request.getUsername())
                 .claim(CLAIM_USERNAME, request.getUsername())
+                .claim(CLAIM_ROLE, adminUser.getRole())
+                .claim(CLAIM_NICKNAME, adminUser.getNickname() != null ? adminUser.getNickname() : request.getUsername())
                 .issuedAt(now)
-                .expiration(expiration)
+                .expiration(new Date(now.getTime() + expiry.toMillis()))
                 .signWith(signingKey)
                 .compact();
 
@@ -62,17 +74,48 @@ public class AdminAuthService {
         response.setUsername(request.getUsername());
         response.setExpiresInSeconds(expiry.toSeconds());
 
-        log.info("Admin login successful: {}", request.getUsername());
+        log.info("Admin login successful: {} ({})", request.getUsername(), adminUser.getRole());
         return response;
     }
 
     /**
-     * 校验 token，返回其中的用户名
+     * 校验 token 并返回当前登录用户上下文。
+     * <p>
+     * 方案 C：若用户密码最近修改时间晚于 JWT 签发时间，视为 token 已失效。
      *
-     * @throws AuthenticationException token 无效或已过期
+     * @throws AuthenticationException token 无效、已过期、或密码已变更
      */
-    public String validateToken(String token) {
-        return parseClaims(token).get(CLAIM_USERNAME, String.class);
+    public AdminUserContext validateToken(String token) {
+        Claims claims = parseClaims(token);
+        String username = claims.get(CLAIM_USERNAME, String.class);
+        if (StringUtils.isBlank(username)) {
+            throw new AuthenticationException("Invalid token: missing username");
+        }
+
+        // 查 DB 获取当前用户信息（含 passwordChangedAt）
+        AdminUser adminUser = adminUserStorage.getByUsername(username)
+                .orElseThrow(() -> new AuthenticationException("User not found: " + username));
+
+        if (!adminUser.isEnabled()) {
+            throw new AuthenticationException("User has been disabled: " + username);
+        }
+
+        // 方案 C：对比 iat vs passwordChangedAt
+        Date iat = claims.getIssuedAt();
+        if (iat != null && adminUser.getPasswordChangedAt() != null) {
+            LocalDateTime changedAt = adminUser.getPasswordChangedAt();
+            Date changedDate = Date.from(changedAt.atZone(ZoneId.systemDefault()).toInstant());
+            if (changedDate.after(iat)) {
+                throw new AuthenticationException("Token expired: password has been changed since token issued");
+            }
+        }
+
+        return AdminUserContext.builder()
+                .username(username)
+                .role(adminUser.getRole())
+                .nickname(adminUser.getNickname() != null ? adminUser.getNickname() : username)
+                .passwordChangedAt(adminUser.getPasswordChangedAt())
+                .build();
     }
 
     /**
@@ -91,20 +134,19 @@ public class AdminAuthService {
     /**
      * 滑动续期：为指定用户签发新 token，返回新 token 字符串
      */
-    public String renew(String username) {
+    public String renew(String username, String role, String nickname) {
         Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + expiry.toMillis());
 
-        String token = Jwts.builder()
+        return Jwts.builder()
                 .subject(username)
                 .claim(CLAIM_USERNAME, username)
+                .claim(CLAIM_ROLE, role)
+                .claim(CLAIM_NICKNAME, nickname)
                 .issuedAt(now)
-                .expiration(expiration)
+                .expiration(new Date(now.getTime() + expiry.toMillis()))
                 .signWith(signingKey)
                 .compact();
-        log.debug("Admin token renewed for user: {}", username);
-        return token;
     }
 
     private Claims parseClaims(String token) {
