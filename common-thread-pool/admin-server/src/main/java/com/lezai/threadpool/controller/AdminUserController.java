@@ -1,6 +1,7 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.controller.dto.request.ChangeNicknameRequest;
 import com.lezai.threadpool.controller.dto.request.ChangePasswordRequest;
 import com.lezai.threadpool.controller.dto.request.CreateAdminUserRequest;
@@ -11,8 +12,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * 管理员账号管理控制器
@@ -26,11 +25,13 @@ public class AdminUserController {
     private final AdminUserManagementService adminUserManagementService;
 
     /**
-     * 列出所有管理员（仅 SUPER_ADMIN）
+     * 分页列出管理员（仅 SUPER_ADMIN）
      */
     @GetMapping
-    public ApiResponse<List<AdminUserResponse>> listAll() {
-        return ApiResponse.success(adminUserManagementService.listAll());
+    public ApiResponse<PageResult<AdminUserResponse>> pageAdminUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return ApiResponse.success(adminUserManagementService.page(page, pageSize));
     }
 
     /**

@@ -3,7 +3,7 @@ package com.lezai.threadpool.service;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
@@ -56,7 +56,7 @@ public class SubscriptionService {
         Optional<ThreadPoolAppConfig> appConfigOptional = configStorage.getAppConfig(appId);
 
         if (appConfigOptional.isEmpty()) {
-            throw new ConfigNotFoundException("Config not found for appId: " + appId);
+            throw new ResourceNotFoundException("Config not found for appId: " + appId);
         }
 
         ThreadPoolAppConfig appConfig = appConfigOptional.get();

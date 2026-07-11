@@ -63,7 +63,7 @@ class ApiKeyPersistenceServiceTest {
 
     @Test
     @DisplayName("upsert creates new API key when not exists")
-    void upsert_create() {
+    void add_create() {
         ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
         cmd.setAppId("app1");
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
@@ -72,7 +72,7 @@ class ApiKeyPersistenceServiceTest {
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(null);
         when(apiKeyMapper.insert(any(ApiKeyEntity.class))).thenReturn(1);
 
-        boolean result = service.upsert(cmd);
+        boolean result = service.add(cmd);
 
         assertThat(result).isTrue();
         verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
@@ -80,7 +80,7 @@ class ApiKeyPersistenceServiceTest {
 
     @Test
     @DisplayName("upsert updates existing API key")
-    void upsert_update() {
+    void add_updateByAppId() {
         ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
         cmd.setAppId("app1");
         ApiKeyEntity newEntity = ApiKeyEntity.builder().appId("app1").build();
@@ -90,7 +90,7 @@ class ApiKeyPersistenceServiceTest {
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(oldEntity);
         when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
 
-        boolean result = service.upsert(cmd);
+        boolean result = service.add(cmd);
 
         assertThat(result).isTrue();
         assertThat(newEntity.getId()).isEqualTo(1L);
@@ -135,7 +135,7 @@ class ApiKeyPersistenceServiceTest {
 
     @Test
     @DisplayName("update updates existing key")
-    void update() {
+    void updateByAppId() {
         ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
         cmd.setAppId("app1");
         cmd.setId(1L);
@@ -144,7 +144,7 @@ class ApiKeyPersistenceServiceTest {
         when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
         when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
 
-        boolean result = service.update(cmd);
+        boolean result = service.updateByAppId(cmd);
 
         assertThat(result).isTrue();
         verify(logService).log(eq(OperateType.UPDATE), any(), eq(entity), eq("1"), eq(BizType.APIKEY));

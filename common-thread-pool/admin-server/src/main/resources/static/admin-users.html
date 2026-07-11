@@ -44,6 +44,7 @@
           <tbody id="admin-list"></tbody>
         </table>
       </div>
+      <div class="pagination" id="admin-pager"></div>
     </div>
   </div>
 
@@ -140,13 +141,15 @@
     document.getElementById('my-username').textContent = uname;
     document.getElementById('my-role-tag').textContent = getRole();
 
+    let editTarget = null;
+    let adminPage = 1, adminTotal = 0;
+    const ADMIN_PAGE_SIZE = 20;
+
     if (isSuperAdmin()) {
       document.getElementById('btn-create').style.display = '';
       document.getElementById('admin-list-section').style.display = '';
       loadAdminList();
     }
-
-    let editTarget = null;
 
     // ===== Change password =====
     async function changePassword() {
@@ -156,7 +159,12 @@
       if (!oldPwd || !newPwd) { alert('密码不能为空'); return; }
       if (newPwd !== confirmPwd) { alert('两次密码不一致'); return; }
       const data = await apiPut('/api/admin-users/me/password', { oldPassword: oldPwd, newPassword: newPwd });
-      if (data && data.code === 0) { alert('密码修改成功'); closeModal('pwd-modal'); }
+      if (data && data.code === 0) {
+        alert('密码修改成功，请重新登录');
+        closeModal('pwd-modal');
+        clearToken();
+        location.href = '/login.html';
+      }
       else { alert(data ? data.message : '修改失败'); }
     }
 
@@ -174,9 +182,11 @@
 
     // ===== Admin list (SUPER_ADMIN only) =====
     async function loadAdminList() {
-      const data = await apiGet('/api/admin-users');
+      const data = await apiGet('/api/admin-users?page=' + adminPage + '&pageSize=' + ADMIN_PAGE_SIZE);
       if (!data || data.code !== 0) return;
-      const list = data.data || [];
+      const d = data.data || { total: 0, list: [] };
+      adminTotal = d.total || 0;
+      const list = d.list || [];
       document.getElementById('admin-list').innerHTML = list.length ? list.map(a => {
         const isSelf = a.username === uname;
         const isDefault = a.username === 'admin';
@@ -193,7 +203,15 @@
           </td>
         </tr>`;
       }).join('') : '<tr><td colspan="6" class="empty">暂无管理员</td></tr>';
+
+      const totalPages = Math.ceil(adminTotal / ADMIN_PAGE_SIZE) || 1;
+      document.getElementById('admin-pager').innerHTML = `
+        <button ${adminPage<=1?'disabled':''} onclick="goAdminPage(${adminPage-1})">上一页</button>
+        <span>${adminPage} / ${totalPages} (共${adminTotal}条)</span>
+        <button ${adminPage>=totalPages?'disabled':''} onclick="goAdminPage(${adminPage+1})">下一页</button>`;
     }
+
+    function goAdminPage(p) { adminPage = p; loadAdminList(); }
 
     // ===== Create admin =====
     async function createAdmin() {

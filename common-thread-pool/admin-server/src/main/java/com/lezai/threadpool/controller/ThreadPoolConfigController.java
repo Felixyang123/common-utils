@@ -1,6 +1,9 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.*;
+import com.lezai.threadpool.controller.dto.request.CreateAppRequest;
+import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
+import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
 import com.lezai.threadpool.service.ConfigAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -101,5 +104,34 @@ public class ThreadPoolConfigController {
             @PathVariable String poolName,
             @RequestParam long version) {
         return ApiResponse.success(configAdminService.rollback(appId, poolName, version));
+    }
+
+    @PostMapping("/apps")
+    public ApiResponse<CreateApiKeyResponse> createApp(@Valid @RequestBody CreateAppRequest request) {
+        return ApiResponse.success(configAdminService.createApp(request));
+    }
+
+    @DeleteMapping("/apps/{appId}")
+    public ApiResponse<Void> deleteApp(@PathVariable String appId) {
+        configAdminService.deleteApp(appId);
+        return ApiResponse.success();
+    }
+
+    @GetMapping("/configs/deleted")
+    public ApiResponse<List<ThreadPoolConfigEntity>> listDeletedConfigs() {
+        return ApiResponse.success(configAdminService.listDeletedConfigs());
+    }
+
+    @PutMapping("/configs/{appId}/{poolName}/restore")
+    public ApiResponse<ThreadPoolConfigEntity> restoreConfig(
+            @PathVariable String appId,
+            @PathVariable String poolName) {
+        return ApiResponse.success(configAdminService.restoreConfig(appId, poolName));
+    }
+
+    @PutMapping("/configs/{appId}/restore")
+    public ApiResponse<Void> restoreConfigs(@PathVariable String appId) {
+        configAdminService.restoreConfigs(appId);
+        return ApiResponse.success();
     }
 }

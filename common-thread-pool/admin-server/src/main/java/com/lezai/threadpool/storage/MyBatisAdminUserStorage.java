@@ -1,6 +1,8 @@
 package com.lezai.threadpool.storage;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lezai.threadpool.bean.AdminUser;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.dao.entity.AdminUserEntity;
 import com.lezai.threadpool.dao.rep.AdminUserRep;
 import com.lezai.threadpool.utils.PasswordUtils;
@@ -29,8 +31,14 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
     }
 
     @Override
-    public List<AdminUser> listAll() {
+    public List<AdminUser> page() {
         return adminUserRep.list().stream().map(this::toUser).toList();
+    }
+
+    @Override
+    public PageResult<AdminUser> page(int page, int pageSize) {
+        Page<AdminUserEntity> mpPage = adminUserRep.page(page, pageSize);
+        return PageResult.of(mpPage.getTotal(), mpPage.getRecords().stream().map(this::toUser).toList());
     }
 
     @Override
@@ -79,6 +87,7 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
 
     private AdminUser toUser(AdminUserEntity entity) {
         return AdminUser.builder()
+                .id(entity.getId())
                 .username(entity.getUsername())
                 .passwordHash(entity.getPasswordHash())
                 .enabled(Boolean.TRUE.equals(entity.getEnabled()))
@@ -90,6 +99,7 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
 
     private AdminUserEntity toEntity(AdminUser user) {
         return AdminUserEntity.builder()
+                .id(user.getId())
                 .username(user.getUsername())
                 .passwordHash(user.getPasswordHash())
                 .enabled(user.isEnabled())

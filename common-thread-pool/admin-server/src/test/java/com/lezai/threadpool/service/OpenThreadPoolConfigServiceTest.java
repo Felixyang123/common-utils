@@ -4,8 +4,8 @@ import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.exception.ConfigNotModifiedException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.StatsStorage;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,7 +98,7 @@ class OpenThreadPoolConfigServiceTest {
         when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
 
         assertThatThrownBy(() -> service.pullConfigs("app1", 5L))
-                .isInstanceOf(ConfigNotModifiedException.class);
+                .isInstanceOf(ResourceNotModifiedException.class);
     }
 
     @Test
@@ -107,7 +107,7 @@ class OpenThreadPoolConfigServiceTest {
         when(configStorage.getAppConfig("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.pullConfigs("unknown", null))
-                .isInstanceOf(ConfigNotFoundException.class);
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test

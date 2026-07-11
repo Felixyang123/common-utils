@@ -2,26 +2,22 @@ package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.bean.AdminUser;
 import com.lezai.threadpool.bean.AdminUserContext;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.context.AdminUserContextHolder;
 import com.lezai.threadpool.controller.dto.request.ChangeNicknameRequest;
 import com.lezai.threadpool.controller.dto.request.ChangePasswordRequest;
 import com.lezai.threadpool.controller.dto.request.CreateAdminUserRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateAdminUserRequest;
 import com.lezai.threadpool.controller.dto.response.AdminUserResponse;
-import com.lezai.threadpool.enums.BizType;
-import com.lezai.threadpool.enums.OperateType;
-import com.lezai.threadpool.exception.AuthenticationException;
-import com.lezai.threadpool.exception.BusinessException;
-import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.*;
 import com.lezai.threadpool.storage.AdminUserStorage;
 import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 管理员账号管理服务。
@@ -43,22 +39,19 @@ public class AdminUserManagementService {
     private static final String DEFAULT_ADMIN = "admin";
 
     private final AdminUserStorage adminUserStorage;
-    private final OperateLogService operateLogService;
 
-    public List<AdminUserResponse> listAll() {
-        return adminUserStorage.listAll().stream().map(this::toResponse).toList();
+    public PageResult<AdminUserResponse> page(int page, int pageSize) {
+        requireSuperAdmin();
+        PageResult<AdminUser> result = adminUserStorage.page(page, pageSize);
+        return PageResult.of(result.getTotal(), result.getList().stream().map(this::toResponse).toList());
     }
 
     public AdminUserResponse createAdmin(CreateAdminUserRequest request) {
         requireSuperAdmin();
 
-        if (adminUserStorage.existsByUsername(request.getUsername())) {
-            throw new ConfigAlreadyExistsException("Admin user already exists: " + request.getUsername());
-        }
-
         String role = request.getRole() != null ? request.getRole() : "ADMIN";
         if (!"SUPER_ADMIN".equals(role) && !"ADMIN".equals(role)) {
-            throw new BusinessException(400, "Invalid role: " + role + " (must be SUPER_ADMIN or ADMIN)");
+            throw new ValidationException("Invalid role: " + role + " (must be SUPER_ADMIN or ADMIN)");
         }
 
         String nickname = request.getNickname() != null ? request.getNickname() : request.getUsername();
@@ -71,7 +64,12 @@ public class AdminUserManagementService {
                 .nickname(nickname)
                 .passwordChangedAt(LocalDateTime.now())
                 .build();
-        adminUserStorage.save(user);
+
+        try {
+            adminUserStorage.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new ResoureAlreadyExistsException("Admin user already exists: " + request.getUsername());
+        }
 
         log.info("Admin user created: {} ({}) by {}", user.getUsername(), role, AdminUserContextHolder.get().getUsername());
         return toResponse(user);
@@ -82,20 +80,25 @@ public class AdminUserManagementService {
         AdminUserContext ctx = AdminUserContextHolder.get();
 
         AdminUser existing = adminUserStorage.getByUsername(targetUsername)
-                .orElseThrow(() -> new ConfigNotFoundException("Admin user not found: " + targetUsername));
+                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found: " + targetUsername));
 
         // 保护规则：不可改自己角色
         if (request.getRole() != null && ctx.getUsername().equals(targetUsername)) {
-            throw new BusinessException(403, "You cannot change your own role");
+            throw new AuthForbiddenException("You cannot change your own role");
+        }
+
+        // 保护规则：默认 admin 角色不可更改
+        if (DEFAULT_ADMIN.equals(targetUsername) && request.getRole() != null) {
+            throw new AuthForbiddenException("Default admin user role cannot be changed");
         }
 
         // 保护规则：默认 admin 不可禁用
         if (DEFAULT_ADMIN.equals(targetUsername) && Boolean.FALSE.equals(request.getEnabled())) {
-            throw new BusinessException(403, "Default admin user cannot be disabled");
+            throw new AuthForbiddenException("Default admin user cannot be disabled");
         }
 
         AdminUser.AdminUserBuilder builder = AdminUser.builder()
-                .username(targetUsername);
+                .id(existing.getId()).username(targetUsername);
 
         if (request.getPassword() != null) {
             builder.passwordHash(PasswordUtils.hash(request.getPassword()));
@@ -109,9 +112,10 @@ public class AdminUserManagementService {
         builder.role(request.getRole() != null ? request.getRole() : existing.getRole());
         builder.nickname(request.getNickname() != null ? request.getNickname() : existing.getNickname());
 
-        adminUserStorage.update(builder.build());
+        AdminUser adminUser = builder.build();
+        adminUserStorage.update(adminUser);
         log.info("Admin user updated: {} by {}", targetUsername, ctx.getUsername());
-        return toResponse(adminUserStorage.getByUsername(targetUsername).orElseThrow());
+        return toResponse(adminUser);
     }
 
     public void deleteAdmin(String targetUsername) {
@@ -120,16 +124,16 @@ public class AdminUserManagementService {
 
         // 保护规则：默认 admin 不可删除
         if (DEFAULT_ADMIN.equals(targetUsername)) {
-            throw new BusinessException(403, "Default admin user cannot be deleted");
+            throw new AuthForbiddenException("Default admin user cannot be deleted");
         }
 
         // 保护规则：不可删除自己
         if (ctx.getUsername().equals(targetUsername)) {
-            throw new BusinessException(403, "You cannot delete yourself");
+            throw new AuthForbiddenException("You cannot delete yourself");
         }
 
         if (!adminUserStorage.existsByUsername(targetUsername)) {
-            throw new ConfigNotFoundException("Admin user not found: " + targetUsername);
+            throw new ResourceNotFoundException("Admin user not found: " + targetUsername);
         }
 
         adminUserStorage.deleteByUsername(targetUsername);
@@ -140,13 +144,14 @@ public class AdminUserManagementService {
         AdminUserContext ctx = AdminUserContextHolder.get();
 
         AdminUser existing = adminUserStorage.getByUsername(ctx.getUsername())
-                .orElseThrow(() -> new ConfigNotFoundException("User not found: " + ctx.getUsername()));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + ctx.getUsername()));
 
         if (!PasswordUtils.matches(request.getOldPassword(), existing.getPasswordHash())) {
             throw new AuthenticationException("Old password is incorrect");
         }
 
         AdminUser updated = AdminUser.builder()
+                .id(existing.getId())
                 .username(existing.getUsername())
                 .passwordHash(PasswordUtils.hash(request.getNewPassword()))
                 .enabled(existing.isEnabled())
@@ -163,9 +168,10 @@ public class AdminUserManagementService {
         AdminUserContext ctx = AdminUserContextHolder.get();
 
         AdminUser existing = adminUserStorage.getByUsername(ctx.getUsername())
-                .orElseThrow(() -> new ConfigNotFoundException("User not found: " + ctx.getUsername()));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + ctx.getUsername()));
 
         AdminUser updated = AdminUser.builder()
+                .id(existing.getId())
                 .username(existing.getUsername())
                 .passwordHash(existing.getPasswordHash())
                 .enabled(existing.isEnabled())

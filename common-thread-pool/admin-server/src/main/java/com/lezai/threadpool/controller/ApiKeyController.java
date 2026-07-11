@@ -1,6 +1,7 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
@@ -11,8 +12,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * API Key 管理控制器
@@ -55,11 +54,13 @@ public class ApiKeyController {
     }
 
     /**
-     * 列出所有 API Key（脱敏）
+     * 分页列出 API Key（脱敏）
      */
     @GetMapping
-    public ApiResponse<List<ApiKeyInfoResponse>> listAllApiKeys() {
-        return ApiResponse.success(apiKeyAdminService.listAllApiKeys());
+    public ApiResponse<PageResult<ApiKeyInfoResponse>> pageApiKeys(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return ApiResponse.success(apiKeyAdminService.pageApiKeys(page, pageSize));
     }
 
     /**

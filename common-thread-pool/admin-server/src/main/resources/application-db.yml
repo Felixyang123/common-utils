@@ -8,7 +8,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/threadpool_management?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:lifan1994}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10

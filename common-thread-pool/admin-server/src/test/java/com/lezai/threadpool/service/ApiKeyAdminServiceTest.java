@@ -6,8 +6,8 @@ import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
-import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -80,7 +80,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.putIfAbsent(any(ApiKey.class))).thenReturn(false);
 
         assertThatThrownBy(() -> service.createApiKey(request))
-                .isInstanceOf(ConfigAlreadyExistsException.class)
+                .isInstanceOf(ResoureAlreadyExistsException.class)
                 .hasMessageContaining("my-app");
     }
 
@@ -117,7 +117,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.exists("unknown")).thenReturn(false);
 
         assertThatThrownBy(() -> service.deleteApiKey("unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
 
         verify(apiKeyStorage, never()).deleteApiKey(anyString());
@@ -159,7 +159,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.getApiKey("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getApiKey("unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
 
@@ -187,23 +187,23 @@ class ApiKeyAdminServiceTest {
 
     @Test
     @DisplayName("listAllApiKeys returns empty list when no keys")
-    void listAllApiKeys_empty() {
-        when(apiKeyStorage.listAllApiKeys()).thenReturn(Collections.emptyList());
+    void allApiKeys_empty() {
+        when(apiKeyStorage.allApiKeys()).thenReturn(Collections.emptyList());
 
-        List<ApiKeyInfoResponse> result = service.listAllApiKeys();
+        List<ApiKeyInfoResponse> result = service.allApiKeys();
 
         assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("listAllApiKeys returns multiple keys")
-    void listAllApiKeys_multiple() {
+    void allApiKeys_multiple() {
         ApiKey key1 = ApiKey.builder().appId("app1").appName("App 1").enabled(true).build();
         ApiKey key2 = ApiKey.builder().appId("app2").appName("App 2").enabled(true).build();
 
-        when(apiKeyStorage.listAllApiKeys()).thenReturn(List.of(key1, key2));
+        when(apiKeyStorage.allApiKeys()).thenReturn(List.of(key1, key2));
 
-        List<ApiKeyInfoResponse> result = service.listAllApiKeys();
+        List<ApiKeyInfoResponse> result = service.allApiKeys();
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getAppId()).isEqualTo("app1");
@@ -232,7 +232,7 @@ class ApiKeyAdminServiceTest {
         service.updateApiKey("my-app", request);
 
         ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
-        verify(apiKeyStorage).saveApiKey(captor.capture());
+        verify(apiKeyStorage).updateApiKey(captor.capture());
         ApiKey saved = captor.getValue();
         assertThat(saved.getAppId()).isEqualTo("my-app");
         assertThat(saved.getApiKeyHash()).isEqualTo("existing-hash");
@@ -252,10 +252,10 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.getApiKey("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.updateApiKey("unknown", request))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
 
-        verify(apiKeyStorage, never()).saveApiKey(any(ApiKey.class));
+        verify(apiKeyStorage, never()).updateApiKey(any(ApiKey.class));
     }
 
     // ==================== regenerateApiKey ====================
@@ -279,7 +279,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.exists("unknown")).thenReturn(false);
 
         assertThatThrownBy(() -> service.regenerateApiKey("unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
 
         verify(apiKeyStorage, never()).regenerateApiKey(anyString());
@@ -293,7 +293,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.exists("")).thenReturn(false);
 
         assertThatThrownBy(() -> service.deleteApiKey(""))
-                .isInstanceOf(ConfigNotFoundException.class);
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -302,6 +302,6 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.getApiKey("")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getApiKey(""))
-                .isInstanceOf(ConfigNotFoundException.class);
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }

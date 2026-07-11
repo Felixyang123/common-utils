@@ -3,8 +3,8 @@ package com.lezai.threadpool.service;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
-import com.lezai.threadpool.exception.ConfigNotModifiedException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.StatsStorage;
@@ -58,10 +58,10 @@ public class OpenThreadPoolConfigService {
     public ThreadPoolAppConfig pullConfigs(String appId, Long version) {
         return configStorage.getAppConfig(appId).map(appConfig -> {
             if (version != null && appConfig.getConfigVersion() <= version) {
-                throw new ConfigNotModifiedException("Config not modified for appId: " + appId);
+                throw new ResourceNotModifiedException("Config not modified for appId: " + appId);
             }
             return appConfig;
-        }).orElseThrow(() -> new ConfigNotFoundException("Config not found for appId: " + appId));
+        }).orElseThrow(() -> new ResourceNotFoundException("Config not found for appId: " + appId));
     }
 
     /**

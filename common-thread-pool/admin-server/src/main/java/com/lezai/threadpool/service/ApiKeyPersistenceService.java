@@ -1,7 +1,9 @@
 package com.lezai.threadpool.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lezai.threadpool.context.AdminUserContextHolder;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
@@ -25,22 +27,19 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
         return apiKeyConverter.convertDtos(list());
     }
 
-    public boolean upsert(ApiKeyUpsertCmd cmd) {
+    public Page<ApiKeyDto> page(int pageNum, int pageSize) {
+        Page<ApiKeyEntity> mpPage = page(new Page<>(pageNum, pageSize),
+                Wrappers.<ApiKeyEntity>lambdaQuery().orderByDesc(ApiKeyEntity::getCreateTime));
+        Page<ApiKeyDto> result = new Page<>(mpPage.getCurrent(), mpPage.getSize(), mpPage.getTotal());
+        result.setRecords(apiKeyConverter.convertDtos(mpPage.getRecords()));
+        return result;
+    }
+
+    public boolean add(ApiKeyUpsertCmd cmd) {
         ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
-        ApiKeyEntity oldApiKey = getOne(Wrappers.<ApiKeyEntity>lambdaQuery()
-                .eq(ApiKeyEntity::getAppId, cmd.getAppId()));
-        OperateType operateType;
-        boolean saved;
-        if (oldApiKey != null) {
-            newApiKey.setId(oldApiKey.getId());
-            saved = updateById(newApiKey);
-            operateType = OperateType.UPDATE;
-        } else {
-            saved = save(newApiKey);
-            operateType = OperateType.CREATE;
-        }
+        boolean saved = save(newApiKey);
         if (saved) {
-            logService.log(operateType, "", newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
+            logService.log(OperateType.CREATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
         }
         return saved;
     }
@@ -54,12 +53,17 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
         return remove(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
     }
 
-    public boolean update(ApiKeyUpsertCmd cmd) {
+    public boolean updateByAppId(ApiKeyUpsertCmd cmd) {
         ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
-        boolean updated = updateById(newApiKey);
+        boolean updated = update(newApiKey, Wrappers.<ApiKeyEntity>lambdaUpdate().eq(ApiKeyEntity::getAppId, cmd.getAppId()));
         if (updated) {
-            logService.log(OperateType.UPDATE, "", newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
+            logService.log(OperateType.UPDATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
         }
         return updated;
+    }
+
+    private String currentOperator() {
+        var ctx = AdminUserContextHolder.get();
+        return ctx != null ? ctx.getUsername() : "system";
     }
 }

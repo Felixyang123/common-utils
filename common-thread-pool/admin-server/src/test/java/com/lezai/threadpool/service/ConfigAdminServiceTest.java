@@ -5,7 +5,8 @@ import com.lezai.threadpool.bean.ConfigSnapshot;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,11 +33,17 @@ class ConfigAdminServiceTest {
     @Mock
     private ConfigSnapshotStorage snapshotStorage;
 
+    @Mock
+    private ApiKeyStorage apiKeyStorage;
+
+    @Mock
+    private ThreadPoolConfigPersistenceService persistenceService;
+
     private ConfigAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ConfigAdminService(configStorage, snapshotStorage);
+        service = new ConfigAdminService(configStorage, snapshotStorage, apiKeyStorage, persistenceService);
     }
 
     // ==================== getAppConfig ====================
@@ -61,7 +68,7 @@ class ConfigAdminServiceTest {
         when(configStorage.getAppConfig("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getAppConfig("unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
 
@@ -84,7 +91,7 @@ class ConfigAdminServiceTest {
         when(configStorage.getConfig("app1", "unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getConfig("app1", "unknown"))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
 
@@ -215,7 +222,7 @@ class ConfigAdminServiceTest {
         when(configStorage.getConfig("app1", "unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getSnapshots("app1", "unknown", null))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
 }

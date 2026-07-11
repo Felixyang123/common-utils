@@ -8,8 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import org.springframework.stereotype.Service;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -51,6 +49,7 @@ public class DemoService {
         threadPoolManager.getPool("notification-pool").submit(() -> {
             log.info("Programmatic task '{}' submitted to notification-pool", taskName);
             simulateWork("programmatic", 500);
+            return "Task '" + taskName + "' completed";
         });
         return "Task '" + taskName + "' submitted programmatically";
     }

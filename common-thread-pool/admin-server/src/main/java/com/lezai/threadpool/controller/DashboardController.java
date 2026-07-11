@@ -35,7 +35,7 @@ public class DashboardController {
     @GetMapping("/summary")
     public ApiResponse<Map<String, Object>> summary() {
         List<AppConfigSummary> apps = configAdminService.listApps();
-        List<ApiKeyInfoResponse> apiKeys = apiKeyAdminService.listAllApiKeys();
+        List<ApiKeyInfoResponse> apiKeys = apiKeyAdminService.allApiKeys();
         List<OperateLogEntity> recentLogs = operateLogService.getRecentLogs(5);
 
         int configCount = apps.stream().mapToInt(AppConfigSummary::getPoolCount).sum();

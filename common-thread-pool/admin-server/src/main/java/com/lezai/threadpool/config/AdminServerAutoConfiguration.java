@@ -137,6 +137,7 @@ public class AdminServerAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(RedissonClient.class)
     @ConditionalOnProperty(name = "threadpool.admin.rate-limit.enabled", havingValue = "true", matchIfMissing = true)
     public RateLimitInterceptor rateLimitInterceptor(RedissonClient redissonClient) {
         return new RateLimitInterceptor(redissonClient);

@@ -1,6 +1,7 @@
 package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.AdminUser;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.utils.PasswordUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -44,7 +45,9 @@ public interface AdminUserStorage {
 
     // ==================== CRUD ====================
 
-    List<AdminUser> listAll();
+    List<AdminUser> page();
+
+    PageResult<AdminUser> page(int page, int pageSize);
 
     void save(AdminUser adminUser);
 

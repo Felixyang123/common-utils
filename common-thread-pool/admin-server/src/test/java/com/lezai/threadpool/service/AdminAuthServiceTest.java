@@ -6,6 +6,7 @@ import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
 import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.storage.AdminUserStorage;
+import com.lezai.threadpool.utils.PasswordUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class AdminAuthServiceTest {
         authService = new AdminAuthService(adminUserStorage, SECRET, 30L);
         adminUser = AdminUser.builder()
                 .username("admin")
-                .passwordHash("encoded-password")
+                .passwordHash(PasswordUtils.hash("secret123"))
                 .enabled(true)
                 .role("SUPER_ADMIN")
                 .nickname("admin")
@@ -53,7 +54,6 @@ class AdminAuthServiceTest {
     @Test
     @DisplayName("login succeeds with correct credentials and returns a validatable token")
     void login_correctCredentials_returnsToken() {
-        when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
         when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
 
         AdminLoginResponse response = authService.login(loginRequest("admin", "secret123"));
@@ -67,7 +67,7 @@ class AdminAuthServiceTest {
     @Test
     @DisplayName("login fails with wrong password")
     void login_wrongPassword_throws() {
-        when(adminUserStorage.validateCredentials("admin", "wrong")).thenReturn(false);
+        when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
 
         assertThatThrownBy(() -> authService.login(loginRequest("admin", "wrong")))
                 .isInstanceOf(AuthenticationException.class);
@@ -76,7 +76,7 @@ class AdminAuthServiceTest {
     @Test
     @DisplayName("login fails when user does not exist")
     void login_unknownUser_throws() {
-        when(adminUserStorage.validateCredentials("ghost", "whatever")).thenReturn(false);
+        when(adminUserStorage.getByUsername("ghost")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(loginRequest("ghost", "whatever")))
                 .isInstanceOf(AuthenticationException.class);
@@ -92,7 +92,6 @@ class AdminAuthServiceTest {
     @Test
     @DisplayName("validateToken rejects a token signed with a different secret")
     void validateToken_wrongSigningKey_throws() {
-        when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
         when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
         String token = authService.login(loginRequest("admin", "secret123")).getToken();
 
@@ -105,7 +104,6 @@ class AdminAuthServiceTest {
     @Test
     @DisplayName("validateToken rejects an expired token")
     void validateToken_expiredToken_throws() throws InterruptedException {
-        when(adminUserStorage.validateCredentials("admin", "secret123")).thenReturn(true);
         when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
         AdminAuthService shortLivedService = new AdminAuthService(adminUserStorage, SECRET, 0L);
 

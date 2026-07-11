@@ -2,26 +2,44 @@
 function getToken() { return localStorage.getItem('token'); }
 function setToken(t) { localStorage.setItem('token', t); }
 function clearToken() { localStorage.removeItem('token'); localStorage.removeItem('username'); }
+
+/**
+ * Parse JWT payload (Base64URL + UTF-8 safe).
+ * Native atob() produces a binary string that JSON.parse cannot handle
+ * when the payload contains multi-byte UTF-8 characters (e.g. Chinese nicknames).
+ */
+function parseJwtPayload(token) {
+  var payload = token.split('.')[1];
+  var base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) base64 += '=';
+  var binary = atob(base64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 function getUsername() {
   const u = localStorage.getItem('username');
   if (u) return u;
   const t = getToken();
   if (!t) return 'admin';
-  try { return JSON.parse(atob(t.split('.')[1])).username || 'admin'; }
+  try { return JSON.parse(parseJwtPayload(t)).username || 'admin'; }
   catch { return 'admin'; }
 }
 
 function getRole() {
   const t = getToken();
   if (!t) return 'ADMIN';
-  try { return JSON.parse(atob(t.split('.')[1])).role || 'ADMIN'; }
+  try { return JSON.parse(parseJwtPayload(t)).role || 'ADMIN'; }
   catch { return 'ADMIN'; }
 }
 
 function getNickname() {
   const t = getToken();
   if (!t) return '';
-  try { return JSON.parse(atob(t.split('.')[1])).nickname || getUsername(); }
+  try { return JSON.parse(parseJwtPayload(t)).nickname || getUsername(); }
   catch { return getUsername(); }
 }
 
@@ -90,9 +108,10 @@ function renderTopbar(active) {
     ['index.html', '仪表盘'],
     ['api-keys.html', 'API Key'],
     ['thread-pools.html', '线程池配置'],
+    ['stats.html', '监控统计'],
     ['operate-logs.html', '操作日志'],
+    ['admin-users.html', isSuperAdmin() ? '管理员管理' : '个人中心'],
   ];
-  if (isSuperAdmin()) links.push(['admin-users.html', '管理员管理']);
   const nav = links.map(([href, label]) =>
     `<a href="/${href}" class="${href === active ? 'active' : ''}">${label}</a>`
   ).join('');

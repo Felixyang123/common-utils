@@ -1,9 +1,9 @@
 package com.lezai.threadpool.controller;
 
 import com.alibaba.fastjson2.JSON;
-import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.bean.PageResult;
+import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
@@ -26,8 +26,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -83,7 +81,7 @@ class ApiKeyControllerTest {
     @DisplayName("POST /api/api-keys returns 409 when appId already exists")
     void createApiKey_alreadyExists() throws Exception {
         when(apiKeyAdminService.createApiKey(any(CreateApiKeyRequest.class)))
-                .thenThrow(new ConfigAlreadyExistsException("API key already exists for appId: my-app"));
+                .thenThrow(new ResoureAlreadyExistsException("API key already exists for appId: my-app"));
 
         var request = new CreateApiKeyRequest();
         request.setAppId("my-app");
@@ -116,7 +114,7 @@ class ApiKeyControllerTest {
     @DisplayName("GET /api/api-keys/{appId} returns 404 when not found")
     void getApiKey_notFound() throws Exception {
         when(apiKeyAdminService.getApiKey("unknown"))
-                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
+                .thenThrow(new ResourceNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(get("/api/api-keys/unknown"))
                 .andExpect(status().isNotFound());
@@ -135,7 +133,7 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("DELETE /api/api-keys/{appId} returns 404 when not found")
     void deleteApiKey_notFound() throws Exception {
-        doThrow(new ConfigNotFoundException("API key not found for appId: unknown"))
+        doThrow(new ResourceNotFoundException("API key not found for appId: unknown"))
                 .when(apiKeyAdminService).deleteApiKey("unknown");
 
         mockMvc.perform(delete("/api/api-keys/unknown"))
@@ -143,8 +141,8 @@ class ApiKeyControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/api-keys lists all API keys")
-    void listAllApiKeys() throws Exception {
+    @DisplayName("GET /api/api-keys lists all API keys with pagination")
+    void pageApiKeys() throws Exception {
         ApiKeyInfoResponse key1 = new ApiKeyInfoResponse();
         key1.setAppId("app1");
         key1.setAppName("App 1");
@@ -152,13 +150,14 @@ class ApiKeyControllerTest {
         key2.setAppId("app2");
         key2.setAppName("App 2");
 
-        when(apiKeyAdminService.listAllApiKeys()).thenReturn(List.of(key1, key2));
+        when(apiKeyAdminService.pageApiKeys(1, 20)).thenReturn(PageResult.of(2, List.of(key1, key2)));
 
         mockMvc.perform(get("/api/api-keys"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(2));
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.list").isArray())
+                .andExpect(jsonPath("$.data.list.length()").value(2));
     }
 
     @Test
@@ -180,7 +179,7 @@ class ApiKeyControllerTest {
     @Test
     @DisplayName("PUT /api/api-keys/{appId} returns 404 when not found")
     void updateApiKey_notFound() throws Exception {
-        doThrow(new ConfigNotFoundException("API key not found for appId: unknown"))
+        doThrow(new ResourceNotFoundException("API key not found for appId: unknown"))
                 .when(apiKeyAdminService).updateApiKey(eq("unknown"), any(UpdateApiKeyRequest.class));
 
         var request = new UpdateApiKeyRequest();
@@ -211,7 +210,7 @@ class ApiKeyControllerTest {
     @DisplayName("POST /api/api-keys/{appId}/regenerate returns 404 when not found")
     void regenerateApiKey_notFound() throws Exception {
         when(apiKeyAdminService.regenerateApiKey("unknown"))
-                .thenThrow(new ConfigNotFoundException("API key not found for appId: unknown"));
+                .thenThrow(new ResourceNotFoundException("API key not found for appId: unknown"));
 
         mockMvc.perform(post("/api/api-keys/unknown/regenerate"))
                 .andExpect(status().isNotFound());

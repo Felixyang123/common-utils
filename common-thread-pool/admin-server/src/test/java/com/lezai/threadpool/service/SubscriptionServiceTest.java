@@ -4,8 +4,7 @@ import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
-import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
@@ -21,7 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.request.async.DeferredResult;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -123,7 +121,7 @@ class SubscriptionServiceTest {
         when(configStorage.getAppConfig("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.subscribe("unknown", 1L, 30000L))
-                .isInstanceOf(ConfigNotFoundException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
 

@@ -5,7 +5,7 @@ spring:
   application:
     name: thread-pool-admin-server
   profiles:
-    active: local          # 默认 local 模式（H2 文件 + 进程内缓存）；切换生产用 --spring.profiles.active=db
+    active: db          # 默认 local 模式（H2 文件 + 进程内缓存）；切换生产用 --spring.profiles.active=db
 
 mybatis-plus:
   configuration:

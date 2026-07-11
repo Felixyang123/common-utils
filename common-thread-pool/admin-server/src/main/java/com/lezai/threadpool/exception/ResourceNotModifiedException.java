@@ -5,12 +5,12 @@ import java.io.Serial;
 /**
  * 配置未修改异常 304
  */
-public class ConfigNotModifiedException extends BusinessException {
+public class ResourceNotModifiedException extends BusinessException {
 
     @Serial
     private static final long serialVersionUID = 3598718608031603105L;
 
-    public ConfigNotModifiedException(String message) {
+    public ResourceNotModifiedException(String message) {
         super(304, message);
     }
 }

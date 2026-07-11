@@ -53,7 +53,9 @@ public class ConfigChangeListenerManager {
      * @param appId
      * @param listener
      */
-    public void register(String appId, ConfigChangeListener listener) {
+    public void
+
+    register(String appId, ConfigChangeListener listener) {
         listenerMap.computeIfAbsent(appId, k -> new CopyOnWriteArrayList<>()).add(listener);
         log.info("Register listener for appId: {}", appId);
     }

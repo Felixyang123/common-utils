@@ -2,13 +2,20 @@ package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.bean.*;
 import com.lezai.threadpool.context.AdminUserContextHolder;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.controller.dto.request.CreateAppRequest;
+import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
+import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
+import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
+import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -23,6 +30,8 @@ public class ConfigAdminService {
 
     private final ConfigStorage configStorage;
     private final ConfigSnapshotStorage snapshotStorage;
+    private final ApiKeyStorage apiKeyStorage;
+    private final ThreadPoolConfigPersistenceService persistenceService;
 
     public List<AppConfigSummary> listApps() {
         return configStorage.listAppIds().stream()
@@ -42,12 +51,12 @@ public class ConfigAdminService {
                         .configVersion(appConfig.getConfigVersion())
                         .configs(appConfig.getConfigs())
                         .build())
-                .orElseThrow(() -> new ConfigNotFoundException("Config not found for appId: " + appId));
+                .orElseThrow(() -> new ResourceNotFoundException("Config not found for appId: " + appId));
     }
 
     public ThreadPoolConfig getConfig(String appId, String poolName) {
         return configStorage.getConfig(appId, poolName)
-                .orElseThrow(() -> new ConfigNotFoundException("Config not found for pool: " + poolName));
+                .orElseThrow(() -> new ResourceNotFoundException("Config not found for pool: " + poolName));
     }
 
     public void saveConfig(String appId, ThreadPoolConfig config) {
@@ -98,7 +107,7 @@ public class ConfigAdminService {
 
     public List<ConfigSnapshot> getSnapshots(String appId, String poolName, Integer limit) {
         configStorage.getConfig(appId, poolName)
-                .orElseThrow(() -> new ConfigNotFoundException("Config not found for pool: " + poolName));
+                .orElseThrow(() -> new ResourceNotFoundException("Config not found for pool: " + poolName));
         if (limit != null && limit > 0) return snapshotStorage.getSnapshots(appId, poolName, limit);
         return snapshotStorage.getSnapshots(appId, poolName);
     }
@@ -106,7 +115,7 @@ public class ConfigAdminService {
     public ConfigSnapshot getSnapshotByVersion(String appId, String poolName, long version) {
         ConfigSnapshot snapshot = snapshotStorage.getByVersion(appId, poolName, version);
         if (snapshot == null) {
-            throw new ConfigNotFoundException("Snapshot not found: appId=" + appId + ", pool=" + poolName + ", version=" + version);
+            throw new ResourceNotFoundException("Snapshot not found: appId=" + appId + ", pool=" + poolName + ", version=" + version);
         }
         return snapshot;
     }
@@ -114,7 +123,7 @@ public class ConfigAdminService {
     public ThreadPoolConfig rollback(String appId, String poolName, long version) {
         ConfigSnapshot target = getSnapshotByVersion(appId, poolName, version);
         if (target.getValue() == null) {
-            throw new ConfigNotFoundException("Cannot rollback to a snapshot with null value: v" + version);
+            throw new ResourceNotFoundException("Cannot rollback to a snapshot with null value: v" + version);
         }
         ThreadPoolConfig targetConfig = target.getValue();
         configStorage.saveConfig(appId, targetConfig);
@@ -122,6 +131,63 @@ public class ConfigAdminService {
         snapshotStorage.recordSnapshot(appId, poolName, targetConfig, operator);
         log.info("Config rolled back: appId={}, pool={}, targetVersion={}, operator={}", appId, poolName, version, operator);
         return targetConfig;
+    }
+
+    public CreateApiKeyResponse createApp(CreateAppRequest request) {
+        String plainApiKey = ApiKeyUtils.generateRandomApiKey();
+        String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
+
+        ApiKey apiKey = ApiKey.builder()
+                .appId(request.getAppId())
+                .apiKeyHash(apiKeyHash)
+                .appName(request.getAppName())
+                .enabled(true)
+                .createTime(LocalDateTime.now())
+                .expireTime(null)
+                .description(request.getDescription())
+                .build();
+
+        if (!apiKeyStorage.putIfAbsent(apiKey)) {
+            throw new ResoureAlreadyExistsException("App already exists: " + request.getAppId());
+        }
+
+        persistenceService.createAppEntry(request.getAppId());
+
+        CreateApiKeyResponse response = new CreateApiKeyResponse();
+        response.setAppId(apiKey.getAppId());
+        response.setApiKey(plainApiKey);
+        response.setAppName(apiKey.getAppName());
+        response.setEnabled(apiKey.isEnabled());
+        response.setCreateTime(apiKey.getCreateTime());
+        response.setDescription(apiKey.getDescription());
+
+        log.info("App created: {} by {}", request.getAppId(), currentOperator());
+        return response;
+    }
+
+    public void deleteApp(String appId) {
+        configStorage.deleteConfigs(appId);
+        apiKeyStorage.deleteApiKey(appId);
+        log.info("App deleted: {} by {}", appId, currentOperator());
+    }
+
+    public List<ThreadPoolConfigEntity> listDeletedConfigs() {
+        return persistenceService.listDeletedConfigs();
+    }
+
+    public ThreadPoolConfigEntity restoreConfig(String appId, String poolName) {
+        ThreadPoolConfigEntity restored = persistenceService.restoreConfigByAppIdAndPoolName(appId, poolName);
+        if (restored == null) {
+            throw new ResourceNotFoundException("Deleted config not found: " + appId + "/" + poolName);
+        }
+        log.info("Config restored: appId={}, pool={}, operator={}",
+                restored.getAppId(), restored.getPoolName(), currentOperator());
+        return restored;
+    }
+
+    public void restoreConfigs(String appId) {
+        persistenceService.restoreConfigsByAppId(appId);
+        log.info("All configs restored for appId: {}, operator={}", appId, currentOperator());
     }
 
     private String currentOperator() {

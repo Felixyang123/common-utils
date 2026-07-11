@@ -6,6 +6,7 @@ import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.storage.AdminUserStorage;
 import com.lezai.threadpool.bean.AdminUser;
+import com.lezai.threadpool.utils.PasswordUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -46,15 +47,21 @@ public class AdminAuthService {
     }
 
     /**
-     * 登录：校验用户名密码，成功则签发 JWT
+     * 登录：校验用户名密码，成功则签发 JWT。
+     * <p>
+     * 单次 DB 查询完成全部校验，并返回具体失败原因。
      */
     public AdminLoginResponse login(AdminLoginRequest request) {
-        if (!adminUserStorage.validateCredentials(request.getUsername(), request.getPassword())) {
-            throw new AuthenticationException("Invalid username or password");
+        AdminUser adminUser = adminUserStorage.getByUsername(request.getUsername())
+                .orElseThrow(() -> new AuthenticationException("User not found: " + request.getUsername()));
+
+        if (!adminUser.isEnabled()) {
+            throw new AuthenticationException("User has been disabled: " + request.getUsername());
         }
 
-        AdminUser adminUser = adminUserStorage.getByUsername(request.getUsername())
-                .orElseThrow(() -> new AuthenticationException("User not found after validation"));
+        if (!PasswordUtils.matches(request.getPassword(), adminUser.getPasswordHash())) {
+            throw new AuthenticationException("Invalid password");
+        }
 
         Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
         Date now = new Date();

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>监控统计 - ThreadPool Admin</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .stat-card { background: var(--gray-50); border-radius: 8px; padding: 14px 16px; }
+    .stat-card .label { font-size: 12px; color: var(--gray-400); margin-bottom: 4px; }
+    .stat-card .value { font-size: 24px; font-weight: 700; color: var(--gray-800); }
+    .stat-card .unit { font-size: 13px; color: var(--gray-400); margin-left: 4px; }
+    .chart-wrap { background: #fff; border-radius: 8px; padding: 16px; }
+    canvas { max-height: 300px; }
+    .picker { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('stats.html');</script>
+
+  <div class="page">
+    <div class="page-header"><h1>监控统计</h1></div>
+
+    <div class="card mb-4">
+      <div class="picker">
+        <div><label>应用</label><select id="s-app" onchange="onAppChange()"><option value="">-- 选择应用 --</option></select></div>
+        <div><label>线程池</label><select id="s-pool" onchange="loadStats()"><option value="">-- 选择池 --</option></select></div>
+        <div><label>开始时间</label><input type="datetime-local" id="s-begin" onchange="loadStats()"></div>
+        <div><label>结束时间</label><input type="datetime-local" id="s-end" onchange="loadStats()"></div>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="stat-cards"></div>
+
+    <div class="card">
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
+    <div id="chart-empty" class="empty" style="display:none;margin-top:16px;">暂无统计数据</div>
+  </div>
+
+  <script>
+    let chart = null;
+
+    (async () => {
+      const data = await apiGet('/api/thread-pool/configs');
+      if (!data || data.code !== 0) return;
+      const apps = data.data || [];
+      const sel = document.getElementById('s-app');
+      sel.innerHTML = '<option value="">-- 选择应用 --</option>' +
+        apps.map(a => `<option value="${a.appId}">${a.appId} (${a.poolCount}池)</option>`).join('');
+      if (apps.length > 0) {
+        sel.value = apps[0].appId;
+        onAppChange();
+      }
+    })();
+
+    async function onAppChange() {
+      const appId = document.getElementById('s-app').value;
+      const data = await apiGet('/api/thread-pool/configs/' + encodeURIComponent(appId));
+      const d = (data && data.code === 0) ? data.data : null;
+      const pools = (d && d.configs) || [];
+      const sel = document.getElementById('s-pool');
+      sel.innerHTML = '<option value="">-- 选择池 --</option>' +
+        pools.map(p => `<option value="${p.poolName}">${p.poolName}</option>`).join('');
+      if (pools.length > 0) { sel.value = pools[0].poolName; loadStats(); }
+    }
+
+    async function loadStats() {
+      const appId = document.getElementById('s-app').value;
+      const pool = document.getElementById('s-pool').value;
+      if (!appId || !pool) return;
+      const begin = document.getElementById('s-begin').value;
+      const end = document.getElementById('s-end').value;
+      let url = `/api/stats/${encodeURIComponent(appId)}/${encodeURIComponent(pool)}`;
+      if (begin || end) {
+        url += '?begin=' + (begin ? begin + ':00' : '') + '&end=' + (end ? end + ':00' : '');
+      }
+      const data = await apiGet(url);
+      if (!data || data.code !== 0) return;
+      const stats = data.data || [];
+      renderCards(stats);
+      renderChart(stats);
+    }
+
+    function renderCards(stats) {
+      if (!stats.length) { document.getElementById('stat-cards').innerHTML = ''; return; }
+      const latest = stats[stats.length - 1];
+      const cards = [
+        ['活跃线程', latest.activeCount, ''],
+        ['池大小', latest.poolSize, '/' + latest.maximumPoolSize],
+        ['队列使用', latest.queueSize, '/' + latest.queueCapacity],
+        ['已完成任务', latest.completedTaskCount, ''],
+        ['被拒绝', latest.rejectedTaskCount, ''],
+        ['错误数', latest.errorTaskCount, ''],
+        ['负载率', Math.round((latest.activeCount / Math.max(1, latest.maximumPoolSize)) * 100), '%'],
+      ];
+      document.getElementById('stat-cards').innerHTML = cards.map(([label, val, unit]) =>
+        `<div class="stat-card"><div class="label">${label}</div><div class="value">${Number(val).toLocaleString()}<span class="unit">${unit}</span></div></div>`
+      ).join('');
+    }
+
+    function renderChart(stats) {
+      if (chart) { chart.destroy(); chart = null; }
+      if (!stats.length) { document.getElementById('chart-empty').style.display = ''; return; }
+      document.getElementById('chart-empty').style.display = 'none';
+      const labels = stats.map(s => s.collectTime ? s.collectTime.substring(11, 19) : '');
+      chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: '活跃线程', data: stats.map(s => s.activeCount), borderColor: '#3b82f6', tension: 0.2, fill: false },
+            { label: '队列大小', data: stats.map(s => s.queueSize), borderColor: '#f59e0b', tension: 0.2, fill: false },
+            { label: '池大小', data: stats.map(s => s.poolSize), borderColor: '#10b981', tension: 0.2, fill: false },
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

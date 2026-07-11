@@ -20,7 +20,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("handleConfigNotFound returns code 404")
     void handleConfigNotFound() {
-        ConfigNotFoundException ex = new ConfigNotFoundException("not found");
+        ResourceNotFoundException ex = new ResourceNotFoundException("not found");
         ResponseEntity<ApiResponse<Void>> response = handler.handleConfigNotFound(ex);
         assertThat(response.getBody().getCode()).isEqualTo(404);
         assertThat(response.getBody().getMessage()).isEqualTo("not found");
@@ -29,7 +29,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("handleConfigAlreadyExists returns code 409")
     void handleConfigAlreadyExists() {
-        ConfigAlreadyExistsException ex = new ConfigAlreadyExistsException("already exists");
+        ResoureAlreadyExistsException ex = new ResoureAlreadyExistsException("already exists");
         ResponseEntity<ApiResponse<Void>> response = handler.handleConfigAlreadyExists(ex);
         assertThat(response.getBody().getCode()).isEqualTo(409);
         assertThat(response.getBody().getMessage()).isEqualTo("already exists");

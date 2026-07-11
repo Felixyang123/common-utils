@@ -1,13 +1,9 @@
 package com.lezai.threadpool.storage;
 
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.BiFunction;
 
 /**
@@ -25,53 +21,34 @@ import java.util.function.BiFunction;
 public abstract class CachedStorageSupport<T> {
 
     protected final ConcurrentMap<String, T> cache;
-    private final ExecutorService warmupExecutor;
 
     protected CachedStorageSupport(ConcurrentMap<String, T> cache, String displayName) {
         this.cache = cache;
-        this.warmupExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "storage-warmup-" + displayName);
-            t.setDaemon(true);
-            return t;
-        });
         log.info("Initialized CachedStorageSupport [{}] with cache impl: {}", displayName, cache.getClass().getSimpleName());
     }
-
-    @PostConstruct
-    public void init() {
-        CompletableFuture.runAsync(this::loadAllFromDb, warmupExecutor)
-                .whenComplete((v, t) -> gracefulShutdown());
-    }
-
-    public abstract void loadAllFromDb();
-
     // ==================== 缓存原语（原 ConcurrentMapStorage）====================
 
-    public Optional<T> getFromCache(String key) {
+    public Optional<T> get(String key) {
         return Optional.ofNullable(cache.get(key));
     }
 
-    public void putToCache(String key, T value) {
+    public void put(String key, T value) {
         cache.put(key, value);
     }
 
-    public void removeFromCache(String key) {
+    public void remove(String key) {
         cache.remove(key);
     }
 
-    public boolean existsInCache(String key) {
+    public boolean exists(String key) {
         return cache.containsKey(key);
     }
 
-    public int getCacheSize() {
+    public int getSize() {
         return cache.size();
     }
 
     public T compute(String key, BiFunction<String, T, T> remappingFunction) {
         return cache.compute(key, remappingFunction);
-    }
-
-    private void gracefulShutdown() {
-        warmupExecutor.shutdown();
     }
 }

@@ -18,19 +18,19 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @ResponseBody
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ConfigNotFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConfigNotFound(ConfigNotFoundException e) {
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConfigNotFound(ResourceNotFoundException e) {
         log.warn("Config not found: {}", e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
-    @ExceptionHandler(ConfigNotModifiedException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConfigNotModified(ConfigNotModifiedException e) {
+    @ExceptionHandler(ResourceNotModifiedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConfigNotModified(ResourceNotModifiedException e) {
         return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
     }
 
-    @ExceptionHandler(ConfigAlreadyExistsException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConfigAlreadyExists(ConfigAlreadyExistsException e) {
+    @ExceptionHandler(ResoureAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConfigAlreadyExists(ResoureAlreadyExistsException e) {
         log.warn("Config already exists: {}", e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }

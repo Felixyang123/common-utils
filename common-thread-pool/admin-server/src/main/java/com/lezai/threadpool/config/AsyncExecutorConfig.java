@@ -71,8 +71,8 @@ public class AsyncExecutorConfig {
      * 监听器通知线程池
      * 用于异步通知配置变更监听器
      */
-    @Bean(name = "listenerNotifyExecutor", destroyMethod = "shutdown")
-    public ExecutorService listenerNotifyExecutor() {
+    @Bean(name = "listenerNotifyExecutor")
+    public ThreadPoolTaskExecutor listenerNotifyExecutor() {
         return createAsyncExecutor(listenerCoreSize, listenerMaxSize, listenerQueueCapacity, "config-listener-notify");
     }
 
@@ -80,8 +80,8 @@ public class AsyncExecutorConfig {
      * 历史记录线程池
      * 用于异步记录配置变更历史
      */
-    @Bean(name = "historyRecordExecutor", destroyMethod = "shutdown")
-    public ExecutorService historyRecordExecutor() {
+    @Bean(name = "historyRecordExecutor")
+    public ThreadPoolTaskExecutor historyRecordExecutor() {
         return createAsyncExecutor(historyCoreSize, historyMaxSize, historyQueueCapacity, "config-history-record");
     }
 
@@ -89,8 +89,8 @@ public class AsyncExecutorConfig {
      * API Key 历史记录线程池
      * 用于异步记录 API Key 变更历史
      */
-    @Bean(name = "apiKeyHistoryRecordExecutor", destroyMethod = "shutdown")
-    public ExecutorService apiKeyHistoryRecordExecutor() {
+    @Bean(name = "apiKeyHistoryRecordExecutor")
+    public ThreadPoolTaskExecutor apiKeyHistoryRecordExecutor() {
         return createAsyncExecutor(apiKeyHistoryCoreSize, apiKeyHistoryMaxSize, apiKeyHistoryQueueCapacity, "apikey-history-record");
     }
 
@@ -98,8 +98,8 @@ public class AsyncExecutorConfig {
      * 统计信息历史记录线程池
      * 用于异步记录统计信息变更历史
      */
-    @Bean(name = "statsHistoryRecordExecutor", destroyMethod = "shutdown")
-    public ExecutorService statsHistoryRecordExecutor() {
+    @Bean(name = "statsHistoryRecordExecutor")
+    public ThreadPoolTaskExecutor statsHistoryRecordExecutor() {
         return createAsyncExecutor(statsHistoryCoreSize, statsHistoryMaxSize, statsHistoryQueueCapacity, "stats-history-record");
     }
 
@@ -109,8 +109,10 @@ public class AsyncExecutorConfig {
      * 使用 {@link ThreadPoolTaskExecutor} 替代裸 {@link ThreadPoolExecutor}，
      * 以便设置 {@link AdminUserContextTaskDecorator}，自动将当前登录管理员上下文
      * 传递到 {@code @Async} 执行线程中。
+     * <p>
+     * 配置了优雅停机：等待已提交任务完成后再关闭，最大等待 30 秒。
      */
-    private ExecutorService createAsyncExecutor(int coreSize, int maxSize, int queueCapacity, String threadNamePrefix) {
+    private ThreadPoolTaskExecutor createAsyncExecutor(int coreSize, int maxSize, int queueCapacity, String threadNamePrefix) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(coreSize);
         executor.setMaxPoolSize(maxSize);
@@ -126,9 +128,11 @@ public class AsyncExecutorConfig {
         });
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setTaskDecorator(new AdminUserContextTaskDecorator());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
         executor.initialize();
-        log.info("Created {}: core={}, max={}, queue={}, auto-context=true", threadNamePrefix, coreSize, maxSize, queueCapacity);
-        return executor.getThreadPoolExecutor();
+        log.info("Created {}: core={}, max={}, queue={}, auto-context=true, gracefulShutdown=30s", threadNamePrefix, coreSize, maxSize, queueCapacity);
+        return executor;
     }
 
     @Bean

@@ -28,13 +28,13 @@ public class OperateLogController {
     @GetMapping("/list")
     public ApiResponse<PageResult<OperateLogEntity>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int page_size,
-            @RequestParam(required = false) String biz_type,
-            @RequestParam(required = false) String operate_type,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String bizType,
+            @RequestParam(required = false) String operateType,
             @RequestParam(required = false) String operator,
-            @RequestParam(required = false) String biz_id) {
+            @RequestParam(required = false) String bizId) {
         PageResult<OperateLogEntity> result = operateLogService.queryLogs(
-                page, Math.min(page_size, 100), biz_type, operate_type, operator, biz_id);
+                page, Math.min(pageSize, 100), bizType, operateType, operator, bizId);
         return ApiResponse.success(result);
     }
 }

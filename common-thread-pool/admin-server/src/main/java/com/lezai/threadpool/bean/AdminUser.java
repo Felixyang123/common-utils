@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AdminUser {
 
+    private Long id;
+
     /**
      * 用户名（唯一标识）
      */

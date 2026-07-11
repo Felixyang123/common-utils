@@ -61,7 +61,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
             ctx = adminAuthService.validateToken(token);
         } catch (AuthenticationException e) {
             log.warn("Admin token validation failed for request: {}", request.getRequestURI());
-            sendErrorResponse(response, 401, e.getMessage());
+            sendErrorResponse(response, e.getCode(), e.getMessage());
             return false;
         }
 

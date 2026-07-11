@@ -2,6 +2,7 @@ package com.lezai.threadpool.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.context.AdminUserContextHolder;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
@@ -20,7 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -78,6 +82,15 @@ public class ThreadPoolConfigPersistenceService {
 
     public List<String> allAppIds() {
         return configAppRep.allAppIds();
+    }
+
+    @Transactional
+    public void createAppEntry(String appId) {
+        if (configAppRep.findByAppId(appId).isPresent()) return;
+        ThreadPoolConfigAppEntity entity = ThreadPoolConfigAppEntity.builder()
+                .appId(appId).version(0L).build();
+        configAppRep.save(entity);
+        log.info("Created app entry: {}", appId);
     }
 
     public Optional<ThreadPoolConfigAppDto> getConfigAppByAppId(String appId) {
@@ -139,8 +152,9 @@ public class ThreadPoolConfigPersistenceService {
     }
 
     private void log(List<ThreadPoolConfigEntity> configs, OperateType operateType) {
+        String operator = currentOperator();
         for (ThreadPoolConfigEntity config : configs) {
-            logService.log(operateType, "", config, String.valueOf(config.getId()), BizType.THREADPOOL_CONFIG);
+            logService.log(operateType, operator, config, String.valueOf(config.getId()), BizType.THREADPOOL_CONFIG);
         }
     }
 
@@ -215,6 +229,11 @@ public class ThreadPoolConfigPersistenceService {
                 .build();
     }
 
+    private String currentOperator() {
+        var ctx = AdminUserContextHolder.get();
+        return ctx != null ? ctx.getUsername() : "system";
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfigAppDto addConfigApp(ThreadPoolConfigAppUpsertCmd cmd, List<ThreadPoolConfig> addedConfigs) {
         List<ThreadPoolConfigUpsertCmd> configCmds = cmd.getConfigs();
@@ -258,5 +277,26 @@ public class ThreadPoolConfigPersistenceService {
 
         addedConfigs.addAll(configConverter.convertConfigs(addConfigs));
         return ThreadPoolConfigAppDto.builder().appId(appId).version(configApp.getVersion()).configs(dtoMap).build();
+    }
+
+    public List<ThreadPoolConfigEntity> listDeletedConfigs() {
+        return configRep.getBaseMapper().selectDeleted();
+    }
+
+    @Transactional
+    public ThreadPoolConfigEntity restoreConfigByAppIdAndPoolName(String appId, String poolName) {
+        ThreadPoolConfigEntity deleted = configRep.getBaseMapper().selectDeletedByAppIdAndPoolName(appId, poolName);
+        if (deleted == null) {
+            return null;
+        }
+        configRep.getBaseMapper().restore(deleted.getId());
+        configAppRep.getBaseMapper().restore(deleted.getAppId());
+        return deleted;
+    }
+
+    @Transactional
+    public void restoreConfigsByAppId(String appId) {
+        configRep.getBaseMapper().restoreByAppId(appId);
+        configAppRep.getBaseMapper().restore(appId);
     }
 }

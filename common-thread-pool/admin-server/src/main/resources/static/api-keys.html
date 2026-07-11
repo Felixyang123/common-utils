@@ -24,6 +24,7 @@
           <tbody id="apikey-list"></tbody>
         </table>
       </div>
+      <div class="pagination" id="key-pager"></div>
     </div>
   </div>
 
@@ -65,14 +66,19 @@
   </div>
 
   <script>
+    let keyPage = 1, keyTotal = 0;
+    const KEY_PAGE_SIZE = 20;
+
     (async () => {
       await loadKeys();
     })();
 
     async function loadKeys() {
-      const data = await apiGet('/api/api-keys');
+      const data = await apiGet('/api/api-keys?page=' + keyPage + '&pageSize=' + KEY_PAGE_SIZE);
       if (!data || data.code !== 0) return;
-      const keys = data.data || [];
+      const d = data.data || { total: 0, list: [] };
+      keyTotal = d.total || 0;
+      const keys = d.list || [];
       document.getElementById('apikey-list').innerHTML = keys.length ? keys.map(k =>
         `<tr>
           <td><code>${k.appId}</code></td>
@@ -82,11 +88,19 @@
           <td class="text-sm">${fmtTime(k.createTime)}</td>
           <td class="actions">
             <button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(k).replace(/'/g,"&#39;")})'>查看</button>
-            <a class="btn btn-ghost btn-sm" href="/operate-logs.html?biz_type=APIKEY&biz_id=${k.appId}">历史</a>
+            <a class="btn btn-ghost btn-sm" href="/operate-logs.html?bizType=APIKEY&bizId=${k.appId}">历史</a>
           </td>
         </tr>`
       ).join('') : '<tr><td colspan="6" class="empty">暂无 API Key</td></tr>';
+
+      const totalPages = Math.ceil(keyTotal / KEY_PAGE_SIZE) || 1;
+      document.getElementById('key-pager').innerHTML = `
+        <button ${keyPage<=1?'disabled':''} onclick="goKeyPage(${keyPage-1})">上一页</button>
+        <span>${keyPage} / ${totalPages} (共${keyTotal}条)</span>
+        <button ${keyPage>=totalPages?'disabled':''} onclick="goKeyPage(${keyPage+1})">下一页</button>`;
     }
+
+    function goKeyPage(p) { keyPage = p; loadKeys(); }
 
     function showDetail(k) {
       document.getElementById('detail-body').innerHTML = `

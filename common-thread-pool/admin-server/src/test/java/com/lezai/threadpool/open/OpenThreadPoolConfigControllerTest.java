@@ -8,6 +8,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
+import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.service.SubscriptionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,6 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -107,7 +107,7 @@ class OpenThreadPoolConfigControllerTest {
     @DisplayName("GET /open/api/thread-pool/config/{appId}/pull with up-to-date version returns 304")
     void pullConfigs_notModified() throws Exception {
         when(openThreadPoolConfigService.pullConfigs("app1", 5L))
-                .thenThrow(new com.lezai.threadpool.exception.ConfigNotModifiedException("Config not modified"));
+                .thenThrow(new ResourceNotModifiedException("Config not modified"));
 
         mockMvc.perform(get("/open/api/thread-pool/config/app1/pull")
                         .param("version", "5"))

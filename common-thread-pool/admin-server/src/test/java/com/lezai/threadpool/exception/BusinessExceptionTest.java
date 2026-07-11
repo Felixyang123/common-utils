@@ -52,21 +52,21 @@ class BusinessExceptionTest {
     @Test
     @DisplayName("ConfigNotFoundException has code 404")
     void configNotFoundException() {
-        ConfigNotFoundException ex = new ConfigNotFoundException("not found");
+        ResourceNotFoundException ex = new ResourceNotFoundException("not found");
         assertThat(ex.getCode()).isEqualTo(404);
     }
 
     @Test
     @DisplayName("ConfigAlreadyExistsException has code 409")
     void configAlreadyExistsException() {
-        ConfigAlreadyExistsException ex = new ConfigAlreadyExistsException("already exists");
+        ResoureAlreadyExistsException ex = new ResoureAlreadyExistsException("already exists");
         assertThat(ex.getCode()).isEqualTo(409);
     }
 
     @Test
     @DisplayName("ConfigNotModifiedException has code 304")
     void configNotModifiedException() {
-        ConfigNotModifiedException ex = new ConfigNotModifiedException("not modified");
+        ResourceNotModifiedException ex = new ResourceNotModifiedException("not modified");
         assertThat(ex.getCode()).isEqualTo(304);
     }
 }

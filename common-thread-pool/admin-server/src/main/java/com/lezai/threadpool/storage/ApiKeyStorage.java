@@ -1,6 +1,7 @@
 package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.ApiKey;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -22,7 +23,7 @@ public interface ApiKeyStorage {
      *
      * @param apiKey API Key 对象
      */
-    void saveApiKey(ApiKey apiKey);
+    void updateApiKey(ApiKey apiKey);
 
     /**
      * 根据 appId 获取 API Key
@@ -83,7 +84,12 @@ public interface ApiKeyStorage {
      *
      * @return API Key 列表
      */
-    List<ApiKey> listAllApiKeys();
+    List<ApiKey> allApiKeys();
+
+    /**
+     * 分页查询 API Key
+     */
+    PageResult<ApiKey> pageApiKeys(int page, int pageSize);
 
     /**
      * 检查 appId 是否已存在
@@ -95,7 +101,7 @@ public interface ApiKeyStorage {
 
     /**
      * 原子插入：仅当 appId 不存在时写入，已存在时不做任何修改。
-     * 与 {@link #saveApiKey(ApiKey)}（upsert 语义）不同，本方法保证
+     * 与 {@link #updateApiKey(ApiKey)}（upsert 语义）不同，本方法保证
      * 检查和写入在同一次原子操作中完成，消除 check-then-act 竞态。
      *
      * @param apiKey 待插入的 API Key

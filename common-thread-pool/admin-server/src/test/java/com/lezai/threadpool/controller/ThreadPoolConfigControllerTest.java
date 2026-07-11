@@ -4,7 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.service.ConfigAdminService;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
@@ -64,7 +62,7 @@ class ThreadPoolConfigControllerTest {
     @DisplayName("GET /api/thread-pool/configs/{appId} returns 404 when not found")
     void getAppConfig_notFound() throws Exception {
         when(configAdminService.getAppConfig("unknown"))
-                .thenThrow(new ConfigNotFoundException("Config not found for appId: unknown"));
+                .thenThrow(new ResourceNotFoundException("Config not found for appId: unknown"));
         mockMvc.perform(get("/api/thread-pool/configs/unknown")).andExpect(status().isNotFound());
     }
 

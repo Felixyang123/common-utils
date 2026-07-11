@@ -1,13 +1,14 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.bean.ApiKey;
+import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
-import com.lezai.threadpool.exception.ConfigAlreadyExistsException;
-import com.lezai.threadpool.exception.ConfigNotFoundException;
+import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +52,7 @@ public class ApiKeyAdminService {
                 .build();
 
         if (!apiKeyStorage.putIfAbsent(apiKey)) {
-            throw new ConfigAlreadyExistsException("API key already exists for appId: " + request.getAppId());
+            throw new ResoureAlreadyExistsException("API key already exists for appId: " + request.getAppId());
         }
 
         log.info("API key created successfully for appId: {}", request.getAppId());
@@ -73,9 +74,6 @@ public class ApiKeyAdminService {
      */
     public void deleteApiKey(String appId) {
         log.info("Deleting API key for appId: {}", appId);
-        if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
-        }
         apiKeyStorage.deleteApiKey(appId);
         log.info("API key deleted successfully for appId: {}", appId);
     }
@@ -86,17 +84,25 @@ public class ApiKeyAdminService {
     public ApiKeyInfoResponse getApiKey(String appId) {
         return apiKeyStorage.getApiKey(appId)
                 .map(this::toApiKeyInfo)
-                .orElseThrow(() -> new ConfigNotFoundException("API key not found for appId: " + appId));
+                .orElseThrow(() -> new ResourceNotFoundException("API key not found for appId: " + appId));
     }
 
     /**
      * 列出所有 API Key（脱敏）
      */
-    public List<ApiKeyInfoResponse> listAllApiKeys() {
-        return apiKeyStorage.listAllApiKeys()
+    public List<ApiKeyInfoResponse> allApiKeys() {
+        return apiKeyStorage.allApiKeys()
                 .stream()
                 .map(this::toApiKeyInfo)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 分页查询 API Key（脱敏）
+     */
+    public PageResult<ApiKeyInfoResponse> pageApiKeys(int page, int pageSize) {
+        PageResult<ApiKey> result = apiKeyStorage.pageApiKeys(page, pageSize);
+        return PageResult.of(result.getTotal(), result.getList().stream().map(this::toApiKeyInfo).toList());
     }
 
     /**
@@ -106,19 +112,17 @@ public class ApiKeyAdminService {
         log.info("Updating API key for appId: {}", appId);
 
         ApiKey existing = apiKeyStorage.getApiKey(appId)
-                .orElseThrow(() -> new ConfigNotFoundException("API key not found for appId: " + appId));
+                .orElseThrow(() -> new ResourceNotFoundException("API key not found for appId: " + appId));
 
         ApiKey updated = ApiKey.builder()
                 .appId(existing.getAppId())
-                .apiKeyHash(existing.getApiKeyHash())
                 .appName(request.getAppName())
                 .enabled(request.getEnabled() != null ? request.getEnabled() : existing.isEnabled())
-                .createTime(existing.getCreateTime())
                 .expireTime(request.getExpireTime())
                 .description(request.getDescription())
                 .build();
 
-        apiKeyStorage.saveApiKey(updated);
+        apiKeyStorage.updateApiKey(updated);
     }
 
     /**
@@ -128,7 +132,7 @@ public class ApiKeyAdminService {
         log.info("Regenerating API key for appId: {}", appId);
 
         if (!apiKeyStorage.exists(appId)) {
-            throw new ConfigNotFoundException("API key not found for appId: " + appId);
+            throw new ResourceNotFoundException("API key not found for appId: " + appId);
         }
 
         String newApiKey = apiKeyStorage.regenerateApiKey(appId);

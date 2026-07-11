@@ -18,7 +18,11 @@
   <div class="page">
     <div class="page-header">
       <h1>线程池配置管理</h1>
-      <button class="btn btn-primary" onclick="openCreate()">+ 新建池</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="openAppManager()">管理应用</button>
+        <button class="btn btn-ghost" onclick="openRecycleBin()">回收站</button>
+        <button class="btn btn-primary" onclick="openCreate()">+ 新建池</button>
+      </div>
     </div>
 
     <div class="card mb-4">
@@ -40,7 +44,58 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="edit-modal">
+  <div class="modal-overlay" id="app-mgr-modal">
+    <div class="modal" style="max-width:640px;">
+      <div class="modal-header"><h3>管理应用</h3><button class="modal-close" onclick="closeModal('app-mgr-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px;">
+          <div class="form-row" style="align-items:end;">
+            <div class="form-group"><label>App ID *</label><input class="form-control" id="f-ma-appId" placeholder="order-service"></div>
+            <div class="form-group"><label>应用名称</label><input class="form-control" id="f-ma-appName" placeholder="订单服务"></div>
+            <div class="form-group"><label>描述</label><input class="form-control" id="f-ma-desc" placeholder="可选"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="createApp()">+ 新建应用</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>App ID</th><th>应用名称</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody id="app-mgr-list"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeModal('app-mgr-modal');initApps();">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="recycle-modal">
+    <div class="modal" style="max-width:700px;">
+      <div class="modal-header"><h3>回收站 - 已删除配置</h3><button class="modal-close" onclick="closeModal('recycle-modal')">&times;</button></div>
+      <div class="modal-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>App ID</th><th>池名称</th><th>核心/最大</th><th>更新时间</th><th>操作</th></tr></thead>
+            <tbody id="recycle-list"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeModal('recycle-modal');initApps();">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="newkey-modal">
+    <div class="modal">
+      <div class="modal-header"><h3>API Key 已生成</h3><button class="modal-close" onclick="closeModal('newkey-modal')">&times;</button></div>
+      <div class="modal-body">
+        <p style="color:var(--danger);font-size:13px;margin-bottom:12px;">请立即复制保存，此明文 Key 仅显示一次！</p>
+        <input class="form-control" id="newkey-val" readonly style="font-family:monospace;">
+      </div>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('newkey-modal')">已复制</button></div>
+    </div>
+  </div>
     <div class="modal">
       <div class="modal-header"><h3 id="edit-title">编辑配置</h3><button class="modal-close" onclick="closeModal('edit-modal')">&times;</button></div>
       <div class="modal-body">
@@ -85,7 +140,7 @@
   <script>
     let currentAppId = null, currentPools = [], editPoolName = null;
 
-    (async () => {
+    async function initApps() {
       const data = await apiGet('/api/thread-pool/configs');
       if (!data || data.code !== 0) return;
       const apps = data.data || [];
@@ -96,8 +151,14 @@
         return;
       }
       sel.innerHTML = apps.map(a => `<option value="${a.appId}">${a.appId} (v${a.configVersion}, ${a.poolCount}池)</option>`).join('');
+      if (!currentAppId || !apps.find(a => a.appId === currentAppId)) {
+        currentAppId = null;
+        document.getElementById('pool-list').innerHTML = '';
+      }
       loadPools();
-    })();
+    }
+
+    initApps();
 
     async function loadPools() {
       currentAppId = document.getElementById('app-select').value;
@@ -190,6 +251,96 @@
 
     function editHistory(poolName) {
       location.href = '/config-diff.html?app=' + encodeURIComponent(currentAppId) + '&pool=' + encodeURIComponent(poolName);
+    }
+
+    // ===== App Manager =====
+    async function openAppManager() {
+      openModal('app-mgr-modal');
+      await loadAppManagerList();
+    }
+
+    async function loadAppManagerList() {
+      const data = await apiGet('/api/api-keys?page=1&pageSize=200');
+      if (!data || data.code !== 0) return;
+      const keys = (data.data && data.data.list) || [];
+      document.getElementById('app-mgr-list').innerHTML = keys.length ? keys.map(k =>
+        `<tr>
+          <td><code>${k.appId}</code></td>
+          <td>${k.appName || '-'}</td>
+          <td>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</td>
+          <td class="text-sm">${fmtTime(k.createTime)}</td>
+          <td class="actions">
+            <button class="btn btn-danger btn-sm" onclick="deleteApp('${k.appId}')">删除</button>
+          </td>
+        </tr>`
+      ).join('') : '<tr><td colspan="5" class="empty">暂无应用，请先创建</td></tr>';
+    }
+
+    async function createApp() {
+      const appId = document.getElementById('f-ma-appId').value.trim();
+      if (!appId) { alert('App ID 必填'); return; }
+      const body = {
+        appId,
+        appName: document.getElementById('f-ma-appName').value.trim() || null,
+        description: document.getElementById('f-ma-desc').value.trim() || null,
+      };
+      const data = await apiPost('/api/thread-pool/apps', body);
+      if (data && data.code === 0) {
+        document.getElementById('newkey-val').value = data.data.apiKey;
+        openModal('newkey-modal');
+        document.getElementById('f-ma-appId').value = '';
+        document.getElementById('f-ma-appName').value = '';
+        document.getElementById('f-ma-desc').value = '';
+        await loadAppManagerList();
+        await initApps();
+      } else {
+        alert(data ? data.message : '创建失败');
+      }
+    }
+
+    async function deleteApp(appId) {
+      if (!confirm('确认删除应用 ' + appId + '？将同时删除该应用的 API Key 和所有线程池配置。')) return;
+      const data = await apiDelete('/api/thread-pool/apps/' + encodeURIComponent(appId));
+      if (data && data.code === 0) {
+        await loadAppManagerList();
+        await initApps();
+      } else {
+        alert(data ? data.message : '删除失败');
+      }
+    }
+
+    // ===== Recycle Bin =====
+    async function openRecycleBin() {
+      openModal('recycle-modal');
+      await loadRecycleBin();
+    }
+
+    async function loadRecycleBin() {
+      const data = await apiGet('/api/thread-pool/configs/deleted');
+      if (!data || data.code !== 0) return;
+      const configs = data.data || [];
+      document.getElementById('recycle-list').innerHTML = configs.length ? configs.map(c =>
+        `<tr>
+          <td><code>${c.appId}</code></td>
+          <td>${c.poolName}</td>
+          <td>${c.corePoolSize} / ${c.maximumPoolSize}</td>
+          <td class="text-sm">${fmtTime(c.updateTime)}</td>
+          <td class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="restoreConfig('${c.appId}','${c.poolName}')">恢复</button>
+          </td>
+        </tr>`
+      ).join('') : '<tr><td colspan="5" class="empty">回收站为空</td></tr>';
+    }
+
+    async function restoreConfig(appId, poolName) {
+      if (!confirm('确认恢复 ' + appId + '/' + poolName + ' ？')) return;
+      const data = await apiPut('/api/thread-pool/configs/' + encodeURIComponent(appId) + '/' + encodeURIComponent(poolName) + '/restore');
+      if (data && data.code === 0) {
+        await loadRecycleBin();
+        await initApps();
+      } else {
+        alert(data ? data.message : '恢复失败');
+      }
     }
   </script>
 </body>

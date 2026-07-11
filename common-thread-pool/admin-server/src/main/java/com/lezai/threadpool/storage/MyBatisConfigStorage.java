@@ -1,6 +1,5 @@
 package com.lezai.threadpool.storage;
 
-import com.google.common.collect.Lists;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
@@ -47,24 +46,6 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
     }
 
     @Override
-    public void loadAllFromDb() {
-        try {
-            List<String> allAppIds = configService.allAppIds();
-            int count = 0;
-            for (List<String> appIds : Lists.partition(allAppIds, 20)) {
-                List<ThreadPoolConfigAppDto> configAppDtos = configService.queryAndBuildConfigAppDtoByAppIds(appIds);
-                for (ThreadPoolConfigAppDto dto : configAppDtos) {
-                    cache.putIfAbsent(dto.getAppId(), dto);
-                    count++;
-                }
-            }
-            log.info("Async loaded {} config entries from database", count);
-        } catch (Exception e) {
-            log.error("Failed to async load configs from database", e);
-        }
-    }
-
-    @Override
     public void saveConfig(String appId, ThreadPoolConfig config) {
         ThreadPoolConfigAppDto current = compute(appId, (app, oldDto) -> {
             ThreadPoolConfigAppUpsertCmd cmd = ThreadPoolConfigAppUpsertCmd.builder().appId(appId)
@@ -87,7 +68,7 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
 
     @Override
     public Optional<ThreadPoolConfig> getConfig(String appId, String poolName) {
-        ThreadPoolConfigAppDto current = getFromCache(appId).map(dto -> {
+        ThreadPoolConfigAppDto current = get(appId).map(dto -> {
             if (dto.getConfigs() != null && dto.getConfigs().containsKey(poolName)) return dto;
             return computeGetPool(appId, poolName);
         }).orElseGet(() -> computeGetPool(appId, poolName));
@@ -162,7 +143,7 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
     @Override
     public Optional<ThreadPoolAppConfig> getAppConfig(String appId) {
         refreshCacheByAppIds(List.of(appId));
-        return getFromCache(appId).map(configConverter::dtoConvertAppConfig);
+        return get(appId).map(configConverter::dtoConvertAppConfig);
     }
 
     private void refreshCacheByAppIds(List<String> appIds) {
