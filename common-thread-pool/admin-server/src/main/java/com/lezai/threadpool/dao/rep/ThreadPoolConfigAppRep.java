@@ -17,14 +17,6 @@ public class ThreadPoolConfigAppRep extends ServiceImpl<ThreadPoolConfigAppMappe
                 .eq(ThreadPoolConfigAppEntity::getAppId, appId)));
     }
 
-    public List<ThreadPoolConfigAppEntity> listByAppIds(List<String> appIds) {
-        if (appIds == null || appIds.isEmpty()) {
-            return List.of();
-        }
-        return list(Wrappers.<ThreadPoolConfigAppEntity>lambdaQuery()
-                .in(ThreadPoolConfigAppEntity::getAppId, appIds));
-    }
-
     public List<String> allAppIds() {
         return list(Wrappers.<ThreadPoolConfigAppEntity>lambdaQuery()
                 .select(ThreadPoolConfigAppEntity::getAppId))

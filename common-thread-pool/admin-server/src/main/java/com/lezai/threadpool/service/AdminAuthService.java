@@ -1,11 +1,11 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.AdminUserContext;
-import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
-import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
+import com.lezai.threadpool.pojo.bean.AdminUser;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.request.AdminLoginRequest;
+import com.lezai.threadpool.pojo.response.AdminLoginResponse;
 import com.lezai.threadpool.storage.AdminUserStorage;
-import com.lezai.threadpool.bean.AdminUser;
 import com.lezai.threadpool.utils.PasswordUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -22,13 +22,6 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.Optional;
 
-/**
- * 管理员登录认证服务：校验用户名密码，签发/校验 JWT。
- * <p>
- * JWT payload 内含 username / role / nickname / iat 等 claims。
- * 校验 token 时返回 {@link AdminUserContext}，供拦截器构建上下文。
- * 方案 C：改密码后旧 token 失效（对比 iat vs passwordChangedAt）。
- */
 @Slf4j
 public class AdminAuthService {
 
@@ -46,11 +39,6 @@ public class AdminAuthService {
         this.tokenExpireMinutes = tokenExpireMinutes;
     }
 
-    /**
-     * 登录：校验用户名密码，成功则签发 JWT。
-     * <p>
-     * 单次 DB 查询完成全部校验，并返回具体失败原因。
-     */
     public AdminLoginResponse login(AdminLoginRequest request) {
         AdminUser adminUser = adminUserStorage.getByUsername(request.getUsername())
                 .orElseThrow(() -> new AuthenticationException("User not found: " + request.getUsername()));
@@ -85,13 +73,6 @@ public class AdminAuthService {
         return response;
     }
 
-    /**
-     * 校验 token 并返回当前登录用户上下文。
-     * <p>
-     * 方案 C：若用户密码最近修改时间晚于 JWT 签发时间，视为 token 已失效。
-     *
-     * @throws AuthenticationException token 无效、已过期、或密码已变更
-     */
     public AdminUserContext validateToken(String token) {
         Claims claims = parseClaims(token);
         String username = claims.get(CLAIM_USERNAME, String.class);
@@ -99,7 +80,6 @@ public class AdminAuthService {
             throw new AuthenticationException("Invalid token: missing username");
         }
 
-        // 查 DB 获取当前用户信息（含 passwordChangedAt）
         AdminUser adminUser = adminUserStorage.getByUsername(username)
                 .orElseThrow(() -> new AuthenticationException("User not found: " + username));
 
@@ -107,7 +87,6 @@ public class AdminAuthService {
             throw new AuthenticationException("User has been disabled: " + username);
         }
 
-        // 方案 C：对比 iat vs passwordChangedAt
         Date iat = claims.getIssuedAt();
         if (iat != null && adminUser.getPasswordChangedAt() != null) {
             LocalDateTime changedAt = adminUser.getPasswordChangedAt();
@@ -125,9 +104,6 @@ public class AdminAuthService {
                 .build();
     }
 
-    /**
-     * 获取 token 剩余有效期（分钟），token 无效返回空
-     */
     public Optional<Long> getRemainingMinutes(String token) {
         try {
             Claims claims = parseClaims(token);
@@ -138,9 +114,6 @@ public class AdminAuthService {
         }
     }
 
-    /**
-     * 滑动续期：为指定用户签发新 token，返回新 token 字符串
-     */
     public String renew(String username, String role, String nickname) {
         Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
         Date now = new Date();

@@ -10,17 +10,11 @@ import com.lezai.threadpool.dao.rep.ThreadPoolConfigAppRep;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigRep;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigUpsertCmd;
-import com.lezai.threadpool.pojo.dto.AddConfigAppResultDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigDto;
+import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,46 +35,6 @@ public class ThreadPoolConfigPersistenceService {
 
     private final OperateLogService logService;
 
-    public List<ThreadPoolConfigAppDto> queryAndBuildConfigAppDtoByAppIds(List<String> appIds) {
-        List<ThreadPoolConfigAppEntity> configAppEntities = configAppRep.listByAppIds(appIds);
-
-        if (CollectionUtils.isEmpty(configAppEntities)) {
-            return List.of();
-        }
-
-        appIds = configAppEntities.stream().map(ThreadPoolConfigAppEntity::getAppId).toList();
-
-        List<ThreadPoolConfigEntity> configEntities = cursorQueryByAppIds(appIds);
-
-        if (CollectionUtils.isEmpty(configEntities)) {
-            return List.of();
-        }
-
-        Map<String, List<ThreadPoolConfigEntity>> configsMap = configEntities.stream()
-                .collect(Collectors.groupingBy(ThreadPoolConfigEntity::getAppId));
-
-
-        return configAppEntities.stream().map(configApp ->
-                configConverter.buildConfigAppDto(configApp, configsMap.get(configApp.getAppId()))).toList();
-    }
-
-    private List<ThreadPoolConfigEntity> cursorQueryByAppIds(List<String> appIds) {
-        List<ThreadPoolConfigEntity> allConfigs = new ArrayList<>();
-        long cursor = 0;
-        int batchSize = 500;
-
-        while (true) {
-            List<ThreadPoolConfigEntity> configs = configRep.listByCursor(cursor, batchSize, appIds);
-            if (CollectionUtils.isEmpty(configs)) {
-                break;
-            }
-            allConfigs.addAll(configs);
-            cursor = configs.getLast().getId();
-        }
-
-        return allConfigs;
-    }
-
     public List<String> allAppIds() {
         return configAppRep.allAppIds();
     }
@@ -94,67 +48,56 @@ public class ThreadPoolConfigPersistenceService {
         log.info("Created app entry: {}", appId);
     }
 
-    public Optional<ThreadPoolConfigAppDto> getConfigAppByAppId(String appId) {
+    public Optional<ThreadPoolConfigApp> getConfigAppByAppId(String appId) {
         Optional<ThreadPoolConfigAppEntity> configAppEntityOptional = configAppRep.findByAppId(appId);
         return configAppEntityOptional.map(configApp -> {
             List<ThreadPoolConfigEntity> configs = configRep.findByAppId(appId);
-            return configConverter.buildConfigAppDto(configApp, configs);
+            return configConverter.buildConfigApp(configApp, configs);
         });
     }
 
-    public List<ThreadPoolConfigDto> listByAppId(String appId) {
-        return configConverter.convertConfigDtos(configRep.findByAppId(appId));
+    public List<ThreadPoolConfig> listByAppId(String appId) {
+        return configConverter.convertConfigs(configRep.findByAppId(appId));
     }
 
-    public Optional<ThreadPoolConfigDto> getByAppIdAndPoolName(String appId, String poolName) {
-        return configRep.findByAppIdAndPoolName(appId, poolName).map(configConverter::convertConfigDto);
+    public Optional<ThreadPoolConfig> getByAppIdAndPoolName(String appId, String poolName) {
+        return configRep.findByAppIdAndPoolName(appId, poolName).map(configConverter::convertConfig);
     }
 
-    /**
-     * 返回全量配置
-     *
-     * @param cmd
-     * @return
-     */
     @Transactional(rollbackFor = Exception.class)
-    public ThreadPoolConfigAppDto upsertConfigApp(ThreadPoolConfigAppUpsertCmd cmd) {
-        ThreadPoolConfigAppEntity configApp = ensureConfigApp(cmd);
+    public ThreadPoolConfigApp upsertConfigApp(String appId, List<ThreadPoolConfig> configs) {
+        ThreadPoolConfigAppEntity configApp = ensureConfigApp(appId);
 
-        List<ThreadPoolConfigUpsertCmd> configCmds = cmd.getConfigs();
-        String appId = cmd.getAppId();
         List<ThreadPoolConfigEntity> totalConfigs = configRep.findByAppId(appId);
         Map<String, ThreadPoolConfigEntity> configMap = totalConfigs.stream().collect(Collectors.toMap(
                 ThreadPoolConfigEntity::getPoolName, Function.identity()));
 
         List<ThreadPoolConfigEntity> newConfigs = new ArrayList<>();
         List<ThreadPoolConfigEntity> updatedConfigs = new ArrayList<>();
-        List<ThreadPoolConfigEntity> configs = new ArrayList<>();
+        List<ThreadPoolConfigEntity> allConfigs = new ArrayList<>();
 
-        for (ThreadPoolConfigUpsertCmd configCmd : configCmds) {
-            ThreadPoolConfigEntity oldConfig = configMap.get(configCmd.getPoolName());
+        for (ThreadPoolConfig config : configs) {
+            ThreadPoolConfigEntity oldConfig = configMap.get(config.getPoolName());
             if (oldConfig != null) {
-                configConverter.cmdUpdateEntity(oldConfig, configCmd);
+                configConverter.configUpdateEntity(oldConfig, config);
                 updatedConfigs.add(oldConfig);
-                configs.add(oldConfig);
+                allConfigs.add(oldConfig);
             } else {
-                ThreadPoolConfigEntity newConfig = configConverter.upsertCmdConvertEntity(configCmd, appId);
+                ThreadPoolConfigEntity newConfig = configConverter.configConvertEntity(config, appId);
                 newConfigs.add(newConfig);
-                configs.add(newConfig);
+                allConfigs.add(newConfig);
                 totalConfigs.add(newConfig);
             }
         }
 
-        configRep.saveOrUpdateBatch(configs, 100);
+        configRep.saveOrUpdateBatch(allConfigs, 100);
 
-        // 记录日志
         log(updatedConfigs, OperateType.UPDATE);
-
         log(newConfigs, OperateType.CREATE);
 
-        Map<String, ThreadPoolConfigDto> dtoMap = configConverter.convertConfigDtos(totalConfigs).stream().collect(
-                Collectors.toMap(ThreadPoolConfigDto::getPoolName, Function.identity()));
+        List<ThreadPoolConfig> configList = configConverter.convertConfigs(totalConfigs);
 
-        return ThreadPoolConfigAppDto.builder().appId(appId).version(configApp.getVersion()).configs(dtoMap).build();
+        return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion()).configs(configList).build();
     }
 
     private void log(List<ThreadPoolConfigEntity> configs, OperateType operateType) {
@@ -164,10 +107,15 @@ public class ThreadPoolConfigPersistenceService {
         }
     }
 
-    private ThreadPoolConfigAppEntity ensureConfigApp(ThreadPoolConfigAppUpsertCmd cmd) {
-        Optional<ThreadPoolConfigAppEntity> configAppOptional = configAppRep.findByAppId(cmd.getAppId());
+    private String currentOperator() {
+        var ctx = AdminUserContextHolder.get();
+        return ctx != null ? ctx.getUsername() : "system";
+    }
+
+    private ThreadPoolConfigAppEntity ensureConfigApp(String appId) {
+        Optional<ThreadPoolConfigAppEntity> configAppOptional = configAppRep.findByAppId(appId);
         ThreadPoolConfigAppEntity configApp = configAppOptional.orElseGet(() ->
-                ThreadPoolConfigAppEntity.builder().appId(cmd.getAppId()).version(0L).build());
+                ThreadPoolConfigAppEntity.builder().appId(appId).version(0L).build());
 
         configApp.setVersion(configApp.getVersion() + 1);
         configAppRep.saveOrUpdate(configApp);
@@ -180,7 +128,6 @@ public class ThreadPoolConfigPersistenceService {
         configAppRep.remove(Wrappers.<ThreadPoolConfigAppEntity>lambdaQuery().eq(ThreadPoolConfigAppEntity::getAppId, appId));
         configRep.deleteByAppId(appId);
 
-        // 记录日志
         log(oldConfigs, OperateType.DELETE);
     }
 
@@ -204,57 +151,18 @@ public class ThreadPoolConfigPersistenceService {
         );
     }
 
-    public List<ThreadPoolConfigAppRefreshPreCheckDto> refreshAllPreCheck() {
-        List<ThreadPoolConfigAppEntity> configApps = configAppRep.list();
-        Map<String, Long> appId2CfgCntMap = configRep.countAllByAppId();
-        return configApps.stream().map(configApp -> buildRefreshPreCheckDto(configApp,
-                appId2CfgCntMap)).toList();
-    }
-
-    public List<ThreadPoolConfigAppRefreshPreCheckDto> refreshPreCheckByAppIds(List<String> appIds) {
-        List<ThreadPoolConfigAppEntity> configApps = configAppRep.list(Wrappers.<ThreadPoolConfigAppEntity>lambdaQuery()
-                .in(ThreadPoolConfigAppEntity::getAppId, appIds));
-        Map<String, Long> appId2CfgCntMap = configRep.countByAppIds(appIds);
-        return configApps.stream().map(configApp -> buildRefreshPreCheckDto(configApp,
-                appId2CfgCntMap)).toList();
-    }
-
-    private ThreadPoolConfigAppRefreshPreCheckDto buildRefreshPreCheckDto(ThreadPoolConfigAppEntity configApp,
-                                                                          Map<String, Long> appId2CfgCntMap) {
-        long version = configApp.getVersion();
-        int configsCount = appId2CfgCntMap.getOrDefault(configApp.getAppId(), 0L).intValue();
-        return ThreadPoolConfigAppRefreshPreCheckDto.builder()
-                .appId(configApp.getAppId())
-                .version(version)
-                .configsCount(configsCount)
-                .build();
-    }
-
-    private String currentOperator() {
-        var ctx = AdminUserContextHolder.get();
-        return ctx != null ? ctx.getUsername() : "system";
-    }
-
-    /**
-     * 批量新增配置，返回列表中新增的和数据库已存在的配置
-     *
-     * @param cmd
-     * @return
-     */
     @Transactional(rollbackFor = Exception.class)
-    public AddConfigAppResultDto addConfigApp(ThreadPoolConfigAppUpsertCmd cmd) {
-        ThreadPoolConfigAppEntity configApp = ensureConfigApp(cmd);
-        List<ThreadPoolConfigUpsertCmd> configCmds = cmd.getConfigs();
-        List<String> poolNames = configCmds.stream().map(ThreadPoolConfigUpsertCmd::getPoolName).toList();
+    public ThreadPoolConfigApp addConfigApp(String appId, List<ThreadPoolConfig> configs) {
+        ThreadPoolConfigAppEntity configApp = ensureConfigApp(appId);
+        List<String> poolNames = configs.stream().map(ThreadPoolConfig::getPoolName).toList();
 
-        String appId = cmd.getAppId();
         List<ThreadPoolConfigEntity> oldConfigs = configRep.findByAppIdAndPoolNamesIn(appId, poolNames);
         Map<String, ThreadPoolConfigEntity> configMap = oldConfigs.stream().collect(Collectors.toMap(
                 ThreadPoolConfigEntity::getPoolName, Function.identity()));
 
-        List<ThreadPoolConfigEntity> newConfigs = configCmds.stream().filter(configCmd ->
-                !configMap.containsKey(configCmd.getPoolName())).map(configCmd ->
-                configConverter.upsertCmdConvertEntity(configCmd, appId)).toList();
+        List<ThreadPoolConfigEntity> newConfigs = configs.stream().filter(config ->
+                !configMap.containsKey(config.getPoolName())).map(config ->
+                configConverter.configConvertEntity(config, appId)).toList();
 
         boolean saved = configRep.saveBatch(newConfigs, 100);
 
@@ -262,9 +170,9 @@ public class ThreadPoolConfigPersistenceService {
             log(newConfigs, OperateType.CREATE);
         }
 
-        return AddConfigAppResultDto.builder().appId(appId).version(configApp.getVersion())
-                .existConfigs(configConverter.convertConfigDtos(oldConfigs))
-                .addedConfigs(saved ? configConverter.convertConfigDtos(newConfigs) : List.of())
+        return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion())
+                .existConfigs(configConverter.convertConfigs(oldConfigs))
+                .addedConfigs(saved ? configConverter.convertConfigs(newConfigs) : List.of())
                 .build();
     }
 

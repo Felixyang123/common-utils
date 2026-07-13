@@ -1,6 +1,7 @@
 package com.lezai.threadpool.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
  */
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @SuperBuilder
 @TableName(value = "thread_pool_stats", autoResultMap = true)

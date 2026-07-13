@@ -3,7 +3,7 @@ package com.lezai.threadpool.service;
 import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.listener.ConfigChangeListener;
@@ -187,10 +187,12 @@ class SubscriptionServiceTest {
 
     @SuppressWarnings("unchecked")
     private ResponseEntity<ApiResponse<ConfigChangeNotification>> defaultTimeoutValue() {
-        // Mirror SubscriptionService's private NOT_MODIFIED constant via a fresh instance â€”
+        // Mirror SubscriptionService's private NOT_MODIFIED constant via a fresh instance â€?
         // the DeferredResult constructed by the service already carries it; here we only need
         // a same-shaped value to drive setResult() the way the async timeout callback would.
         return (ResponseEntity<ApiResponse<ConfigChangeNotification>>) (ResponseEntity<?>)
                 ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
     }
 }
+
+

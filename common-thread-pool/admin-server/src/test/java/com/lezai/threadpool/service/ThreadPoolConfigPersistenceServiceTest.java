@@ -1,19 +1,12 @@
 package com.lezai.threadpool.service;
 
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.lezai.threadpool.TestDataFactory;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigAppRep;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigRep;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigUpsertCmd;
-import com.lezai.threadpool.pojo.dto.AddConfigAppResultDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppRefreshPreCheckDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigDto;
+import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,13 +60,13 @@ class ThreadPoolConfigPersistenceServiceTest {
         ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
                 .appId("app1").version(3L).build();
         List<ThreadPoolConfigEntity> configEntities = List.of(ThreadPoolConfigEntity.builder().build());
-        ThreadPoolConfigAppDto dto = ThreadPoolConfigAppDto.builder().appId("app1").build();
+        ThreadPoolConfigApp dto = ThreadPoolConfigApp.builder().appId("app1").build();
 
         when(configAppRep.findByAppId("app1")).thenReturn(Optional.of(appEntity));
         when(configRep.findByAppId("app1")).thenReturn(configEntities);
-        when(configConverter.buildConfigAppDto(appEntity, configEntities)).thenReturn(dto);
+        when(configConverter.buildConfigApp(appEntity, configEntities)).thenReturn(dto);
 
-        Optional<ThreadPoolConfigAppDto> result = service.getConfigAppByAppId("app1");
+        Optional<ThreadPoolConfigApp> result = service.getConfigAppByAppId("app1");
 
         assertThat(result).isPresent();
         assertThat(result.get().getAppId()).isEqualTo("app1");
@@ -85,7 +77,7 @@ class ThreadPoolConfigPersistenceServiceTest {
     void getConfigAppByAppId_notFound() {
         when(configAppRep.findByAppId("unknown")).thenReturn(Optional.empty());
 
-        Optional<ThreadPoolConfigAppDto> result = service.getConfigAppByAppId("unknown");
+        Optional<ThreadPoolConfigApp> result = service.getConfigAppByAppId("unknown");
 
         assertThat(result).isEmpty();
     }
@@ -94,12 +86,12 @@ class ThreadPoolConfigPersistenceServiceTest {
     @DisplayName("listByAppId returns config DTOs")
     void listByAppId() {
         List<ThreadPoolConfigEntity> entities = List.of(ThreadPoolConfigEntity.builder().build());
-        List<ThreadPoolConfigDto> dtos = List.of(createConfigDto("pool-a"));
+        List<ThreadPoolConfig> dtos = List.of(createConfig("pool-a"));
 
         when(configRep.findByAppId("app1")).thenReturn(entities);
-        when(configConverter.convertConfigDtos(entities)).thenReturn(dtos);
+        when(configConverter.convertConfigs(entities)).thenReturn(dtos);
 
-        List<ThreadPoolConfigDto> result = service.listByAppId("app1");
+        List<ThreadPoolConfig> result = service.listByAppId("app1");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getPoolName()).isEqualTo("pool-a");
@@ -109,12 +101,12 @@ class ThreadPoolConfigPersistenceServiceTest {
     @DisplayName("getByAppIdAndPoolName returns config when found")
     void getByAppIdAndPoolName_found() {
         ThreadPoolConfigEntity entity = ThreadPoolConfigEntity.builder().build();
-        ThreadPoolConfigDto dto = createConfigDto("pool-a");
+        ThreadPoolConfig config = createConfig("pool-a");
 
         when(configRep.findByAppIdAndPoolName("app1", "pool-a")).thenReturn(Optional.of(entity));
-        when(configConverter.convertConfigDto(entity)).thenReturn(dto);
+        when(configConverter.convertConfig(entity)).thenReturn(config);
 
-        Optional<ThreadPoolConfigDto> result = service.getByAppIdAndPoolName("app1", "pool-a");
+        Optional<ThreadPoolConfig> result = service.getByAppIdAndPoolName("app1", "pool-a");
 
         assertThat(result).isPresent();
         assertThat(result.get().getPoolName()).isEqualTo("pool-a");
@@ -125,33 +117,9 @@ class ThreadPoolConfigPersistenceServiceTest {
     void getByAppIdAndPoolName_notFound() {
         when(configRep.findByAppIdAndPoolName("app1", "unknown")).thenReturn(Optional.empty());
 
-        Optional<ThreadPoolConfigDto> result = service.getByAppIdAndPoolName("app1", "unknown");
+        Optional<ThreadPoolConfig> result = service.getByAppIdAndPoolName("app1", "unknown");
 
         assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("upsertConfigApp creates new app and upserts configs")
-    void upsertConfigApp_create() {
-        ThreadPoolConfigUpsertCmd configCmd = new ThreadPoolConfigUpsertCmd();
-        configCmd.setPoolName("pool-a");
-        ThreadPoolConfigAppUpsertCmd cmd = ThreadPoolConfigAppUpsertCmd.builder()
-                .appId("app1")
-                .configs(List.of(configCmd))
-                .build();
-
-        ThreadPoolConfigAppEntity newAppEntity = ThreadPoolConfigAppEntity.builder()
-                .appId("app1").version(0L).build();
-        ThreadPoolConfigEntity newConfigEntity = ThreadPoolConfigEntity.builder().poolName("pool-a").build();
-
-        when(configAppRep.findByAppId("app1")).thenReturn(Optional.empty());
-        when(configConverter.upsertCmdConvertEntity(configCmd, "app1")).thenReturn(newConfigEntity);
-        when(configConverter.convertConfigDtos(anyList())).thenReturn(List.of(createConfigDto("pool-a")));
-
-        ThreadPoolConfigAppDto result = service.upsertConfigApp(cmd);
-
-        assertThat(result.getAppId()).isEqualTo("app1");
-        verify(configRep).saveOrUpdateBatch(anyList(), eq(100));
     }
 
     @Test
@@ -193,94 +161,9 @@ class ThreadPoolConfigPersistenceServiceTest {
         service.deleteByAppIdAndPoolName("unknown", "pool-a");
     }
 
-    @Test
-    @DisplayName("queryAndBuildConfigAppDtoByAppIds returns configs")
-    void queryAndBuildConfigAppDtoByAppIds() {
-        ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
-                .appId("app1").build();
-        ThreadPoolConfigEntity configEntity = ThreadPoolConfigEntity.builder()
-                .appId("app1").id(1L).build();
-
-        when(configAppRep.listByAppIds(List.of("app1"))).thenReturn(List.of(appEntity));
-        when(configRep.listByCursor(0, 500, List.of("app1"))).thenReturn(List.of(configEntity));
-        when(configConverter.buildConfigAppDto(appEntity, List.of(configEntity)))
-                .thenReturn(ThreadPoolConfigAppDto.builder().appId("app1").build());
-
-        List<ThreadPoolConfigAppDto> result = service.queryAndBuildConfigAppDtoByAppIds(List.of("app1"));
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getAppId()).isEqualTo("app1");
-    }
-
-    @Test
-    @DisplayName("queryAndBuildConfigAppDtoByAppIds returns empty when no config apps found")
-    void queryAndBuildConfigAppDtoByAppIds_noApps() {
-        when(configAppRep.listByAppIds(List.of("unknown"))).thenReturn(List.of());
-
-        List<ThreadPoolConfigAppDto> result = service.queryAndBuildConfigAppDtoByAppIds(List.of("unknown"));
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    @DisplayName("refreshAllPreCheck returns pre-check DTOs")
-    void refreshAllPreCheck() {
-        ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
-                .appId("app1").version(3L).build();
-
-        when(configAppRep.list()).thenReturn(List.of(appEntity));
-        when(configRep.countAllByAppId()).thenReturn(Map.of("app1", 5L));
-
-        List<ThreadPoolConfigAppRefreshPreCheckDto> result = service.refreshAllPreCheck();
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getAppId()).isEqualTo("app1");
-        assertThat(result.get(0).getVersion()).isEqualTo(3);
-        assertThat(result.get(0).getConfigsCount()).isEqualTo(5);
-    }
-
-    @Test
-    @DisplayName("refreshPreCheckByAppIds returns pre-check DTOs for specific apps")
-    void refreshPreCheckByAppIds() {
-        ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
-                .appId("app1").version(3L).build();
-
-        when(configAppRep.list(any(Wrapper.class))).thenReturn(List.of(appEntity));
-        when(configRep.countByAppIds(List.of("app1"))).thenReturn(Map.of("app1", 5L));
-
-        List<ThreadPoolConfigAppRefreshPreCheckDto> result = service.refreshPreCheckByAppIds(List.of("app1"));
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getAppId()).isEqualTo("app1");
-        assertThat(result.get(0).getConfigsCount()).isEqualTo(5);
-    }
-
-    @Test
-    @DisplayName("addConfigApp adds configs and returns dto")
-    void addConfigApp() {
-        ThreadPoolConfigUpsertCmd configCmd = new ThreadPoolConfigUpsertCmd();
-        configCmd.setPoolName("pool-a");
-        ThreadPoolConfigAppUpsertCmd cmd = ThreadPoolConfigAppUpsertCmd.builder()
-                .appId("app1")
-                .configs(List.of(configCmd))
-                .build();
-
-        when(configRep.findByAppIdAndPoolNamesIn("app1", List.of("pool-a"))).thenReturn(List.of());
-        when(configConverter.upsertCmdConvertEntity(configCmd, "app1"))
-                .thenReturn(ThreadPoolConfigEntity.builder().poolName("pool-a").build());
-        when(configRep.saveBatch(anyList(), eq(100))).thenReturn(true);
-        when(configAppRep.findByAppId("app1")).thenReturn(Optional.empty());
-        when(configConverter.convertConfigDtos(anyList()))
-                .thenReturn(List.of(createConfigDto("pool-a")));
-
-        AddConfigAppResultDto result = service.addConfigApp(cmd);
-
-        assertThat(result).isNotNull();
-    }
-
-    private static ThreadPoolConfigDto createConfigDto(String poolName) {
-        ThreadPoolConfigDto dto = new ThreadPoolConfigDto();
-        dto.setPoolName(poolName);
-        return dto;
+    private static ThreadPoolConfig createConfig(String poolName) {
+        return ThreadPoolConfig.builder().poolName(poolName).build();
     }
 }
+
+

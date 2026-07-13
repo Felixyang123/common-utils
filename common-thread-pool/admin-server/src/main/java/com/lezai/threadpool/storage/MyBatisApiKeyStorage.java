@@ -1,13 +1,11 @@
 package com.lezai.threadpool.storage;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.ValidationException;
-import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
-import com.lezai.threadpool.pojo.dto.ApiKeyDto;
+import com.lezai.threadpool.pojo.bean.ApiKey;
+import com.lezai.threadpool.pojo.bean.PageResult;
 import com.lezai.threadpool.service.ApiKeyPersistenceService;
 import com.lezai.threadpool.storage.cache.Cache;
 import com.lezai.threadpool.storage.cache.CachedStorageSupport;
@@ -49,7 +47,7 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
         }
 
         compute(apiKey.getAppId(), () -> {
-            boolean updated = apiKeyService.updateByAppId(apiKeyConverter.convertUpsertCmd(apiKey));
+            boolean updated = apiKeyService.updateByAppId(apiKey);
             if (updated) {
                 cache.put(apiKey.getAppId(), apiKey);
                 log.info("Saved API key for appId: {}", apiKey.getAppId());
@@ -62,7 +60,7 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
     @Override
     public Optional<ApiKey> getApiKey(String appId) {
         return Optional.ofNullable(getOrLoad(appId, () ->
-                apiKeyService.findByAppId(appId).map(apiKeyConverter::convertApiKey).orElse(null)));
+                apiKeyService.findByAppId(appId).orElse(null)));
     }
 
     @Override
@@ -74,14 +72,13 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
 
     @Override
     public List<ApiKey> allApiKeys() {
-        return apiKeyConverter.convertApiKeys(apiKeyService.all());
+        return apiKeyService.all();
     }
 
     @Override
     public PageResult<ApiKey> pageApiKeys(int page, int pageSize) {
-        Page<ApiKeyDto> mpPage = apiKeyService.page(page, pageSize);
-        return PageResult.of(mpPage.getTotal(), mpPage.getRecords().stream()
-                .map(apiKeyConverter::convertApiKey).toList());
+        Page<ApiKey> mpPage = apiKeyService.page(page, pageSize);
+        return PageResult.of(mpPage.getTotal(), mpPage.getRecords());
     }
 
     @Override
@@ -99,12 +96,12 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
         }
         return compute(apiKey.getAppId(), () -> {
             ApiKey existing = getOrLoad(apiKey.getAppId(), () -> apiKeyService.findByAppId(apiKey.getAppId())
-                    .map(apiKeyConverter::convertApiKey).orElse(null));
+                    .orElse(null));
             if (existing != null) {
                 return false;
             }
 
-            boolean success = apiKeyService.add(apiKeyConverter.convertUpsertCmd(apiKey));
+            boolean success = apiKeyService.add(apiKey);
             if (success) {
                 cache.put(apiKey.getAppId(), apiKey);
                 log.info("Inserted new API key for appId: {}", apiKey.getAppId());
@@ -119,22 +116,28 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
     @Transactional
     public String regenerateApiKey(String appId) {
         return compute(appId, () -> {
-            Optional<ApiKeyDto> opt = apiKeyService.findByAppId(appId);
+            Optional<ApiKey> opt = apiKeyService.findByAppId(appId);
             if (opt.isEmpty()) {
                 throw new ResourceNotFoundException("ApiKey not found for appId: " + appId);
             }
             String newApiKey = ApiKeyUtils.generateRandomApiKey();
-            ApiKeyDto dto = opt.get();
-            ApiKey apiKey = apiKeyConverter.convertApiKey(dto);
-            ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
-            cmd.setAppId(appId);
-            cmd.setApiKeyHash(ApiKeyUtils.hashApiKey(newApiKey));
-            if (apiKeyService.updateByAppId(cmd)) {
-                apiKey.setApiKeyHash(cmd.getApiKeyHash());
-                cache.put(appId, apiKey);
+            ApiKey apiKey = opt.get();
+            ApiKey updated = ApiKey.builder()
+                    .appId(appId)
+                    .apiKeyHash(ApiKeyUtils.hashApiKey(newApiKey))
+                    .appName(apiKey.getAppName())
+                    .enabled(apiKey.isEnabled())
+                    .createTime(apiKey.getCreateTime())
+                    .expireTime(apiKey.getExpireTime())
+                    .description(apiKey.getDescription())
+                    .build();
+            if (apiKeyService.updateByAppId(updated)) {
+                cache.put(appId, updated);
             }
             log.info("Regenerated API key for appId: {}", appId);
             return newApiKey;
         });
     }
 }
+
+

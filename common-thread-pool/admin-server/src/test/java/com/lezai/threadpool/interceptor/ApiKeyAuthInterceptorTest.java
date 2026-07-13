@@ -1,6 +1,6 @@
 package com.lezai.threadpool.interceptor;
 
-import com.lezai.threadpool.bean.ApiKey;
+import com.lezai.threadpool.pojo.bean.ApiKey;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,3 +110,4 @@ class ApiKeyAuthInterceptorTest {
         assertThat(response.getStatus()).isEqualTo(400);
     }
 }
+

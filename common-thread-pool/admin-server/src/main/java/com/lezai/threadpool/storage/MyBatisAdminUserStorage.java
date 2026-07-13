@@ -1,23 +1,22 @@
 package com.lezai.threadpool.storage;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lezai.threadpool.bean.AdminUser;
-import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.dao.entity.AdminUserEntity;
 import com.lezai.threadpool.dao.rep.AdminUserRep;
+import com.lezai.threadpool.pojo.bean.AdminUser;
+import com.lezai.threadpool.pojo.bean.PageResult;
 import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 /**
- * 基于 MyBatis 的管理员账号存储。
+ * 基于 MyBatis 的管理员账号存储�?
  * <p>
- * 在 local / db 两个 profile 下共用。
- * 首次启动若表为空，自动创建配置提供的默认管理员账号（SUPER_ADMIN）。
+ * �?local / db 两个 profile 下共用�?
+ * 首次启动若表为空，自动创建配置提供的默认管理员账号（SUPER_ADMIN）�?
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -28,11 +27,6 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
     @Override
     public Optional<AdminUser> getByUsername(String username) {
         return adminUserRep.findByUsername(username).map(this::toUser);
-    }
-
-    @Override
-    public List<AdminUser> page() {
-        return adminUserRep.list().stream().map(this::toUser).toList();
     }
 
     @Override
@@ -67,7 +61,7 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
     }
 
     /**
-     * 首次启动初始化：表为空时创建配置提供的默认管理员账号（SUPER_ADMIN）
+     * 首次启动初始化：表为空时创建配置提供的默认管理员账号（SUPER_ADMIN�?
      */
     public void ensureDefaultUser(String defaultUsername, String defaultPassword) {
         if (adminUserRep.existsAny()) {
@@ -109,3 +103,4 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
                 .build();
     }
 }
+

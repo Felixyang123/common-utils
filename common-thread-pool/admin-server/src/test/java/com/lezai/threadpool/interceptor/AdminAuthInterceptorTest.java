@@ -1,6 +1,6 @@
 package com.lezai.threadpool.interceptor;
 
-import com.lezai.threadpool.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.service.AdminAuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,3 +93,4 @@ class AdminAuthInterceptorTest {
         verify(adminAuthService).validateToken("good-token");
     }
 }
+

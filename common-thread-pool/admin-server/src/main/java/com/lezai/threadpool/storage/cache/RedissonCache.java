@@ -3,7 +3,6 @@ package com.lezai.threadpool.storage.cache;
 import org.redisson.api.RMapCache;
 
 import java.time.Duration;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class RedissonCache<K, V> implements Cache<K, V> {
@@ -56,20 +55,5 @@ public class RedissonCache<K, V> implements Cache<K, V> {
     @Override
     public boolean containsKey(K key) {
         return delegate.containsKey(key);
-    }
-
-    @Override
-    public int size() {
-        return delegate.size();
-    }
-
-    @Override
-    public void clear() {
-        delegate.clear();
-    }
-
-    @Override
-    public Set<K> keySet() {
-        return delegate.keySet();
     }
 }

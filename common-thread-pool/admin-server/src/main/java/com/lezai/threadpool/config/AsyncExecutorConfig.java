@@ -44,26 +44,6 @@ public class AsyncExecutorConfig {
     @Value("${threadpool.storage.async.history.queue-capacity:5000}")
     private int historyQueueCapacity;
 
-    // ==================== API Key 历史记录线程池配置 ====================
-    @Value("${threadpool.storage.async.api-key-history.core-size:2}")
-    private int apiKeyHistoryCoreSize;
-
-    @Value("${threadpool.storage.async.api-key-history.max-size:4}")
-    private int apiKeyHistoryMaxSize;
-
-    @Value("${threadpool.storage.async.api-key-history.queue-capacity:1000}")
-    private int apiKeyHistoryQueueCapacity;
-
-    // ==================== 统计信息历史记录线程池配置 ====================
-    @Value("${threadpool.storage.async.stats-history.core-size:2}")
-    private int statsHistoryCoreSize;
-
-    @Value("${threadpool.storage.async.stats-history.max-size:4}")
-    private int statsHistoryMaxSize;
-
-    @Value("${threadpool.storage.async.stats-history.queue-capacity:1000}")
-    private int statsHistoryQueueCapacity;
-
     @Value("${threadpool.admin.subscription.core-pool-size:10}")
     private int subscriptionCorePoolSize;
 
@@ -83,24 +63,6 @@ public class AsyncExecutorConfig {
     @Bean(name = "historyRecordExecutor")
     public ThreadPoolTaskExecutor historyRecordExecutor() {
         return createAsyncExecutor(historyCoreSize, historyMaxSize, historyQueueCapacity, "config-history-record");
-    }
-
-    /**
-     * API Key 历史记录线程池
-     * 用于异步记录 API Key 变更历史
-     */
-    @Bean(name = "apiKeyHistoryRecordExecutor")
-    public ThreadPoolTaskExecutor apiKeyHistoryRecordExecutor() {
-        return createAsyncExecutor(apiKeyHistoryCoreSize, apiKeyHistoryMaxSize, apiKeyHistoryQueueCapacity, "apikey-history-record");
-    }
-
-    /**
-     * 统计信息历史记录线程池
-     * 用于异步记录统计信息变更历史
-     */
-    @Bean(name = "statsHistoryRecordExecutor")
-    public ThreadPoolTaskExecutor statsHistoryRecordExecutor() {
-        return createAsyncExecutor(statsHistoryCoreSize, statsHistoryMaxSize, statsHistoryQueueCapacity, "stats-history-record");
     }
 
     /**

@@ -1,9 +1,8 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.AdminUser;
-import com.lezai.threadpool.bean.AdminUserContext;
-import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
-import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
+import com.lezai.threadpool.pojo.bean.AdminUser;
+import com.lezai.threadpool.pojo.request.AdminLoginRequest;
+import com.lezai.threadpool.pojo.response.AdminLoginResponse;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.storage.AdminUserStorage;
 import com.lezai.threadpool.utils.PasswordUtils;
@@ -115,3 +114,5 @@ class AdminAuthServiceTest {
                 .isInstanceOf(AuthenticationException.class);
     }
 }
+
+

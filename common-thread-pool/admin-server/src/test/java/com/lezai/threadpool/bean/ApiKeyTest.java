@@ -1,6 +1,7 @@
 package com.lezai.threadpool.bean;
 
 import com.lezai.threadpool.TestDataFactory;
+import com.lezai.threadpool.pojo.bean.ApiKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

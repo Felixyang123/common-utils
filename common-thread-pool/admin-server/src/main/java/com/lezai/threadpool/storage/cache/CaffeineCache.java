@@ -3,7 +3,6 @@ package com.lezai.threadpool.storage.cache;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.Set;
 
 @Slf4j
 public class CaffeineCache<K, V> implements Cache<K, V> {
@@ -42,20 +41,5 @@ public class CaffeineCache<K, V> implements Cache<K, V> {
     @Override
     public boolean containsKey(K key) {
         return delegate.getIfPresent(key) != null;
-    }
-
-    @Override
-    public int size() {
-        return (int) delegate.estimatedSize();
-    }
-
-    @Override
-    public void clear() {
-        delegate.invalidateAll();
-    }
-
-    @Override
-    public Set<K> keySet() {
-        return delegate.asMap().keySet();
     }
 }

@@ -2,8 +2,8 @@ package com.lezai.threadpool.storage;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lezai.threadpool.bean.ConfigSnapshot;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
 import com.lezai.threadpool.dao.entity.ConfigHistoryEntity;
 import com.lezai.threadpool.dao.mapper.ConfigHistoryMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -14,10 +14,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 基于 MyBatis 的配置快照存储，对应 {@code config_history} 表。
+ * 基于 MyBatis 的配置快照存储，对应 {@code config_history} 表�?
  * <p>
- * local 与 db profile 共用——持久化层是唯一的不变量。
- * version 按 {@code (appId, poolName)} 维度递增。
+ * local �?db profile 共用——持久化层是唯一的不变量�?
+ * version �?{@code (appId, poolName)} 维度递增�?
  */
 @Slf4j
 @Repository
@@ -74,15 +74,6 @@ public class MyBatisConfigSnapshotStorage extends ServiceImpl<ConfigHistoryMappe
                 .map(this::toSnapshot).orElse(null);
     }
 
-    @Override
-    public void clearSnapshots(String appId, String poolName) {
-        if (StringUtils.isAnyBlank(appId, poolName)) return;
-        remove(Wrappers.<ConfigHistoryEntity>lambdaQuery()
-                .eq(ConfigHistoryEntity::getAppId, appId)
-                .eq(ConfigHistoryEntity::getPoolName, poolName));
-        log.info("Cleared config snapshots: appId={}, pool={}", appId, poolName);
-    }
-
     private long getNextVersion(String appId, String poolName) {
         ConfigHistoryEntity latest = getOne(Wrappers.<ConfigHistoryEntity>lambdaQuery()
                 .eq(ConfigHistoryEntity::getAppId, appId)
@@ -105,3 +96,4 @@ public class MyBatisConfigSnapshotStorage extends ServiceImpl<ConfigHistoryMappe
                 .build();
     }
 }
+

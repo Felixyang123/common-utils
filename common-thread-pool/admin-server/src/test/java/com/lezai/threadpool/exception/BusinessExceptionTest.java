@@ -26,22 +26,6 @@ class BusinessExceptionTest {
     }
 
     @Test
-    @DisplayName("StorageException has code 500")
-    void storageException() {
-        StorageException ex = new StorageException("disk full");
-        assertThat(ex.getCode()).isEqualTo(500);
-    }
-
-    @Test
-    @DisplayName("StorageException with cause")
-    void storageException_withCause() {
-        Throwable cause = new java.io.IOException("IO error");
-        StorageException ex = new StorageException("disk full", cause);
-        assertThat(ex.getCode()).isEqualTo(500);
-        assertThat(ex.getCause()).isInstanceOf(java.io.IOException.class);
-    }
-
-    @Test
     @DisplayName("ValidationException has code 400")
     void validationException() {
         ValidationException ex = new ValidationException("invalid input");

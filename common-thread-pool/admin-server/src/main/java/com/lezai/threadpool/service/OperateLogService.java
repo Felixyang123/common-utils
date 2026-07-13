@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lezai.threadpool.bean.PageResult;
+import com.lezai.threadpool.converter.OperateLogConverter;
 import com.lezai.threadpool.dao.entity.OperateLogEntity;
 import com.lezai.threadpool.dao.mapper.OperateLogMapper;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
+import com.lezai.threadpool.pojo.bean.PageResult;
+import com.lezai.threadpool.pojo.response.OperateLogResponse;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
@@ -20,26 +22,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogEntity> {
 
+    private final OperateLogConverter operateLogConverter;
+
     @Async(value = "historyRecordExecutor")
     public <T> void log(OperateType operateType, String operator, T content, String bizId, BizType bizType) {
         OperateLogEntity operateLog = OperateLogEntity.of(operateType, content, operator, bizId, bizType.name());
         save(operateLog);
     }
 
-    /**
-     * 分页查询操作日志
-     *
-     * @param page        页码（从1开始）
-     * @param pageSize    每页条数
-     * @param bizType     业务类型（可选）
-     * @param operateType 操作类型（可选）
-     * @param operator    操作人（可选，模糊匹配）
-     * @param bizId       业务ID（可选，精确匹配）
-     * @return 分页结果
-     */
-    public PageResult<OperateLogEntity> queryLogs(int page, int pageSize,
-                                                   String bizType, String operateType,
-                                                   String operator, String bizId) {
+    public PageResult<OperateLogResponse> queryLogs(int page, int pageSize,
+                                                     String bizType, String operateType,
+                                                     String operator, String bizId) {
         LambdaQueryWrapper<OperateLogEntity> wrapper = Wrappers.<OperateLogEntity>lambdaQuery();
         if (StringUtils.isNotBlank(bizType)) {
             wrapper.eq(OperateLogEntity::getBizType, bizType);
@@ -56,15 +49,14 @@ public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogE
         wrapper.orderByDesc(OperateLogEntity::getCreateTime);
 
         Page<OperateLogEntity> pageResult = page(new Page<>(page, pageSize), wrapper);
-        return PageResult.of(pageResult.getTotal(), pageResult.getRecords());
+        List<OperateLogResponse> responses = operateLogConverter.convert(pageResult.getRecords());
+        return PageResult.of(pageResult.getTotal(), responses);
     }
 
-    /**
-     * 获取最近的操作日志（用于仪表盘）
-     */
-    public List<OperateLogEntity> getRecentLogs(int limit) {
-        return list(Wrappers.<OperateLogEntity>lambdaQuery()
+    public List<OperateLogResponse> getRecentLogs(int limit) {
+        List<OperateLogEntity> entities = list(Wrappers.<OperateLogEntity>lambdaQuery()
                 .orderByDesc(OperateLogEntity::getCreateTime)
                 .last("LIMIT " + Math.max(1, limit)));
+        return operateLogConverter.convert(entities);
     }
 }

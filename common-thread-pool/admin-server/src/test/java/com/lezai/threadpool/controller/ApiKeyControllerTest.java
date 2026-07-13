@@ -1,15 +1,15 @@
 package com.lezai.threadpool.controller;
 
 import com.alibaba.fastjson2.JSON;
-import com.lezai.threadpool.bean.PageResult;
+import com.lezai.threadpool.pojo.bean.PageResult;
 import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
-import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
+import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
+import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.service.ApiKeyAdminService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -216,3 +216,7 @@ class ApiKeyControllerTest {
                 .andExpect(status().isNotFound());
     }
 }
+
+
+
+

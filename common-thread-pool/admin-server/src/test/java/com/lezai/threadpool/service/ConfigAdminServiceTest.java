@@ -1,10 +1,11 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.TestDataFactory;
-import com.lezai.threadpool.bean.ConfigSnapshot;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
+import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
@@ -39,11 +40,14 @@ class ConfigAdminServiceTest {
     @Mock
     private ThreadPoolConfigPersistenceService persistenceService;
 
+    @Mock
+    private ThreadPoolConfigConverter configConverter;
+
     private ConfigAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ConfigAdminService(configStorage, snapshotStorage, apiKeyStorage, persistenceService);
+        service = new ConfigAdminService(configStorage, snapshotStorage, apiKeyStorage, persistenceService, configConverter);
     }
 
     // ==================== getAppConfig ====================
@@ -186,3 +190,7 @@ class ConfigAdminServiceTest {
                 .hasMessageContaining("unknown");
     }
 }
+
+
+
+

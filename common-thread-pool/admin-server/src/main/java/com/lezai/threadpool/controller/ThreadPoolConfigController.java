@@ -1,9 +1,13 @@
 package com.lezai.threadpool.controller;
 
-import com.lezai.threadpool.bean.*;
-import com.lezai.threadpool.controller.dto.request.CreateAppRequest;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
+import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.pojo.bean.AppConfigSummary;
+import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
+import com.lezai.threadpool.pojo.request.CreateAppRequest;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.ThreadPoolConfigItemResponse;
 import com.lezai.threadpool.service.ConfigAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,9 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * 线程池配置管理控制器
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/thread-pool")
@@ -99,12 +100,12 @@ public class ThreadPoolConfigController {
     }
 
     @GetMapping("/configs/deleted")
-    public ApiResponse<List<ThreadPoolConfigEntity>> listDeletedConfigs() {
+    public ApiResponse<List<ThreadPoolConfigItemResponse>> listDeletedConfigs() {
         return ApiResponse.success(configAdminService.listDeletedConfigs());
     }
 
     @PutMapping("/configs/{appId}/{poolName}/restore")
-    public ApiResponse<ThreadPoolConfigEntity> restoreConfig(
+    public ApiResponse<ThreadPoolConfigItemResponse> restoreConfig(
             @PathVariable String appId,
             @PathVariable String poolName) {
         return ApiResponse.success(configAdminService.restoreConfig(appId, poolName));

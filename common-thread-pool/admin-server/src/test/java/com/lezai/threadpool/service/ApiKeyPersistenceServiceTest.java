@@ -5,8 +5,7 @@ import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
-import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
-import com.lezai.threadpool.pojo.dto.ApiKeyDto;
+import com.lezai.threadpool.pojo.bean.ApiKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,13 +48,12 @@ class ApiKeyPersistenceServiceTest {
     @DisplayName("all returns all API keys")
     void all() {
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
-        ApiKeyDto dto = new ApiKeyDto();
-        dto.setAppId("app1");
+        ApiKey apiKey = ApiKey.builder().appId("app1").build();
 
         when(apiKeyMapper.selectList(any())).thenReturn(List.of(entity));
-        when(apiKeyConverter.convertDtos(List.of(entity))).thenReturn(List.of(dto));
+        when(apiKeyConverter.convertApiKeys(List.of(entity))).thenReturn(List.of(apiKey));
 
-        List<ApiKeyDto> result = service.all();
+        List<ApiKey> result = service.all();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getAppId()).isEqualTo("app1");
@@ -64,15 +62,14 @@ class ApiKeyPersistenceServiceTest {
     @Test
     @DisplayName("upsert creates new API key when not exists")
     void add_create() {
-        ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
-        cmd.setAppId("app1");
+        ApiKey apiKey = ApiKey.builder().appId("app1").build();
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
 
-        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyConverter.convertEntity(apiKey)).thenReturn(entity);
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(null);
         when(apiKeyMapper.insert(any(ApiKeyEntity.class))).thenReturn(1);
 
-        boolean result = service.add(cmd);
+        boolean result = service.add(apiKey);
 
         assertThat(result).isTrue();
         verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
@@ -81,14 +78,13 @@ class ApiKeyPersistenceServiceTest {
     @Test
     @DisplayName("add inserts new API key")
     void add_insert() {
-        ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
-        cmd.setAppId("app1");
+        ApiKey apiKey = ApiKey.builder().appId("app1").build();
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
 
-        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyConverter.convertEntity(apiKey)).thenReturn(entity);
         when(apiKeyMapper.insert(any(ApiKeyEntity.class))).thenReturn(1);
 
-        boolean result = service.add(cmd);
+        boolean result = service.add(apiKey);
 
         assertThat(result).isTrue();
         verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
@@ -98,13 +94,12 @@ class ApiKeyPersistenceServiceTest {
     @DisplayName("findByAppId returns API key when found")
     void findByAppId_found() {
         ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
-        ApiKeyDto dto = new ApiKeyDto();
-        dto.setAppId("app1");
+        ApiKey apiKey = ApiKey.builder().appId("app1").build();
 
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(entity);
-        when(apiKeyConverter.convertDto(entity)).thenReturn(dto);
+        when(apiKeyConverter.convertApiKey(entity)).thenReturn(apiKey);
 
-        Optional<ApiKeyDto> result = service.findByAppId("app1");
+        Optional<ApiKey> result = service.findByAppId("app1");
 
         assertThat(result).isPresent();
         assertThat(result.get().getAppId()).isEqualTo("app1");
@@ -115,7 +110,7 @@ class ApiKeyPersistenceServiceTest {
     void findByAppId_notFound() {
         when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(null);
 
-        Optional<ApiKeyDto> result = service.findByAppId("unknown");
+        Optional<ApiKey> result = service.findByAppId("unknown");
 
         assertThat(result).isEmpty();
     }
@@ -133,15 +128,13 @@ class ApiKeyPersistenceServiceTest {
     @Test
     @DisplayName("update updates existing key")
     void updateByAppId() {
-        ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
-        cmd.setAppId("app1");
-        cmd.setId(1L);
+        ApiKey apiKey = ApiKey.builder().appId("app1").build();
         ApiKeyEntity entity = ApiKeyEntity.builder().id(1L).build();
 
-        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyConverter.convertEntity(apiKey)).thenReturn(entity);
         when(apiKeyMapper.update(any(ApiKeyEntity.class), any())).thenReturn(1);
 
-        boolean result = service.updateByAppId(cmd);
+        boolean result = service.updateByAppId(apiKey);
 
         assertThat(result).isTrue();
         verify(logService).log(eq(OperateType.UPDATE), any(), eq(entity), eq("1"), eq(BizType.APIKEY));

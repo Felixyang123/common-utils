@@ -1,11 +1,11 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
+import com.lezai.threadpool.pojo.bean.ApiKey;
+import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
+import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
@@ -298,3 +298,5 @@ class ApiKeyAdminServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 }
+
+

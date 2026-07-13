@@ -45,15 +45,6 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("handleStorage returns generic message, not internal details")
-    void handleStorage() {
-        StorageException ex = new StorageException("disk failure details");
-        ResponseEntity<ApiResponse<Void>> response = handler.handleStorage(ex);
-        assertThat(response.getBody().getCode()).isEqualTo(500);
-        assertThat(response.getBody().getMessage()).isEqualTo("Internal server error");
-    }
-
-    @Test
     @DisplayName("handleBusinessException uses exception code and message")
     void handleBusinessException() {
         BusinessException ex = new BusinessException(503, "service unavailable");
@@ -71,3 +62,5 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getMessage()).isEqualTo("Internal server error");
     }
 }
+
+

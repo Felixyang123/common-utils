@@ -1,6 +1,6 @@
 package com.lezai.threadpool.context;
 
-import com.lezai.threadpool.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
 import org.springframework.core.task.TaskDecorator;
 
 /**

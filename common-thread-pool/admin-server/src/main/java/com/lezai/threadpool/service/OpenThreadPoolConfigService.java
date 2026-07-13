@@ -1,12 +1,12 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.AddConfigAppResult;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.exception.ValidationException;
+import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.StatsStorage;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +16,6 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.List;
 
-/**
- * Open API 线程池配置服务
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -27,9 +24,6 @@ public class OpenThreadPoolConfigService {
     private final ConfigStorage configStorage;
     private final StatsStorage statsStorage;
 
-    /**
-     * 批量添加配置
-     */
     public AddConfigAppResult addConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (appId == null || appId.isBlank()) {
             throw new ValidationException("appId must not be blank");
@@ -40,9 +34,6 @@ public class OpenThreadPoolConfigService {
         return configStorage.addConfigs(appId, configs);
     }
 
-    /**
-     * 短轮询获取配置
-     */
     public ThreadPoolAppConfig pullConfigs(String appId, Long version) {
         return configStorage.getAppConfig(appId).map(appConfig -> {
             if (version != null && appConfig.getConfigVersion() <= version) {
@@ -52,9 +43,6 @@ public class OpenThreadPoolConfigService {
         }).orElseThrow(() -> new ResourceNotFoundException("Config not found for appId: " + appId));
     }
 
-    /**
-     * 接收线程池统计信息上报
-     */
     public void reportStats(ThreadPoolStatsReport report) {
         if (report == null || report.getAppId() == null) {
             throw new ValidationException("Report and appId cannot be null");

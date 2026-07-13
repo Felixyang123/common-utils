@@ -1,14 +1,14 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.ApiKey;
-import com.lezai.threadpool.bean.PageResult;
-import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.pojo.bean.ApiKey;
+import com.lezai.threadpool.pojo.bean.PageResult;
+import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
+import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
@@ -19,12 +19,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * API Key 管理应用服务
- * <p>
- * API Key 的历史操作通过审计日志（OperateLogService）承载，不再记录独立快照。
- * API Key 不支持回滚（安全性质：轮换即重置，回滚会让旧泄露凭证复活）。
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,9 +26,6 @@ public class ApiKeyAdminService {
 
     private final ApiKeyStorage apiKeyStorage;
 
-    /**
-     * 创建 API Key
-     */
     public CreateApiKeyResponse createApiKey(CreateApiKeyRequest request) {
         log.info("Creating API key for appId: {}", request.getAppId());
 
@@ -69,27 +60,18 @@ public class ApiKeyAdminService {
         return response;
     }
 
-    /**
-     * 删除 API Key
-     */
     public void deleteApiKey(String appId) {
         log.info("Deleting API key for appId: {}", appId);
         apiKeyStorage.deleteApiKey(appId);
         log.info("API key deleted successfully for appId: {}", appId);
     }
 
-    /**
-     * 获取单个 API Key 信息（脱敏）
-     */
     public ApiKeyInfoResponse getApiKey(String appId) {
         return apiKeyStorage.getApiKey(appId)
                 .map(this::toApiKeyInfo)
                 .orElseThrow(() -> new ResourceNotFoundException("API key not found for appId: " + appId));
     }
 
-    /**
-     * 列出所有 API Key（脱敏）
-     */
     public List<ApiKeyInfoResponse> allApiKeys() {
         return apiKeyStorage.allApiKeys()
                 .stream()
@@ -97,17 +79,11 @@ public class ApiKeyAdminService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 分页查询 API Key（脱敏）
-     */
     public PageResult<ApiKeyInfoResponse> pageApiKeys(int page, int pageSize) {
         PageResult<ApiKey> result = apiKeyStorage.pageApiKeys(page, pageSize);
         return PageResult.of(result.getTotal(), result.getList().stream().map(this::toApiKeyInfo).toList());
     }
 
-    /**
-     * 更新 API Key
-     */
     public void updateApiKey(String appId, UpdateApiKeyRequest request) {
         log.info("Updating API key for appId: {}", appId);
 
@@ -127,9 +103,6 @@ public class ApiKeyAdminService {
         apiKeyStorage.updateApiKey(updated);
     }
 
-    /**
-     * 重新生成 API Key
-     */
     public RegenerateApiKeyResponse regenerateApiKey(String appId) {
         log.info("Regenerating API key for appId: {}", appId);
 
@@ -160,3 +133,5 @@ public class ApiKeyAdminService {
         return info;
     }
 }
+
+

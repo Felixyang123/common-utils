@@ -1,5 +1,6 @@
 package com.lezai.threadpool.bean;
 
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -35,3 +36,4 @@ class ThreadPoolAppConfigTest {
         assertThat(appConfig.getConfigs()).isNull();
     }
 }
+

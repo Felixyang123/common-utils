@@ -1,8 +1,8 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.controller.dto.request.AdminLoginRequest;
-import com.lezai.threadpool.controller.dto.response.AdminLoginResponse;
+import com.lezai.threadpool.pojo.request.AdminLoginRequest;
+import com.lezai.threadpool.pojo.response.AdminLoginResponse;
 import com.lezai.threadpool.service.AdminAuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

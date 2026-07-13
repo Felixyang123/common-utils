@@ -1,12 +1,12 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.PageResult;
-import com.lezai.threadpool.controller.dto.request.ChangeNicknameRequest;
-import com.lezai.threadpool.controller.dto.request.ChangePasswordRequest;
-import com.lezai.threadpool.controller.dto.request.CreateAdminUserRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateAdminUserRequest;
-import com.lezai.threadpool.controller.dto.response.AdminUserResponse;
+import com.lezai.threadpool.pojo.bean.PageResult;
+import com.lezai.threadpool.pojo.request.ChangeNicknameRequest;
+import com.lezai.threadpool.pojo.request.ChangePasswordRequest;
+import com.lezai.threadpool.pojo.request.CreateAdminUserRequest;
+import com.lezai.threadpool.pojo.request.UpdateAdminUserRequest;
+import com.lezai.threadpool.pojo.response.AdminUserResponse;
 import com.lezai.threadpool.service.AdminUserManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ public class AdminUserController {
     private final AdminUserManagementService adminUserManagementService;
 
     /**
-     * 分页列出管理员（仅 SUPER_ADMIN）
+     * 分页列出管理员（�?SUPER_ADMIN�?
      */
     @GetMapping
     public ApiResponse<PageResult<AdminUserResponse>> pageAdminUsers(
@@ -35,7 +35,7 @@ public class AdminUserController {
     }
 
     /**
-     * 创建管理员（仅 SUPER_ADMIN）
+     * 创建管理员（�?SUPER_ADMIN�?
      */
     @PostMapping
     public ApiResponse<AdminUserResponse> createAdmin(@Valid @RequestBody CreateAdminUserRequest request) {
@@ -43,7 +43,7 @@ public class AdminUserController {
     }
 
     /**
-     * 更新管理员（仅 SUPER_ADMIN）
+     * 更新管理员（�?SUPER_ADMIN�?
      */
     @PutMapping("/{username}")
     public ApiResponse<AdminUserResponse> updateAdmin(
@@ -53,7 +53,7 @@ public class AdminUserController {
     }
 
     /**
-     * 删除管理员（仅 SUPER_ADMIN，不可删除自己/默认 admin）
+     * 删除管理员（�?SUPER_ADMIN，不可删除自�?默认 admin�?
      */
     @DeleteMapping("/{username}")
     public ApiResponse<Void> deleteAdmin(@PathVariable String username) {

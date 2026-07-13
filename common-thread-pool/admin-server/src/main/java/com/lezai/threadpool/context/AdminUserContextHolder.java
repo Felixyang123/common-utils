@@ -1,6 +1,6 @@
 package com.lezai.threadpool.context;
 
-import com.lezai.threadpool.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
 
 /**
  * 当前登录管理员上下文持有者（ThreadLocal 模式）。

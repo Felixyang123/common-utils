@@ -1,7 +1,6 @@
 package com.lezai.threadpool.storage.cache;
 
 import java.time.Duration;
-import java.util.Set;
 
 public interface Cache<K, V> {
 
@@ -43,10 +42,4 @@ public interface Cache<K, V> {
     void remove(K key);
 
     boolean containsKey(K key);
-
-    int size();
-
-    void clear();
-
-    Set<K> keySet();
 }

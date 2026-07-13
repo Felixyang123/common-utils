@@ -57,12 +57,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(400, message));
     }
 
-    @ExceptionHandler(StorageException.class)
-    public ResponseEntity<ApiResponse<Void>> handleStorage(StorageException e) {
-        log.error("Storage error: {}", e.getMessage(), e);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(e.getCode(), "Internal server error"));
-    }
-
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         log.warn("Business exception: {}", e.getMessage(), e);

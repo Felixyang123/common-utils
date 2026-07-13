@@ -1,12 +1,18 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.*;
+import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.context.AdminUserContextHolder;
-import com.lezai.threadpool.controller.dto.request.CreateAppRequest;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
+import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.bean.ApiKey;
+import com.lezai.threadpool.pojo.bean.AppConfigSummary;
+import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
+import com.lezai.threadpool.pojo.request.CreateAppRequest;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.ThreadPoolConfigItemResponse;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
@@ -18,11 +24,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 线程池配置管理应用服务
- * <p>
- * 操作人通过 {@link AdminUserContextHolder} 获取，不再通过方法参数传递。
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,7 @@ public class ConfigAdminService {
     private final ConfigSnapshotStorage snapshotStorage;
     private final ApiKeyStorage apiKeyStorage;
     private final ThreadPoolConfigPersistenceService persistenceService;
+    private final ThreadPoolConfigConverter configConverter;
 
     public List<AppConfigSummary> listApps() {
         return configStorage.listAppIds().stream()
@@ -152,18 +154,18 @@ public class ConfigAdminService {
         log.info("App deleted: {} by {}", appId, currentOperator());
     }
 
-    public List<ThreadPoolConfigEntity> listDeletedConfigs() {
-        return persistenceService.listDeletedConfigs();
+    public List<ThreadPoolConfigItemResponse> listDeletedConfigs() {
+        return configConverter.convertItemResponses(persistenceService.listDeletedConfigs());
     }
 
-    public ThreadPoolConfigEntity restoreConfig(String appId, String poolName) {
-        ThreadPoolConfigEntity restored = persistenceService.restoreConfigByAppIdAndPoolName(appId, poolName);
+    public ThreadPoolConfigItemResponse restoreConfig(String appId, String poolName) {
+        var restored = persistenceService.restoreConfigByAppIdAndPoolName(appId, poolName);
         if (restored == null) {
             throw new ResourceNotFoundException("Deleted config not found: " + appId + "/" + poolName);
         }
         log.info("Config restored: appId={}, pool={}, operator={}",
                 restored.getAppId(), restored.getPoolName(), currentOperator());
-        return restored;
+        return configConverter.convertItemResponse(restored);
     }
 
     public void restoreConfigs(String appId) {

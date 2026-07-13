@@ -34,14 +34,6 @@ public abstract class CachedStorageSupport<T> {
         cache.remove(key);
     }
 
-    public boolean exists(String key) {
-        return cache.containsKey(key);
-    }
-
-    public int getSize() {
-        return cache.size();
-    }
-
     public T getOrLoad(String key, Supplier<T> dbLoader) {
         T cached = cache.get(key);
         if (cached != null) return cached;

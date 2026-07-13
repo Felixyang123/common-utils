@@ -1,15 +1,15 @@
 package com.lezai.threadpool.service;
 
-import com.lezai.threadpool.bean.AdminUser;
-import com.lezai.threadpool.bean.AdminUserContext;
-import com.lezai.threadpool.bean.PageResult;
 import com.lezai.threadpool.context.AdminUserContextHolder;
-import com.lezai.threadpool.controller.dto.request.ChangeNicknameRequest;
-import com.lezai.threadpool.controller.dto.request.ChangePasswordRequest;
-import com.lezai.threadpool.controller.dto.request.CreateAdminUserRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateAdminUserRequest;
-import com.lezai.threadpool.controller.dto.response.AdminUserResponse;
 import com.lezai.threadpool.exception.*;
+import com.lezai.threadpool.pojo.bean.AdminUser;
+import com.lezai.threadpool.pojo.bean.AdminUserContext;
+import com.lezai.threadpool.pojo.bean.PageResult;
+import com.lezai.threadpool.pojo.request.ChangeNicknameRequest;
+import com.lezai.threadpool.pojo.request.ChangePasswordRequest;
+import com.lezai.threadpool.pojo.request.CreateAdminUserRequest;
+import com.lezai.threadpool.pojo.request.UpdateAdminUserRequest;
+import com.lezai.threadpool.pojo.response.AdminUserResponse;
 import com.lezai.threadpool.storage.AdminUserStorage;
 import com.lezai.threadpool.utils.PasswordUtils;
 import lombok.RequiredArgsConstructor;
@@ -19,18 +19,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * 管理员账号管理服务。
- * <p>
- * 包含保护规则：
- * <ul>
- *   <li>默认 admin 不可删除、不可禁用</li>
- *   <li>不可删除/禁用自己</li>
- *   <li>不可改自己角色</li>
- *   <li>创建/删除/更新管理员需要 SUPER_ADMIN 权限</li>
- *   <li>修改自己密码/昵称由用户自行操作</li>
- * </ul>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -82,17 +70,14 @@ public class AdminUserManagementService {
         AdminUser existing = adminUserStorage.getByUsername(targetUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin user not found: " + targetUsername));
 
-        // 保护规则：不可改自己角色
         if (request.getRole() != null && ctx.getUsername().equals(targetUsername)) {
             throw new AuthForbiddenException("You cannot change your own role");
         }
 
-        // 保护规则：默认 admin 角色不可更改
         if (DEFAULT_ADMIN.equals(targetUsername) && request.getRole() != null) {
             throw new AuthForbiddenException("Default admin user role cannot be changed");
         }
 
-        // 保护规则：默认 admin 不可禁用
         if (DEFAULT_ADMIN.equals(targetUsername) && Boolean.FALSE.equals(request.getEnabled())) {
             throw new AuthForbiddenException("Default admin user cannot be disabled");
         }
@@ -122,12 +107,10 @@ public class AdminUserManagementService {
         requireSuperAdmin();
         AdminUserContext ctx = AdminUserContextHolder.get();
 
-        // 保护规则：默认 admin 不可删除
         if (DEFAULT_ADMIN.equals(targetUsername)) {
             throw new AuthForbiddenException("Default admin user cannot be deleted");
         }
 
-        // 保护规则：不可删除自己
         if (ctx.getUsername().equals(targetUsername)) {
             throw new AuthForbiddenException("You cannot delete yourself");
         }
@@ -200,3 +183,5 @@ public class AdminUserManagementService {
                 .build();
     }
 }
+
+

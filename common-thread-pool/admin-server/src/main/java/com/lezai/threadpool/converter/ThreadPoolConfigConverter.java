@@ -1,75 +1,52 @@
 package com.lezai.threadpool.converter;
 
-import com.lezai.threadpool.bean.AddConfigAppResult;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigUpsertCmd;
-import com.lezai.threadpool.pojo.dto.AddConfigAppResultDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
-import com.lezai.threadpool.pojo.dto.ThreadPoolConfigDto;
+import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
+import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
+import com.lezai.threadpool.pojo.response.ThreadPoolConfigItemResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ThreadPoolConfigConverter {
 
-    ThreadPoolConfigAppDto convertDto(ThreadPoolConfigAppEntity entity);
+    ThreadPoolConfigApp convertApp(ThreadPoolConfigAppEntity entity);
 
     ThreadPoolConfig convertConfig(ThreadPoolConfigEntity entity);
 
     List<ThreadPoolConfig> convertConfigs(List<ThreadPoolConfigEntity> entities);
 
-    ThreadPoolConfigDto convertConfigDto(ThreadPoolConfigEntity entity);
-
-    ThreadPoolConfig dtoConvertConfig(ThreadPoolConfigDto dto);
-
-    List<ThreadPoolConfig> dtoConvertConfigBatch(Collection<ThreadPoolConfigDto> dtos);
-
-    List<ThreadPoolConfigDto> convertConfigDtos(List<ThreadPoolConfigEntity> entities);
-
-    ThreadPoolConfigDto configConvertDto(ThreadPoolConfig config);
-
-    @Mapping(target = "version", constant = "0L")
-    ThreadPoolConfigAppEntity upsertCmdConvertEntity(ThreadPoolConfigAppUpsertCmd cmd);
-
-    ThreadPoolConfigAppEntity cmdUpdateEntity(@MappingTarget ThreadPoolConfigAppEntity entity, ThreadPoolConfigAppUpsertCmd cmd);
-
     @Mapping(target = "appId", source = "appId")
-    ThreadPoolConfigEntity upsertCmdConvertEntity(ThreadPoolConfigUpsertCmd cmd, String appId);
+    ThreadPoolConfigEntity configConvertEntity(ThreadPoolConfig config, String appId);
 
-    void cmdUpdateEntity(@MappingTarget ThreadPoolConfigEntity entity, ThreadPoolConfigUpsertCmd cmd);
+    void configUpdateEntity(@MappingTarget ThreadPoolConfigEntity entity, ThreadPoolConfig config);
 
-    ThreadPoolConfigUpsertCmd configConvertUpsertCmd(ThreadPoolConfig config);
+    ThreadPoolConfigItemResponse convertItemResponse(ThreadPoolConfigEntity entity);
 
-    List<ThreadPoolConfigUpsertCmd> configConvertUpsertCmdBatch(List<ThreadPoolConfig> configs);
+    List<ThreadPoolConfigItemResponse> convertItemResponses(List<ThreadPoolConfigEntity> entities);
 
-    AddConfigAppResult convertResult(AddConfigAppResultDto dto);
+    AddConfigAppResult convertToResult(ThreadPoolConfigApp app);
 
-    default ThreadPoolAppConfig dtoConvertAppConfig(ThreadPoolConfigAppDto dto) {
+    default ThreadPoolAppConfig dtoConvertAppConfig(ThreadPoolConfigApp app) {
         return ThreadPoolAppConfig.builder()
-                .appId(dto.getAppId())
-                .configVersion(dto.getVersion())
-                .configs(dtoConvertConfigBatch(dto.getConfigs().values()))
+                .appId(app.getAppId())
+                .configVersion(app.getVersion())
+                .configs(app.getConfigs())
                 .build();
     }
 
-    default ThreadPoolConfigAppDto buildConfigAppDto(ThreadPoolConfigAppEntity configApp,
-                                                     List<ThreadPoolConfigEntity> configs) {
-        ThreadPoolConfigAppDto configAppDto = convertDto(configApp);
-        Map<String, ThreadPoolConfigDto> configMap = configs.stream().map(this::convertConfigDto).collect(
-                Collectors.toMap(ThreadPoolConfigDto::getPoolName, Function.identity()));
-        configAppDto.setConfigs(configMap);
+    default ThreadPoolConfigApp buildConfigApp(ThreadPoolConfigAppEntity configApp,
+                                                List<ThreadPoolConfigEntity> configs) {
+        ThreadPoolConfigApp configAppDto = convertApp(configApp);
+        List<ThreadPoolConfig> configList = convertConfigs(configs);
+        configAppDto.setConfigs(configList);
         return configAppDto;
     }
 }

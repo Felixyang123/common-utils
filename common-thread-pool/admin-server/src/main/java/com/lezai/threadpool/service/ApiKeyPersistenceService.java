@@ -9,8 +9,7 @@ import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
-import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
-import com.lezai.threadpool.pojo.dto.ApiKeyDto;
+import com.lezai.threadpool.pojo.bean.ApiKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,20 +22,20 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
     private final ApiKeyConverter apiKeyConverter;
     private final OperateLogService logService;
 
-    public List<ApiKeyDto> all() {
-        return apiKeyConverter.convertDtos(list());
+    public List<ApiKey> all() {
+        return apiKeyConverter.convertApiKeys(list());
     }
 
-    public Page<ApiKeyDto> page(int pageNum, int pageSize) {
+    public Page<ApiKey> page(int pageNum, int pageSize) {
         Page<ApiKeyEntity> mpPage = page(new Page<>(pageNum, pageSize),
                 Wrappers.<ApiKeyEntity>lambdaQuery().orderByDesc(ApiKeyEntity::getCreateTime));
-        Page<ApiKeyDto> result = new Page<>(mpPage.getCurrent(), mpPage.getSize(), mpPage.getTotal());
-        result.setRecords(apiKeyConverter.convertDtos(mpPage.getRecords()));
+        Page<ApiKey> result = new Page<>(mpPage.getCurrent(), mpPage.getSize(), mpPage.getTotal());
+        result.setRecords(apiKeyConverter.convertApiKeys(mpPage.getRecords()));
         return result;
     }
 
-    public boolean add(ApiKeyUpsertCmd cmd) {
-        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
+    public boolean add(ApiKey apiKey) {
+        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(apiKey);
         boolean saved = save(newApiKey);
         if (saved) {
             logService.log(OperateType.CREATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
@@ -44,18 +43,18 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
         return saved;
     }
 
-    public Optional<ApiKeyDto> findByAppId(String appId) {
+    public Optional<ApiKey> findByAppId(String appId) {
         ApiKeyEntity entity = getOne(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
-        return Optional.ofNullable(apiKeyConverter.convertDto(entity));
+        return Optional.ofNullable(apiKeyConverter.convertApiKey(entity));
     }
 
     public boolean deleteByAppId(String appId) {
         return remove(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
     }
 
-    public boolean updateByAppId(ApiKeyUpsertCmd cmd) {
-        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(cmd);
-        boolean updated = update(newApiKey, Wrappers.<ApiKeyEntity>lambdaUpdate().eq(ApiKeyEntity::getAppId, cmd.getAppId()));
+    public boolean updateByAppId(ApiKey apiKey) {
+        ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(apiKey);
+        boolean updated = update(newApiKey, Wrappers.<ApiKeyEntity>lambdaUpdate().eq(ApiKeyEntity::getAppId, apiKey.getAppId()));
         if (updated) {
             logService.log(OperateType.UPDATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
         }

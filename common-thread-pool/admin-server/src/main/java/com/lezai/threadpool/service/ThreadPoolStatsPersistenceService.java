@@ -2,14 +2,14 @@ package com.lezai.threadpool.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolStatsEntity;
 import com.lezai.threadpool.dao.mapper.ThreadPoolStatsMapper;
-import com.lezai.threadpool.pojo.cmd.ThreadPoolStatsAddCmd;
-import com.lezai.threadpool.pojo.dto.ThreadPoolStatsDto;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -18,33 +18,28 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/**
- * 线程池统计信息服务
- */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolStatsMapper, ThreadPoolStatsEntity> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ThreadPoolStatsPersistenceService.class);
+
     private final ThreadPoolStatsConverter statsConverter;
 
-    /**
-     * 保存应用统计信息
-     */
-    public void saveStatsApp(ThreadPoolStatsAddCmd cmd) {
-        if (StringUtils.isBlank(cmd.getAppId()) || CollectionUtils.isEmpty(cmd.getStats())) {
-            log.warn("invalid stats add cmd: {}", cmd);
+    public void saveStatsApp(String appId, List<ThreadPoolStats> stats) {
+        if (StringUtils.isBlank(appId) || CollectionUtils.isEmpty(stats)) {
+            LOG.warn("invalid stats add cmd: appId={}, stats={}", appId, stats);
             return;
         }
 
-        List<ThreadPoolStatsEntity> statsEntities = cmd.getStats().stream().map(stats ->
-                statsConverter.convertEntity(stats, cmd.getAppId())).toList();
+        List<ThreadPoolStatsEntity> statsEntities = stats.stream().map(s ->
+                statsConverter.convertEntity(s, appId)).toList();
         saveBatch(statsEntities);
     }
 
-    public List<ThreadPoolStatsDto> queryStatsHistory(String appId, String poolName, LocalDateTime beginTime, LocalDateTime endTime) {
+    public List<ThreadPoolStats> queryStatsHistory(String appId, String poolName, LocalDateTime beginTime, LocalDateTime endTime) {
         if (StringUtils.isAnyBlank(appId, poolName)) {
-            log.warn("invalid query params: appId={}, poolName={}", appId, poolName);
+            LOG.warn("invalid query params: appId={}, poolName={}", appId, poolName);
             return List.of();
         }
 
@@ -66,7 +61,7 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolSta
                         .between(ThreadPoolStatsEntity::getCollectTime, beginTime, endTime)
                         .last("LIMIT 1000"));
 
-        return statsConverter.convertDtos(statsEntities);
+        return statsConverter.convertStatsBatch(statsEntities);
     }
 
     public void saveMockStats(String appId, String poolName, int count) {
@@ -100,6 +95,6 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolSta
             list.add(e);
         }
         saveBatch(list);
-        log.info("Inserted {} mock stats for {}/{}", count, appId, poolName);
+        LOG.info("Inserted {} mock stats for {}/{}", count, appId, poolName);
     }
 }

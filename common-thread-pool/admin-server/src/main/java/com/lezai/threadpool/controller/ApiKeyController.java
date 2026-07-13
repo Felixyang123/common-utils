@@ -1,12 +1,12 @@
 package com.lezai.threadpool.controller;
 
 import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.PageResult;
-import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
-import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
-import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
-import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
+import com.lezai.threadpool.pojo.bean.PageResult;
+import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
+import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
+import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
 import com.lezai.threadpool.service.ApiKeyAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * API Key 管理控制器
- * 提供创建、删除、查询、更新、重新生成 API Key 的接口
+ * API Key 管理控制�?
+ * 提供创建、删除、查询、更新、重新生�?API Key 的接�?
  * <p>
  * API Key 的历史操作通过审计日志查询（GET /api/operate-logs/list?biz_type=APIKEY），
- * 不再提供独立的 history 接口。
+ * 不再提供独立�?history 接口�?
  */
 @Slf4j
 @RestController

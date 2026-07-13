@@ -1,6 +1,11 @@
 package com.lezai.threadpool.open;
 
-import com.lezai.threadpool.bean.*;
+import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.bean.ConfigChangeNotification;
+import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.ThreadPoolStatsReport;
+import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.service.SubscriptionService;
 import jakarta.validation.Valid;
@@ -16,11 +21,6 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 
-/**
- * 线程池配置管理控制器
- * 提供 REST API 用于客户端拉取和推送配置
- * 支持长轮询订阅配置变更
- */
 @Slf4j
 @RestController
 @RequestMapping("/open/api/thread-pool")
@@ -31,9 +31,6 @@ public class OpenThreadPoolConfigController {
     private final OpenThreadPoolConfigService openThreadPoolConfigService;
     private final SubscriptionService subscriptionService;
 
-    /**
-     * 批量添加配置
-     */
     @PostMapping("/configs/{appId}/add")
     public ApiResponse<AddConfigAppResult> addConfigs(
             @PathVariable String appId,
@@ -41,12 +38,6 @@ public class OpenThreadPoolConfigController {
         return ApiResponse.success(openThreadPoolConfigService.addConfigs(appId, configs));
     }
 
-    /**
-     * 长轮询订阅配置变更。
-     * <p>
-     * 只返回轻量通知（{appId, version}），不返回全量配置——客户端收到通知后应调用
-     * {@link #pullConfigs} 拉取最新全量配置。超时未变更时返回真正的 HTTP 304。
-     */
     @GetMapping(value = "/configs/{appId}/subscribe", produces = MediaType.APPLICATION_JSON_VALUE)
     public DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> subscribe(
             @PathVariable String appId,
@@ -59,12 +50,6 @@ public class OpenThreadPoolConfigController {
         return subscriptionService.subscribe(appId, version, timeout);
     }
 
-    /**
-     * 短轮询获取配置（兼容模式）。
-     * <p>
-     * 不传 version：无条件返回最新全量配置（订阅收到变更通知后走这条路径）。
-     * 传 version：未变更时抛 {@code ConfigNotModifiedException}（映射为 HTTP 304），供纯短轮询场景做 304 优化。
-     */
     @GetMapping("/config/{appId}/pull")
     public ApiResponse<ThreadPoolAppConfig> pullConfigs(
             @PathVariable String appId,
@@ -72,9 +57,6 @@ public class OpenThreadPoolConfigController {
         return ApiResponse.success(openThreadPoolConfigService.pullConfigs(appId, version));
     }
 
-    /**
-     * 接收线程池统计信息上报
-     */
     @PostMapping("/stats/report")
     public ApiResponse<Void> reportStats(@Valid @RequestBody ThreadPoolStatsReport report) {
         openThreadPoolConfigService.reportStats(report);
