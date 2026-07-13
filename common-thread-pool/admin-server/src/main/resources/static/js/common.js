@@ -100,29 +100,40 @@ async function logout() {
   location.href = '/login.html';
 }
 
-// ===== Topbar =====
+// ===== Topbar (v2) =====
 function renderTopbar(active) {
   const u = getUsername();
   const nick = getNickname();
+  const displayName = nick || u;
+  const initial = (displayName || 'A').charAt(0).toUpperCase();
   const links = [
-    ['index.html', '仪表盘'],
-    ['api-keys.html', 'API Key'],
-    ['thread-pools.html', '线程池配置'],
-    ['stats.html', '监控统计'],
-    ['operate-logs.html', '操作日志'],
-    ['admin-users.html', isSuperAdmin() ? '管理员管理' : '个人中心'],
+    ['index.html',           '仪表盘',     '📊'],
+    ['thread-pools.html',    '线程池',     '⚙'],
+    ['api-keys.html',        'API Keys',  '🔑'],
+    ['stats.html',           '监控',       '📈'],
+    ['operate-logs.html',    '审计',       '📋'],
   ];
-  const nav = links.map(([href, label]) =>
-    `<a href="/${href}" class="${href === active ? 'active' : ''}">${label}</a>`
+  if (isSuperAdmin()) links.push(['admin-users.html', '管理员', '👥']);
+  const nav = links.map(([href, label, icon]) =>
+    `<a href="/${href}" class="topbar__nav-link ${href === active ? 'active' : ''}">${label}</a>`
   ).join('');
-  document.body.insertAdjacentHTML('afterbegin', `
-    <header class="topbar">
-      <div class="logo">ThreadPool Admin</div>
-      <nav>${nav}</nav>
-      <div class="user-info">Hi, <span>${nick || u}</span></div>
-      <button class="btn-logout" onclick="logout()">退出</button>
-    </header>
-  `);
+  document.getElementById('topbar').innerHTML = `
+    <a href="/index.html" class="topbar__brand">
+      <div class="topbar__logo">T</div>
+      <span class="topbar__brand-text">ThreadPool Admin</span>
+    </a>
+    <nav class="topbar__nav">${nav}</nav>
+    <div class="topbar__right">
+      <div class="sync-indicator" title="配置中心已连接">
+        <span class="sync-indicator__dot"></span>
+        实时同步
+      </div>
+      <div class="user-avatar" onclick="logout()" title="点击退出登录">
+        <div class="user-avatar__img">${initial}</div>
+        <span class="user-avatar__name">${displayName}</span>
+      </div>
+    </div>
+  `;
 }
 
 // ===== Modal =====

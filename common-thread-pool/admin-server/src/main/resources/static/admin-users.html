@@ -4,264 +4,471 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理员管理 - ThreadPool Admin</title>
-  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/drawer.css">
+  <style>
+    /* Self-info card */
+    .self-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-5) var(--space-6);
+      background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-accent-subtle) 100%);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-5);
+    }
+    .self-card__avatar {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4f46e5 0%, #ec4899 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .self-card__info {
+      flex: 1;
+    }
+    .self-card__name {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+      margin-bottom: 2px;
+    }
+    .self-card__username {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-3);
+    }
+    .self-card__actions {
+      display: flex;
+      gap: var(--space-2);
+    }
+  </style>
 </head>
 <body>
-  <script src="/js/common.js"></script>
-  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('admin-users.html');</script>
 
-  <div class="page">
-    <div class="page-header">
+<script src="/js/common.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('redirect');
+</script>
+
+<nav class="topbar" id="topbar"></nav>
+
+<div class="page">
+
+  <div class="breadcrumb">threadpool / 管理员</div>
+  <div class="page-header">
+    <div>
       <h1>管理员管理</h1>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span class="badge badge-blue" id="my-role-tag" style="font-size:13px;"></span>
-        <button class="btn btn-ghost btn-sm" id="btn-changepwd" onclick="openModal('pwd-modal')">修改密码</button>
-        <button class="btn btn-ghost btn-sm" id="btn-changenick" onclick="openModal('nick-modal')">修改昵称</button>
-        <button class="btn btn-primary" id="btn-create" onclick="openModal('create-modal')" style="display:none;">+ 新建管理员</button>
+      <p class="text-sm text-muted mt-2">管理后台账户与权限</p>
+    </div>
+    <button class="btn btn-primary" id="btn-create" style="display:none;" onclick="openCreateDrawer()">+ 新建管理员</button>
+  </div>
+
+  <!-- My info card -->
+  <div class="self-card">
+    <div class="self-card__avatar" id="my-avatar">A</div>
+    <div class="self-card__info">
+      <div class="self-card__name" id="my-nickname"></div>
+      <div class="self-card__username">
+        <code id="my-username"></code> ·
+        <span class="badge badge-purple" id="my-role-tag"></span>
       </div>
     </div>
-
-    <!-- My info card -->
-    <div class="card mb-4">
-      <div style="display:flex;gap:16px;align-items:center;">
-        <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;" id="my-avatar">A</div>
-        <div>
-          <div style="font-size:16px;font-weight:600;" id="my-nickname"></div>
-          <div style="font-size:13px;color:var(--gray-500);" id="my-username"></div>
-        </div>
-        <div style="margin-left:auto;">
-          <span id="my-status-badge" class="badge badge-green">启用</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Admin list table (only SUPER_ADMIN) -->
-    <div class="card" id="admin-list-section" style="display:none;">
-      <h3 style="margin-bottom:12px;">管理员列表</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-          <tbody id="admin-list"></tbody>
-        </table>
-      </div>
-      <div class="pagination" id="admin-pager"></div>
+    <div class="self-card__actions">
+      <button class="btn btn-ghost btn-sm" onclick="openChangePwd()">修改密码</button>
+      <button class="btn btn-ghost btn-sm" onclick="openChangeNick()">修改昵称</button>
     </div>
   </div>
 
-  <!-- Change password modal -->
-  <div class="modal-overlay" id="pwd-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>修改密码</h3><button class="modal-close" onclick="closeModal('pwd-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>旧密码 *</label><input class="form-control" id="f-oldpwd" type="password"></div>
-        <div class="form-group"><label>新密码 *</label><input class="form-control" id="f-newpwd" type="password"></div>
-        <div class="form-group"><label>确认新密码 *</label><input class="form-control" id="f-confirmpwd" type="password"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('pwd-modal')">取消</button>
-        <button class="btn btn-primary" onclick="changePassword()">确认修改</button>
-      </div>
+  <!-- Admin list (SUPER_ADMIN only) -->
+  <div class="card" id="admin-list-section" style="display:none;">
+    <div class="card-header">
+      <h3>系统所有管理员</h3>
+      <span class="text-xs text-muted" id="admin-count"></span>
     </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>昵称</th>
+            <th>角色</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th>最后登录</th>
+            <th style="width:160px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="admin-list">
+          <tr><td colspan="7" class="empty-state" style="padding:40px;">
+            <div class="empty-state__desc">加载中...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="admin-pager"></div>
   </div>
 
-  <!-- Change nickname modal -->
-  <div class="modal-overlay" id="nick-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>修改昵称</h3><button class="modal-close" onclick="closeModal('nick-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>新昵称 *</label><input class="form-control" id="f-nick" placeholder="输入新昵称"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('nick-modal')">取消</button>
-        <button class="btn btn-primary" onclick="changeNickname()">保存</button>
-      </div>
-    </div>
-  </div>
+</div>
 
-  <!-- Create admin modal -->
-  <div class="modal-overlay" id="create-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>新建管理员</h3><button class="modal-close" onclick="closeModal('create-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>用户名 *</label><input class="form-control" id="f-cu-name"></div>
-        <div class="form-group"><label>密码 *</label><input class="form-control" id="f-cu-pwd" type="password"></div>
-        <div class="form-row">
-          <div class="form-group"><label>角色</label>
-            <select class="form-control" id="f-cu-role">
-              <option value="ADMIN">普通管理员</option>
-              <option value="SUPER_ADMIN">系统管理员</option>
-            </select>
-          </div>
-          <div class="form-group"><label>昵称</label><input class="form-control" id="f-cu-nick" placeholder="默认同用户名"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('create-modal')">取消</button>
-        <button class="btn btn-primary" onclick="createAdmin()">创建</button>
-      </div>
-    </div>
+<!-- ═════════════════ EDIT DRAWER (Create / Edit admin) ═════════════════ -->
+<div class="drawer-overlay" id="edit-overlay" onclick="closeEditDrawer()"></div>
+<div class="drawer" id="edit-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title" id="drawer-title">新建管理员</div>
+    <button class="drawer__close" onclick="closeEditDrawer()">&times;</button>
   </div>
-
-  <!-- Edit admin modal -->
-  <div class="modal-overlay" id="edit-modal">
-    <div class="modal">
-      <div class="modal-header"><h3 id="edit-title">编辑管理员</h3><button class="modal-close" onclick="closeModal('edit-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>用户名</label><div style="font-weight:500;" id="f-eu-name"></div></div>
-        <div class="form-group"><label>密码（留空不修改）</label><input class="form-control" id="f-eu-pwd" type="password"></div>
-        <div class="form-row">
-          <div class="form-group"><label>角色</label>
-            <select class="form-control" id="f-eu-role">
-              <option value="ADMIN">普通管理员</option>
-              <option value="SUPER_ADMIN">系统管理员</option>
-            </select>
-          </div>
-          <div class="form-group"><label>昵称</label><input class="form-control" id="f-eu-nick"></div>
-        </div>
+  <div class="drawer__body">
+    <form id="admin-form">
+      <div class="form-group">
+        <label for="f-cu-name">用户名 *</label>
+        <input type="text" class="form-control" id="f-cu-name" placeholder="3-32 位字母数字" autocomplete="off">
+      </div>
+      <div class="form-group" id="pwd-group">
+        <label for="f-cu-pwd">密码 *</label>
+        <input type="password" class="form-control" id="f-cu-pwd" placeholder="至少 8 位" autocomplete="new-password">
+        <div class="form-error" id="f-cu-pwd-err" style="display:none;">密码至少需要 8 位</div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label>状态</label>
-          <select class="form-control" id="f-eu-enabled">
-            <option value="true">启用</option>
-            <option value="false">禁用</option>
+          <label for="f-cu-role">角色</label>
+          <select class="form-control" id="f-cu-role">
+            <option value="ADMIN">普通管理员 (ADMIN)</option>
+            <option value="SUPER_ADMIN">系统管理员 (SUPER_ADMIN)</option>
           </select>
         </div>
+        <div class="form-group">
+          <label for="f-cu-nick">昵称</label>
+          <input type="text" class="form-control" id="f-cu-nick" placeholder="默认同用户名">
+        </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
-        <button class="btn btn-primary" onclick="editAdmin()">保存</button>
+      <div class="form-group" id="enabled-group" style="display:none;">
+        <label for="f-cu-enabled">状态</label>
+        <select class="form-control" id="f-cu-enabled">
+          <option value="true">启用</option>
+          <option value="false">禁用</option>
+        </select>
       </div>
+    </form>
+  </div>
+  <div class="drawer__footer">
+    <button class="btn btn-ghost" onclick="closeEditDrawer()">取消</button>
+    <button class="btn btn-primary" id="btn-save-admin" onclick="saveAdmin()">保存</button>
+  </div>
+</div>
+
+<!-- ═════════════════ CHANGE PASSWORD DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="pwd-overlay" onclick="closeChangePwd()"></div>
+<div class="drawer" id="pwd-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title">修改密码</div>
+    <button class="drawer__close" onclick="closeChangePwd()">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <div class="form-group">
+      <label for="f-oldpwd">旧密码 *</label>
+      <input type="password" class="form-control" id="f-oldpwd" autocomplete="current-password">
+    </div>
+    <div class="form-group">
+      <label for="f-newpwd">新密码 *</label>
+      <input type="password" class="form-control" id="f-newpwd" autocomplete="new-password">
+      <div class="form-error" id="f-newpwd-err" style="display:none;">新密码至少 8 位</div>
+    </div>
+    <div class="form-group">
+      <label for="f-confirmpwd">确认新密码 *</label>
+      <input type="password" class="form-control" id="f-confirmpwd" autocomplete="new-password">
+      <div class="form-error" id="f-confirm-err" style="display:none;">两次密码不一致</div>
     </div>
   </div>
+  <div class="drawer__footer">
+    <button class="btn btn-ghost" onclick="closeChangePwd()">取消</button>
+    <button class="btn btn-primary" onclick="doChangePwd()">确认修改</button>
+  </div>
+</div>
 
-  <script>
-    const nick = getNickname();
-    const uname = getUsername();
-    document.getElementById('my-avatar').textContent = (nick || uname).charAt(0).toUpperCase();
-    document.getElementById('my-nickname').textContent = nick || uname;
-    document.getElementById('my-username').textContent = uname;
-    document.getElementById('my-role-tag').textContent = getRole();
+<!-- ═════════════════ CHANGE NICKNAME DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="nick-overlay" onclick="closeChangeNick()"></div>
+<div class="drawer" id="nick-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title">修改昵称</div>
+    <button class="drawer__close" onclick="closeChangeNick()">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <div class="form-group">
+      <label for="f-nick">新昵称 *</label>
+      <input type="text" class="form-control" id="f-nick" placeholder="输入新昵称">
+    </div>
+  </div>
+  <div class="drawer__footer">
+    <button class="btn btn-ghost" onclick="closeChangeNick()">取消</button>
+    <button class="btn btn-primary" onclick="doChangeNick()">保存</button>
+  </div>
+</div>
 
-    let editTarget = null;
-    let adminPage = 1, adminTotal = 0;
-    const ADMIN_PAGE_SIZE = 20;
+<!-- ═════════════════ CONFIRM DELETE MODAL ═════════════════ -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal modal--sm confirm-dialog">
+    <div class="modal-body">
+      <div class="confirm-dialog__icon confirm-dialog__icon--danger">⚠</div>
+      <div class="confirm-dialog__title" id="confirm-title">确认删除？</div>
+      <div class="confirm-dialog__desc" id="confirm-desc">此操作不可恢复，请谨慎操作。</div>
+    </div>
+    <div class="modal-footer" style="justify-content:center;">
+      <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" id="btn-confirm-ok" onclick="doConfirm()">确认删除</button>
+    </div>
+  </div>
+</div>
 
-    if (isSuperAdmin()) {
-      document.getElementById('btn-create').style.display = '';
-      document.getElementById('admin-list-section').style.display = '';
-      loadAdminList();
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+renderTopbar('admin-users.html');
+
+const nick = getNickname() || getUsername();
+const uname = getUsername();
+document.getElementById('my-avatar').textContent = nick.charAt(0).toUpperCase();
+document.getElementById('my-nickname').textContent = nick;
+document.getElementById('my-username').textContent = uname;
+document.getElementById('my-role-tag').textContent = getRole();
+
+let editTarget = null; // null = creating new
+let adminPage = 1, adminTotal = 0;
+let pendingDelete = null;
+const ADMIN_PAGE_SIZE = 20;
+
+if (isSuperAdmin()) {
+  document.getElementById('btn-create').style.display = '';
+  document.getElementById('admin-list-section').style.display = '';
+  loadAdminList();
+}
+
+
+// ══════════════ MY PROFILE: CHANGE PASSWORD ══════════════
+function openChangePwd() {
+  document.getElementById('f-oldpwd').value = '';
+  document.getElementById('f-newpwd').value = '';
+  document.getElementById('f-confirmpwd').value = '';
+  ['f-newpwd-err','f-confirm-err'].forEach(id => document.getElementById(id).style.display='none');
+  document.body.classList.add('drawer-open');
+  document.getElementById('pwd-overlay').classList.add('open');
+  document.getElementById('pwd-drawer').classList.add('open');
+}
+function closeChangePwd() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('pwd-overlay').classList.remove('open');
+  document.getElementById('pwd-drawer').classList.remove('open');
+}
+async function doChangePwd() {
+  const oldPwd = document.getElementById('f-oldpwd').value;
+  const newPwd = document.getElementById('f-newpwd').value;
+  const confirmPwd = document.getElementById('f-confirmpwd').value;
+  let valid = true;
+  if (newPwd.length < 8) { document.getElementById('f-newpwd-err').style.display='block'; valid = false; }
+  if (newPwd !== confirmPwd) { document.getElementById('f-confirm-err').style.display='block'; valid = false; }
+  if (!valid || !oldPwd) return;
+
+  const data = await apiPut('/api/admin-users/me/password', { oldPassword: oldPwd, newPassword: newPwd });
+  if (data && data.code === 0) {
+    showToast('success', '密码已修改，请重新登录');
+    setTimeout(() => { clearToken(); location.href = '/login.html'; }, 1500);
+    closeChangePwd();
+  } else { showToast('error', data?.message || '修改失败'); }
+}
+
+
+// ══════════════ MY PROFILE: CHANGE NICKNAME ══════════════
+function openChangeNick() {
+  document.getElementById('f-nick').value = nick;
+  document.body.classList.add('drawer-open');
+  document.getElementById('nick-overlay').classList.add('open');
+  document.getElementById('nick-drawer').classList.add('open');
+}
+function closeChangeNick() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('nick-overlay').classList.remove('open');
+  document.getElementById('nick-drawer').classList.remove('open');
+}
+async function doChangeNick() {
+  const newNick = document.getElementById('f-nick').value.trim();
+  if (!newNick) { showToast('error', '昵称不能为空'); return; }
+  const data = await apiPut('/api/admin-users/me/nickname', { nickname: newNick });
+  if (data && data.code === 0) {
+    showToast('success', '昵称已更新');
+    setTimeout(() => location.reload(), 1000);
+    closeChangeNick();
+  } else { showToast('error', data?.message || '更新失败'); }
+}
+
+
+// ══════════════ ADMIN LIST ══════════════
+async function loadAdminList() {
+  const res = await apiGet(`/api/admin-users?page=${adminPage}&pageSize=${ADMIN_PAGE_SIZE}`);
+  if (!res || res.code !== 0) return;
+  const d = res.data || { total: 0, list: [] };
+  adminTotal = d.total || 0;
+  const list = d.list || [];
+  document.getElementById('admin-count').textContent = `共 ${adminTotal} 个账户`;
+
+  const tbody = document.getElementById('admin-list');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="padding:40px;">
+      <div class="empty-state__title">暂无管理员</div>
+    </td></tr>`;
+    document.getElementById('admin-pager').innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = list.map(a => {
+    const isSelf = a.username === uname;
+    const isDefault = a.username === 'admin';
+    const canDelete = !isSelf && !isDefault;
+    const roleBadge = a.role === 'SUPER_ADMIN' ? '<span class="badge badge-purple">SUPER_ADMIN</span>' : '<span class="badge badge-gray">ADMIN</span>';
+    const statusBadge = a.enabled ? '<span class="badge badge-green">启用</span>' : '<span class="badge badge-gray">禁用</span>';
+    return `<tr>
+      <td>
+        <code>${a.username}</code>
+        ${isSelf ? '<span class="badge badge-blue" style="margin-left:6px;font-size:10px;">YOU</span>' : ''}
+      </td>
+      <td>${a.nickname || '-'}</td>
+      <td>${roleBadge}</td>
+      <td>${statusBadge}</td>
+      <td class="text-sm text-muted">${new Date(a.createTime).toLocaleString('zh-CN')}</td>
+      <td class="text-sm text-muted">${a.lastLoginTime ? new Date(a.lastLoginTime).toLocaleString('zh-CN') : '从未登录'}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditAdmin('${a.username}', ${JSON.stringify(a).replace(/"/g,'&quot;')})">编辑</button>
+          ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="askDeleteAdmin('${a.username}')" style="color:var(--color-danger);">删除</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const totalPages = Math.ceil(adminTotal / ADMIN_PAGE_SIZE) || 1;
+  document.getElementById('admin-pager').innerHTML = `
+    <button class="btn btn-ghost btn-sm" ${adminPage<=1?'disabled':''} onclick="goAdminPage(${adminPage-1})">← 上一页</button>
+    <span>第 ${adminPage} / ${totalPages} 页</span>
+    <button class="btn btn-ghost btn-sm" ${adminPage>=totalPages?'disabled':''} onclick="goAdminPage(${adminPage+1})">下一页 →</button>`;
+}
+function goAdminPage(p) { adminPage = p; loadAdminList(); }
+
+
+// ══════════════ EDIT/CREATE ADMIN ══════════════
+function openCreateDrawer() {
+  editTarget = null;
+  document.getElementById('drawer-title').textContent = '新建管理员';
+  document.getElementById('f-cu-name').value = '';
+  document.getElementById('f-cu-name').disabled = false;
+  document.getElementById('f-cu-pwd').value = '';
+  document.getElementById('f-cu-nick').value = '';
+  document.getElementById('f-cu-role').value = 'ADMIN';
+  document.getElementById('pwd-group').style.display = '';
+  document.getElementById('enabled-group').style.display = 'none';
+  openEditDrawer();
+}
+
+function openEditAdmin(username, a) {
+  editTarget = username;
+  document.getElementById('drawer-title').textContent = '编辑 - ' + username;
+  document.getElementById('f-cu-name').value = username;
+  document.getElementById('f-cu-name').disabled = true;
+  document.getElementById('f-cu-pwd').value = '';
+  document.getElementById('f-cu-pwd').placeholder = '留空不修改';
+  document.getElementById('f-cu-nick').value = a.nickname || '';
+  document.getElementById('f-cu-role').value = a.role || 'ADMIN';
+  document.getElementById('f-cu-enabled').value = String(a.enabled !== false);
+  document.getElementById('pwd-group').style.display = '';
+  document.getElementById('enabled-group').style.display = '';
+  openEditDrawer();
+}
+
+function openEditDrawer() {
+  document.body.classList.add('drawer-open');
+  document.getElementById('edit-overlay').classList.add('open');
+  document.getElementById('edit-drawer').classList.add('open');
+}
+function closeEditDrawer() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('edit-overlay').classList.remove('open');
+  document.getElementById('edit-drawer').classList.remove('open');
+}
+
+async function saveAdmin() {
+  const body = {};
+  const pwd = document.getElementById('f-cu-pwd').value;
+  const nick = document.getElementById('f-cu-nick').value.trim();
+
+  if (editTarget) {
+    // EDIT
+    if (pwd) {
+      if (pwd.length < 8) { showToast('error', '密码至少 8 位'); return; }
+      body.password = pwd;
     }
+    if (nick) body.nickname = nick;
+    body.role = document.getElementById('f-cu-role').value;
+    body.enabled = document.getElementById('f-cu-enabled').value === 'true';
+    const res = await apiPut('/api/admin-users/' + encodeURIComponent(editTarget), body);
+    if (res && res.code === 0) { closeEditDrawer(); showToast('success', '已更新'); loadAdminList(); }
+    else { showToast('error', res?.message || '更新失败'); }
+  } else {
+    // CREATE
+    const name = document.getElementById('f-cu-name').value.trim();
+    if (!name) { showToast('error', '用户名必填'); return; }
+    if (pwd.length < 8) { showToast('error', '密码至少 8 位'); return; }
+    body.username = name;
+    body.password = pwd;
+    body.role = document.getElementById('f-cu-role').value;
+    if (nick) body.nickname = nick;
+    const res = await apiPost('/api/admin-users', body);
+    if (res && res.code === 0) { closeEditDrawer(); showToast('success', '已创建'); loadAdminList(); }
+    else { showToast('error', res?.message || '创建失败'); }
+  }
+}
 
-    // ===== Change password =====
-    async function changePassword() {
-      const oldPwd = document.getElementById('f-oldpwd').value;
-      const newPwd = document.getElementById('f-newpwd').value;
-      const confirmPwd = document.getElementById('f-confirmpwd').value;
-      if (!oldPwd || !newPwd) { alert('密码不能为空'); return; }
-      if (newPwd !== confirmPwd) { alert('两次密码不一致'); return; }
-      const data = await apiPut('/api/admin-users/me/password', { oldPassword: oldPwd, newPassword: newPwd });
-      if (data && data.code === 0) {
-        alert('密码修改成功，请重新登录');
-        closeModal('pwd-modal');
-        clearToken();
-        location.href = '/login.html';
-      }
-      else { alert(data ? data.message : '修改失败'); }
-    }
 
-    // ===== Change nickname =====
-    async function changeNickname() {
-      const nick = document.getElementById('f-nick').value.trim();
-      if (!nick) { alert('昵称不能为空'); return; }
-      const data = await apiPut('/api/admin-users/me/nickname', { nickname: nick });
-      if (data && data.code === 0) {
-        alert('昵称修改成功，请重新登录生效');
-        closeModal('nick-modal');
-        location.reload();
-      } else { alert(data ? data.message : '修改失败'); }
-    }
+// ══════════════ DELETE (with confirm modal) ══════════════
+function askDeleteAdmin(username) {
+  pendingDelete = username;
+  document.getElementById('confirm-title').textContent = '删除管理员 ' + username + '？';
+  document.getElementById('confirm-desc').textContent = '此操作不可恢复。删除后该账户将立即失去访问权限。';
+  document.getElementById('btn-confirm-ok').textContent = '确认删除';
+  document.getElementById('confirm-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+  pendingDelete = null;
+}
+async function doConfirm() {
+  if (!pendingDelete) return;
+  const res = await apiDelete('/api/admin-users/' + encodeURIComponent(pendingDelete));
+  if (res && res.code === 0) {
+    showToast('success', '已删除 ' + pendingDelete);
+    loadAdminList();
+  } else { showToast('error', res?.message || '删除失败'); }
+  closeConfirm();
+}
 
-    // ===== Admin list (SUPER_ADMIN only) =====
-    async function loadAdminList() {
-      const data = await apiGet('/api/admin-users?page=' + adminPage + '&pageSize=' + ADMIN_PAGE_SIZE);
-      if (!data || data.code !== 0) return;
-      const d = data.data || { total: 0, list: [] };
-      adminTotal = d.total || 0;
-      const list = d.list || [];
-      document.getElementById('admin-list').innerHTML = list.length ? list.map(a => {
-        const isSelf = a.username === uname;
-        const isDefault = a.username === 'admin';
-        const canDelete = !isSelf && !isDefault;
-        return `<tr>
-          <td><code>${a.username}</code></td>
-          <td>${a.nickname || '-'}</td>
-          <td>${a.role === 'SUPER_ADMIN' ? '<span class="badge badge-blue">SUPER_ADMIN</span>' : '<span class="badge badge-gray">ADMIN</span>'}</td>
-          <td>${badgeEnabled(a.enabled)}</td>
-          <td class="text-sm">${fmtTime(a.createTime)}</td>
-          <td class="actions">
-            <button class="btn btn-ghost btn-sm" onclick="openEdit('${a.username}')">编辑</button>
-            ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteAdmin('${a.username}')">删除</button>` : ''}
-          </td>
-        </tr>`;
-      }).join('') : '<tr><td colspan="6" class="empty">暂无管理员</td></tr>';
 
-      const totalPages = Math.ceil(adminTotal / ADMIN_PAGE_SIZE) || 1;
-      document.getElementById('admin-pager').innerHTML = `
-        <button ${adminPage<=1?'disabled':''} onclick="goAdminPage(${adminPage-1})">上一页</button>
-        <span>${adminPage} / ${totalPages} (共${adminTotal}条)</span>
-        <button ${adminPage>=totalPages?'disabled':''} onclick="goAdminPage(${adminPage+1})">下一页</button>`;
-    }
+// ══════════════ TOAST ══════════════
+function showToast(type, msg) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast--${type}`;
+  t.innerHTML = `<span>${msg}</span><span class="toast__close" onclick="this.parentElement.remove()">&times;</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation='toast-out .2s ease forwards'; setTimeout(()=>t.remove(),200); }, 3000);
+}
+</script>
 
-    function goAdminPage(p) { adminPage = p; loadAdminList(); }
-
-    // ===== Create admin =====
-    async function createAdmin() {
-      const name = document.getElementById('f-cu-name').value.trim();
-      if (!name) { alert('用户名必填'); return; }
-      const body = {
-        username: name,
-        password: document.getElementById('f-cu-pwd').value,
-        role: document.getElementById('f-cu-role').value,
-      };
-      const nick = document.getElementById('f-cu-nick').value.trim();
-      if (nick) body.nickname = nick;
-      const data = await apiPost('/api/admin-users', body);
-      if (data && data.code === 0) { closeModal('create-modal'); loadAdminList(); }
-      else { alert(data ? data.message : '创建失败'); }
-    }
-
-    // ===== Edit admin =====
-    function openEdit(username) {
-      editTarget = username;
-      document.getElementById('edit-title').textContent = '编辑 - ' + username;
-      document.getElementById('f-eu-name').textContent = username;
-      document.getElementById('f-eu-pwd').value = '';
-      document.getElementById('f-eu-nick').value = '';
-      document.getElementById('f-eu-role').value = 'ADMIN';
-      document.getElementById('f-eu-enabled').value = 'true';
-      openModal('edit-modal');
-    }
-
-    async function editAdmin() {
-      if (!editTarget) return;
-      const body = {};
-      const pwd = document.getElementById('f-eu-pwd').value;
-      if (pwd) body.password = pwd;
-      const nick = document.getElementById('f-eu-nick').value.trim();
-      if (nick) body.nickname = nick;
-      body.role = document.getElementById('f-eu-role').value;
-      body.enabled = document.getElementById('f-eu-enabled').value === 'true';
-      const data = await apiPut('/api/admin-users/' + encodeURIComponent(editTarget), body);
-      if (data && data.code === 0) { closeModal('edit-modal'); loadAdminList(); }
-      else { alert(data ? data.message : '更新失败'); }
-    }
-
-    // ===== Delete admin =====
-    async function deleteAdmin(username) {
-      if (!confirm('确认删除管理员 ' + username + '？')) return;
-      const data = await apiDelete('/api/admin-users/' + encodeURIComponent(username));
-      if (data && data.code === 0) { loadAdminList(); }
-      else { alert(data ? data.message : '删除失败'); }
-    }
-  </script>
 </body>
 </html>

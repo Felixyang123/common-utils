@@ -139,46 +139,6 @@ class ConfigAdminServiceTest {
         verify(configStorage).deleteConfig("app1", "test-pool");
     }
 
-    // ==================== addConfig ====================
-
-    @Test
-    @DisplayName("addConfig delegates to storage and returns config")
-    void addConfig() {
-        ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.addConfig("app1", config)).thenReturn(config);
-
-        ThreadPoolConfig result = service.addConfig("app1", config);
-
-        assertThat(result).isEqualTo(config);
-        verify(configStorage).addConfig("app1", config);
-    }
-
-    // ==================== addConfigs ====================
-
-    @Test
-    @DisplayName("addConfigs delegates to storage")
-    void addConfigs() {
-        List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
-        when(configStorage.addConfigs("app1", configs)).thenReturn(configs);
-
-        List<ThreadPoolConfig> result = service.addConfigs("app1", configs);
-
-        assertThat(result).hasSize(2);
-        verify(configStorage).addConfigs("app1", configs);
-    }
-
-    // ==================== getConfigVersion ====================
-
-    @Test
-    @DisplayName("getConfigVersion returns version number")
-    void getConfigVersion() {
-        when(configStorage.getConfigVersion("app1")).thenReturn(42L);
-
-        long version = service.getConfigVersion("app1");
-
-        assertThat(version).isEqualTo(42L);
-    }
-
     // ==================== getSnapshots ====================
 
     @Test

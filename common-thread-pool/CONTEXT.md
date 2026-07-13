@@ -31,15 +31,22 @@
 - **客户端声明初始值，服务端为运行期权威**：客户端用本地 `pools[]` 声明池的初始形态并推送给服务端；运维可在服务端调优。
 - **重推不覆盖（Non-destructive re-declare）**：客户端每次启动重推已存在的池**不得覆盖**服务端被调过的值（add 语义为"存在即返回，不修改"）。运行期调优的权威在服务端，客户端重启不回滚它。
 
+## 配置退管（Server Unmanage）
+
+- **退管（Unmanage）**：管理员在 admin-server 删除一条线程池配置，表示服务端**不再集中管理此池**——而不是销毁客户端的池实例。客户端收到变更通知后，通过 pull 做 diff，发现池从服务端配置列表中消失，应**回退到本地声明配置（Local Declared Config）**自治运行。
+- **本地声明配置（Local Declared Config）**：每个池在注册时保存一份"原始本地声明值"——来自 `thread.pool.pools[]` YAML、`@CreateThreadPool` 注解属性、`registerPool(config)` 传入的 config 对象、或 `default-pool` 硬编码默认值。这份值独立于被服务端覆盖后的当前运行配置，专门用于退管时 revert。
+- **退管 tombstone**：服务端 `deleteConfig` 产生的软删除记录同时充当"墓碑"——客户端重启后通过 `registerConfigs`（add）重推该池时，服务端 add 接口检测到软删除记录后**不复活配置**，返回"已退管"状态。客户端据此不再推送该池，保持本地声明配置运行。这解决了"关闭重推复活被删配置"的一致性问题。
+- **语义边界**：退管 ≠ 池销毁。池销毁（`POOL_DESTROYED` 事件）仅在客户端主动调用 `removePool()` 或应用关闭时发生。退管是配置管理范畴的操作，不触发池生命周期事件。
+
 ## 任务计数术语（指标口径）
 
 > 这些词此前在代码里被混用，统一定义如下，作为可观测指标的口径。
 
-- **submitted（已提交）**：任务被交给线程池的次数（`execute`/`submit` 调用）。**注意**：现有 `submittedTaskCount` 实际在 `beforeExecute` 自增，统计的是 *started*，属命名错误，需正名。
+- **submitted（已提交）**：任务被交给线程池的次数（在 `DynamicThreadPoolWrapper.execute()` 入口自增 `submittedTaskCount`）。
 - **started（已开始）**：任务真正开始执行（进入工作线程）。
 - **completed（已完成）**：任务执行结束（无论成功失败）。
-- **error（出错）**：任务异常完成。其可见性必须在能观察到 `CompletableFuture` 异常完成的层捕获，而非依赖 `ThreadPoolExecutor.afterExecute` 的 throwable 参数（异步提交路径下该参数恒为 null）。
-- **rejected（被拒绝）**：任务因池/队列饱和被拒绝策略处理的次数（当前无计数，需补）。
+- **error（出错）**：任务异常完成。在 CompletableFuture 异常完成层捕获。
+- **rejected（被拒绝）**：任务因池/队列饱和被拒绝策略处理的次数（通过 `withRejectedCounting` 包装 reject handler 计数，已实现并上报）。
 ## 部署形态与身份（CS 模式）
 
 - **admin-server（服务端）**：集中管理配置的独立进程，配置树为 `threadpool.admin.*`，与客户端配置完全独立。

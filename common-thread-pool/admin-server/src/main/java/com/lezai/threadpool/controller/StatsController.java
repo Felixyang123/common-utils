@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolStats;
 import com.lezai.threadpool.service.StatsAdminService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,7 @@ public class StatsController {
         return ApiResponse.success(statsAdminService.getPoolStatsHistory(appId, poolName, begin, end));
     }
 
+    @Profile("local")
     @PostMapping("/mock")
     public ApiResponse<Void> mockStats(
             @RequestParam String appId,

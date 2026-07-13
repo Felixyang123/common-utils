@@ -79,22 +79,19 @@ class ApiKeyPersistenceServiceTest {
     }
 
     @Test
-    @DisplayName("upsert updates existing API key")
-    void add_updateByAppId() {
+    @DisplayName("add inserts new API key")
+    void add_insert() {
         ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
         cmd.setAppId("app1");
-        ApiKeyEntity newEntity = ApiKeyEntity.builder().appId("app1").build();
-        ApiKeyEntity oldEntity = ApiKeyEntity.builder().id(1L).build();
+        ApiKeyEntity entity = ApiKeyEntity.builder().appId("app1").build();
 
-        when(apiKeyConverter.convertEntity(cmd)).thenReturn(newEntity);
-        when(apiKeyMapper.selectOne(any(), anyBoolean())).thenReturn(oldEntity);
-        when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
+        when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
+        when(apiKeyMapper.insert(any(ApiKeyEntity.class))).thenReturn(1);
 
         boolean result = service.add(cmd);
 
         assertThat(result).isTrue();
-        assertThat(newEntity.getId()).isEqualTo(1L);
-        verify(logService).log(eq(OperateType.UPDATE), any(), eq(newEntity), any(), eq(BizType.APIKEY));
+        verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
     }
 
     @Test
@@ -142,7 +139,7 @@ class ApiKeyPersistenceServiceTest {
         ApiKeyEntity entity = ApiKeyEntity.builder().id(1L).build();
 
         when(apiKeyConverter.convertEntity(cmd)).thenReturn(entity);
-        when(apiKeyMapper.updateById(any(ApiKeyEntity.class))).thenReturn(1);
+        when(apiKeyMapper.update(any(ApiKeyEntity.class), any())).thenReturn(1);
 
         boolean result = service.updateByAppId(cmd);
 

@@ -7,7 +7,7 @@ import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
-import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
@@ -52,7 +52,7 @@ public class ApiKeyAdminService {
                 .build();
 
         if (!apiKeyStorage.putIfAbsent(apiKey)) {
-            throw new ResoureAlreadyExistsException("API key already exists for appId: " + request.getAppId());
+            throw new ResourceAlreadyExistsException("API key already exists for appId: " + request.getAppId());
         }
 
         log.info("API key created successfully for appId: {}", request.getAppId());
@@ -116,9 +116,11 @@ public class ApiKeyAdminService {
 
         ApiKey updated = ApiKey.builder()
                 .appId(existing.getAppId())
+                .apiKeyHash(existing.getApiKeyHash())
                 .appName(request.getAppName())
                 .enabled(request.getEnabled() != null ? request.getEnabled() : existing.isEnabled())
                 .expireTime(request.getExpireTime())
+                .createTime(existing.getCreateTime())
                 .description(request.getDescription())
                 .build();
 

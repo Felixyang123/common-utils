@@ -2,7 +2,7 @@ package com.lezai.threadpool.controller;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.bean.PageResult;
-import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.controller.dto.request.CreateApiKeyRequest;
@@ -81,7 +81,7 @@ class ApiKeyControllerTest {
     @DisplayName("POST /api/api-keys returns 409 when appId already exists")
     void createApiKey_alreadyExists() throws Exception {
         when(apiKeyAdminService.createApiKey(any(CreateApiKeyRequest.class)))
-                .thenThrow(new ResoureAlreadyExistsException("API key already exists for appId: my-app"));
+                .thenThrow(new ResourceAlreadyExistsException("API key already exists for appId: my-app"));
 
         var request = new CreateApiKeyRequest();
         request.setAppId("my-app");

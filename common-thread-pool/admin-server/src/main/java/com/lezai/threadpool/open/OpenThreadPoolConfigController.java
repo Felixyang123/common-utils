@@ -1,10 +1,6 @@
 package com.lezai.threadpool.open;
 
-import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.ConfigChangeNotification;
-import com.lezai.threadpool.bean.ThreadPoolAppConfig;
-import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.bean.ThreadPoolStatsReport;
+import com.lezai.threadpool.bean.*;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.service.SubscriptionService;
 import jakarta.validation.Valid;
@@ -36,20 +32,10 @@ public class OpenThreadPoolConfigController {
     private final SubscriptionService subscriptionService;
 
     /**
-     * 添加配置，存在直接返回
-     */
-    @PostMapping("/config/{appId}/add")
-    public ApiResponse<ThreadPoolConfig> addConfig(
-            @PathVariable String appId,
-            @Valid @RequestBody ThreadPoolConfig config) {
-        return ApiResponse.success(openThreadPoolConfigService.addConfig(appId, config));
-    }
-
-    /**
      * 批量添加配置
      */
     @PostMapping("/configs/{appId}/add")
-    public ApiResponse<List<ThreadPoolConfig>> addConfigs(
+    public ApiResponse<AddConfigAppResult> addConfigs(
             @PathVariable String appId,
             @Valid @RequestBody List<ThreadPoolConfig> configs) {
         return ApiResponse.success(openThreadPoolConfigService.addConfigs(appId, configs));

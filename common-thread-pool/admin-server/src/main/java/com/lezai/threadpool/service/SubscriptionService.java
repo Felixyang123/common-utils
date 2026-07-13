@@ -82,7 +82,7 @@ public class SubscriptionService {
             }
         };
 
-        configStorage.registerChangeListener(appId, listener);
+        listenerManager.register(appId, listener);
         log.info("Registered config change listener for subscription: appId={}, version: {}", appId, version);
 
         // compensationFutureRef 在 onTimeout/onCompletion 注册之后才被 schedule() 赋值——

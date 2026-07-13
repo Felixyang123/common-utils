@@ -9,32 +9,32 @@ import com.lezai.threadpool.exception.ValidationException;
 import com.lezai.threadpool.pojo.cmd.ApiKeyUpsertCmd;
 import com.lezai.threadpool.pojo.dto.ApiKeyDto;
 import com.lezai.threadpool.service.ApiKeyPersistenceService;
+import com.lezai.threadpool.storage.cache.Cache;
+import com.lezai.threadpool.storage.cache.CachedStorageSupport;
 import com.lezai.threadpool.utils.ApiKeyUtils;
+import com.lezai.threadpool.util.SyncLock;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * MyBatis 持久化 + {@link CacheService} 缓存 的 {@link ApiKeyStorage} 实现。
- * <p>
- * local profile：缓存为进程内 {@link java.util.concurrent.ConcurrentHashMap}
- * db profile：缓存为 Redisson {@code RMap}，用于跨进程原子写。
- */
 @Slf4j
 public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implements ApiKeyStorage {
+
+    private static final Duration NULL_TTL = Duration.ofMinutes(1);
+
+    private static final String CACHE_NAME = "api-key-storage";
 
     private final ApiKeyPersistenceService apiKeyService;
     private final ApiKeyConverter apiKeyConverter;
 
-    public MyBatisApiKeyStorage(ConcurrentMap<String, ApiKey> cache,
+    public MyBatisApiKeyStorage(Cache<String, ApiKey> cache,
+                                SyncLock syncLock,
                                 ApiKeyPersistenceService apiKeyService,
                                 ApiKeyConverter apiKeyConverter) {
-        super(cache, "api-key-storage");
+        super(cache, syncLock, CACHE_NAME, NULL_TTL);
         this.apiKeyService = apiKeyService;
         this.apiKeyConverter = apiKeyConverter;
     }
@@ -47,24 +47,22 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
         if (apiKey.getApiKeyHash() == null) {
             throw new ValidationException("ApiKey hash cannot be null");
         }
-        compute(apiKey.getAppId(), (appId, existing) -> {
+
+        compute(apiKey.getAppId(), () -> {
             boolean updated = apiKeyService.updateByAppId(apiKeyConverter.convertUpsertCmd(apiKey));
             if (updated) {
+                cache.put(apiKey.getAppId(), apiKey);
                 log.info("Saved API key for appId: {}", apiKey.getAppId());
-                return apiKey;
+            } else {
+                log.info("Failed to update API key for appId: {}", apiKey.getAppId());
             }
-            log.info("Failed to update API key for appId: {}", apiKey.getAppId());
-            return existing;
         });
     }
 
     @Override
     public Optional<ApiKey> getApiKey(String appId) {
-        ApiKey apiKey = compute(appId, (k, existing) -> {
-            if (existing != null) return existing;
-            return apiKeyService.findByAppId(appId).map(apiKeyConverter::convertApiKey).orElse(null);
-        });
-        return Optional.ofNullable(apiKey);
+        return Optional.ofNullable(getOrLoad(appId, () ->
+                apiKeyService.findByAppId(appId).map(apiKeyConverter::convertApiKey).orElse(null)));
     }
 
     @Override
@@ -99,49 +97,44 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
         if (apiKey.getApiKeyHash() == null) {
             throw new ValidationException("ApiKey hash cannot be null");
         }
-        AtomicBoolean inserted = new AtomicBoolean(false);
-        compute(apiKey.getAppId(), (appId, existing) -> {
+        return compute(apiKey.getAppId(), () -> {
+            ApiKey existing = getOrLoad(apiKey.getAppId(), () -> apiKeyService.findByAppId(apiKey.getAppId())
+                    .map(apiKeyConverter::convertApiKey).orElse(null));
             if (existing != null) {
-                return existing;
+                return false;
             }
-            Optional<ApiKeyDto> dbKey = apiKeyService.findByAppId(appId);
-            if (dbKey.isPresent()) {
-                return apiKeyConverter.convertApiKey(dbKey.get());
-            }
+
             boolean success = apiKeyService.add(apiKeyConverter.convertUpsertCmd(apiKey));
             if (success) {
-                inserted.set(true);
-                log.info("Inserted new API key for appId: {}", appId);
-                return apiKey;
+                cache.put(apiKey.getAppId(), apiKey);
+                log.info("Inserted new API key for appId: {}", apiKey.getAppId());
+                return true;
             }
-            log.warn("Failed to insert API key for appId: {}", appId);
-            return null;
+            log.warn("Failed to insert API key for appId: {}", apiKey.getAppId());
+            return false;
         });
-        return inserted.get();
     }
 
     @Override
     @Transactional
     public String regenerateApiKey(String appId) {
-        AtomicReference<String> ref = new AtomicReference<>();
-        compute(appId, (k, existing) -> {
+        return compute(appId, () -> {
             Optional<ApiKeyDto> opt = apiKeyService.findByAppId(appId);
             if (opt.isEmpty()) {
                 throw new ResourceNotFoundException("ApiKey not found for appId: " + appId);
             }
             String newApiKey = ApiKeyUtils.generateRandomApiKey();
             ApiKeyDto dto = opt.get();
-            existing = apiKeyConverter.convertApiKey(dto);
+            ApiKey apiKey = apiKeyConverter.convertApiKey(dto);
             ApiKeyUpsertCmd cmd = new ApiKeyUpsertCmd();
             cmd.setAppId(appId);
             cmd.setApiKeyHash(ApiKeyUtils.hashApiKey(newApiKey));
             if (apiKeyService.updateByAppId(cmd)) {
-                ref.set(newApiKey);
-                existing.setApiKeyHash(cmd.getApiKeyHash());
+                apiKey.setApiKeyHash(cmd.getApiKeyHash());
+                cache.put(appId, apiKey);
             }
             log.info("Regenerated API key for appId: {}", appId);
-            return existing;
+            return newApiKey;
         });
-        return ref.get();
     }
 }

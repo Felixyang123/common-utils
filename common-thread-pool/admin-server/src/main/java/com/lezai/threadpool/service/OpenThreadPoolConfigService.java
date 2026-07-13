@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
@@ -27,22 +28,9 @@ public class OpenThreadPoolConfigService {
     private final StatsStorage statsStorage;
 
     /**
-     * 添加配置，存在直接返回
-     */
-    public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
-        if (appId == null || appId.isBlank()) {
-            throw new ValidationException("appId must not be blank");
-        }
-        if (config == null) {
-            throw new ValidationException("config must not be null");
-        }
-        return configStorage.addConfig(appId, config);
-    }
-
-    /**
      * 批量添加配置
      */
-    public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
+    public AddConfigAppResult addConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (appId == null || appId.isBlank()) {
             throw new ValidationException("appId must not be blank");
         }

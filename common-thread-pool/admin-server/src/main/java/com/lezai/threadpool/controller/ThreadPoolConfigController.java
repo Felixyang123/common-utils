@@ -71,25 +71,6 @@ public class ThreadPoolConfigController {
         return ApiResponse.success();
     }
 
-    @GetMapping("/configs/{appId}/version")
-    public ApiResponse<Long> getConfigVersion(@PathVariable String appId) {
-        return ApiResponse.success(configAdminService.getConfigVersion(appId));
-    }
-
-    @PostMapping("/config/{appId}/add")
-    public ApiResponse<ThreadPoolConfig> addConfig(
-            @PathVariable String appId,
-            @Valid @RequestBody ThreadPoolConfig config) {
-        return ApiResponse.success(configAdminService.addConfig(appId, config));
-    }
-
-    @PostMapping("/configs/{appId}/add")
-    public ApiResponse<List<ThreadPoolConfig>> addConfigs(
-            @PathVariable String appId,
-            @Valid @RequestBody List<ThreadPoolConfig> configs) {
-        return ApiResponse.success(configAdminService.addConfigs(appId, configs));
-    }
-
     @GetMapping("/configs/{appId}/{poolName}/snapshots")
     public ApiResponse<List<ConfigSnapshot>> getSnapshots(
             @PathVariable String appId,

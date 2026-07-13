@@ -6,7 +6,7 @@ import com.lezai.threadpool.controller.dto.request.UpdateApiKeyRequest;
 import com.lezai.threadpool.controller.dto.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.controller.dto.response.RegenerateApiKeyResponse;
-import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,7 +80,7 @@ class ApiKeyAdminServiceTest {
         when(apiKeyStorage.putIfAbsent(any(ApiKey.class))).thenReturn(false);
 
         assertThatThrownBy(() -> service.createApiKey(request))
-                .isInstanceOf(ResoureAlreadyExistsException.class)
+                .isInstanceOf(ResourceAlreadyExistsException.class)
                 .hasMessageContaining("my-app");
     }
 
@@ -104,23 +104,17 @@ class ApiKeyAdminServiceTest {
     @Test
     @DisplayName("deleteApiKey deletes successfully")
     void deleteApiKey_success() {
-        when(apiKeyStorage.exists("my-app")).thenReturn(true);
-
         service.deleteApiKey("my-app");
 
         verify(apiKeyStorage).deleteApiKey("my-app");
     }
 
     @Test
-    @DisplayName("deleteApiKey throws ConfigNotFoundException when not found")
+    @DisplayName("deleteApiKey does not validate not found")
     void deleteApiKey_notFound() {
-        when(apiKeyStorage.exists("unknown")).thenReturn(false);
+        service.deleteApiKey("unknown");
 
-        assertThatThrownBy(() -> service.deleteApiKey("unknown"))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("unknown");
-
-        verify(apiKeyStorage, never()).deleteApiKey(anyString());
+        verify(apiKeyStorage).deleteApiKey("unknown");
     }
 
     // ==================== getApiKey ====================
@@ -288,12 +282,11 @@ class ApiKeyAdminServiceTest {
     // ==================== boundary cases ====================
 
     @Test
-    @DisplayName("deleteApiKey with blank appId throws ConfigNotFoundException")
+    @DisplayName("deleteApiKey with blank appId delegates to storage")
     void deleteApiKey_blankAppId() {
-        when(apiKeyStorage.exists("")).thenReturn(false);
+        service.deleteApiKey("");
 
-        assertThatThrownBy(() -> service.deleteApiKey(""))
-                .isInstanceOf(ResourceNotFoundException.class);
+        verify(apiKeyStorage).deleteApiKey("");
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.lezai.threadpool.open;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.TestDataFactory;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
@@ -62,23 +63,12 @@ class OpenThreadPoolConfigControllerTest {
     }
 
     @Test
-    @DisplayName("POST /open/api/thread-pool/config/{appId}/add adds config")
-    void addConfig() throws Exception {
-        ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(openThreadPoolConfigService.addConfig("app1", config)).thenReturn(config);
-
-        mockMvc.perform(post("/open/api/thread-pool/config/app1/add")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.toJSONString(config)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
-    }
-
-    @Test
     @DisplayName("POST /open/api/thread-pool/configs/{appId}/add adds batch configs")
     void addConfigs() throws Exception {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a");
-        when(openThreadPoolConfigService.addConfigs("app1", configs)).thenReturn(configs);
+        AddConfigAppResult result = new AddConfigAppResult();
+        result.setAddedConfigs(configs);
+        when(openThreadPoolConfigService.addConfigs("app1", configs)).thenReturn(result);
 
         mockMvc.perform(post("/open/api/thread-pool/configs/app1/add")
                         .contentType(MediaType.APPLICATION_JSON)

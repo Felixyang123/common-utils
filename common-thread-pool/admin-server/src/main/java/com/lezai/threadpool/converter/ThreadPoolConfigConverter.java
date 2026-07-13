@@ -1,11 +1,13 @@
 package com.lezai.threadpool.converter;
 
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigAppUpsertCmd;
 import com.lezai.threadpool.pojo.cmd.ThreadPoolConfigUpsertCmd;
+import com.lezai.threadpool.pojo.dto.AddConfigAppResultDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigAppDto;
 import com.lezai.threadpool.pojo.dto.ThreadPoolConfigDto;
 import org.mapstruct.Mapper;
@@ -43,13 +45,16 @@ public interface ThreadPoolConfigConverter {
 
     ThreadPoolConfigAppEntity cmdUpdateEntity(@MappingTarget ThreadPoolConfigAppEntity entity, ThreadPoolConfigAppUpsertCmd cmd);
 
-    ThreadPoolConfigEntity upsertCmdConvertEntity(ThreadPoolConfigUpsertCmd cmd);
+    @Mapping(target = "appId", source = "appId")
+    ThreadPoolConfigEntity upsertCmdConvertEntity(ThreadPoolConfigUpsertCmd cmd, String appId);
 
     void cmdUpdateEntity(@MappingTarget ThreadPoolConfigEntity entity, ThreadPoolConfigUpsertCmd cmd);
 
     ThreadPoolConfigUpsertCmd configConvertUpsertCmd(ThreadPoolConfig config);
 
     List<ThreadPoolConfigUpsertCmd> configConvertUpsertCmdBatch(List<ThreadPoolConfig> configs);
+
+    AddConfigAppResult convertResult(AddConfigAppResultDto dto);
 
     default ThreadPoolAppConfig dtoConvertAppConfig(ThreadPoolConfigAppDto dto) {
         return ThreadPoolAppConfig.builder()

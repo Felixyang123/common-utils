@@ -31,7 +31,7 @@ public class ThreadPoolConfigUpsertCmd {
     /**
      * 时间单位
      */
-    private TimeUnit timeUnit;
+    private TimeUnit timeUnit = TimeUnit.SECONDS;
 
     /**
      * 队列类型

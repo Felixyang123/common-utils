@@ -7,14 +7,15 @@ import com.lezai.threadpool.dao.rep.AdminUserRep;
 import com.lezai.threadpool.interceptor.AdminAuthInterceptor;
 import com.lezai.threadpool.interceptor.ApiKeyAuthInterceptor;
 import com.lezai.threadpool.interceptor.RateLimitInterceptor;
-import com.lezai.threadpool.service.AdminAuthService;
-import com.lezai.threadpool.service.ApiKeyPersistenceService;
-import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;
-import com.lezai.threadpool.service.ThreadPoolStatsPersistenceService;
+import com.lezai.threadpool.service.*;
 import com.lezai.threadpool.storage.*;
+import com.lezai.threadpool.storage.cache.CacheConfig;
+import com.lezai.threadpool.storage.cache.CacheService;
+import com.lezai.threadpool.storage.cache.CaffeineCacheService;
 import com.lezai.threadpool.storage.listener.ConfigChangeListenerManager;
-import com.lezai.threadpool.storage.localfile.LocalCacheService;
-import com.lezai.threadpool.storage.remote.RedissonCacheService;
+import com.lezai.threadpool.util.LocalStripedLock;
+import com.lezai.threadpool.util.RedissonSyncLock;
+import com.lezai.threadpool.util.SyncLock;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,22 +26,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Admin Server 自动配置。
- * <p>
- * 持久化层（MyBatis）统一启用，不再分 local / db 两套 storage 实现。
- * 唯一按 profile 切换的是 {@link CacheService}：
- * <ul>
- *   <li>local：{@link LocalCacheService}（进程内 ConcurrentHashMap，无外部依赖）</li>
- *   <li>db：{@link RedissonCacheService}（Redisson RMap，跨进程原子性）</li>
- * </ul>
- * profile 切换由 spring.profiles.active + Bean 上的 {@code @ConditionalOnClass} 控制：
- * local profile 排除 Redisson auto-config，使 RedissonClient 不在 classpath → RedissonCacheService 不装配，
- * LocalCacheService 兜底胜出。
- */
+import java.util.Map;
+
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(AdminAuthProperty.class)
+@EnableConfigurationProperties({AdminAuthProperty.class, CacheProperties.class})
 public class AdminServerAutoConfiguration {
 
     @Value("${threadpool.app-auth-enabled:true}")
@@ -48,50 +38,66 @@ public class AdminServerAutoConfiguration {
 
     // ==================== CacheService（按 profile 二选一）====================
 
-    /**
-     * db profile：Redisson 缓存（仅当 classpath 上存在 {@link RedissonClient} 时生效）。
-     * <p>
-     * local profile 通过 application-local.yml 的 spring.autoconfigure.exclude
-     * 排除 Redisson auto-config，使 RedissonClient bean 缺失 → 本 Bean 不创建 → 兜底 Bean 胜出。
-     */
     @Bean
     @ConditionalOnMissingBean(CacheService.class)
     @ConditionalOnBean(RedissonClient.class)
-    public CacheService redissonCacheService(RedissonClient redissonClient) {
+    public CacheService redissonCacheService(RedissonClient redissonClient, CacheProperties cacheProperties) {
         log.info("Initializing RedissonCacheService");
-        return new RedissonCacheService(redissonClient);
+        Map<String, CacheConfig> configs = cacheProperties.getConfigs();
+        CacheConfig defaultConfig = cacheProperties.getDefaultConfig();
+        return new com.lezai.threadpool.storage.cache.RedissonCacheService(
+                redissonClient, configs, defaultConfig);
     }
 
-    /**
-     * local profile：进程内 {@link java.util.concurrent.ConcurrentHashMap} 缓存。
-     * 仅在没有其他 CacheService 时兜底装配。
-     */
     @Bean
     @ConditionalOnMissingBean(CacheService.class)
-    public CacheService localCacheService() {
-        log.info("Initializing LocalCacheService (in-process ConcurrentHashMap)");
-        return new LocalCacheService();
+    public CacheService caffeineCacheService(CacheProperties cacheProperties) {
+        log.info("Initializing CaffeineCacheService");
+        Map<String, CacheConfig> configs = cacheProperties.getConfigs();
+        CacheConfig defaultConfig = cacheProperties.getDefaultConfig();
+        return new CaffeineCacheService(configs, defaultConfig);
     }
 
-    // ==================== Storage Beans（持久化统一为 MyBatis，缓存按 CacheService 注入）====================
+    // ==================== SyncLock（按 profile 二选一）====================
+
+    @Bean
+    @ConditionalOnMissingBean(SyncLock.class)
+    @ConditionalOnBean(RedissonClient.class)
+    public SyncLock redissonSyncLock(RedissonClient redissonClient) {
+        log.info("Initializing RedissonSyncLock");
+        return new RedissonSyncLock(redissonClient);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SyncLock.class)
+    public SyncLock localStripedLock() {
+        log.info("Initializing LocalStripedLock");
+        return new LocalStripedLock();
+    }
+
+    // ==================== Storage Beans ====================
 
     @Bean
     @ConditionalOnMissingBean(ConfigStorage.class)
-    public ConfigStorage configStorage(CacheService cacheService,
+    public ConfigStorage configStorage(CacheService cacheService, SyncLock syncLock,
                                        ThreadPoolConfigPersistenceService configService,
                                        ThreadPoolConfigConverter configConverter,
                                        ConfigChangeListenerManager listenerManager) {
-        log.info("Initializing MyBatisConfigStorage with cache impl: {}", cacheService.getClass().getSimpleName());
-        return new MyBatisConfigStorage(cacheService.getMap("config-storage"), configService, configConverter, listenerManager);
+        log.info("Initializing MyBatisConfigStorage with cache: {}",
+                cacheService.getClass().getSimpleName());
+        return new MyBatisConfigStorage(cacheService.getCache("config-storage"),
+                syncLock, configService, configConverter, listenerManager);
     }
 
     @Bean
     @ConditionalOnMissingBean(ApiKeyStorage.class)
-    public ApiKeyStorage apiKeyStorage(CacheService cacheService,
+    public ApiKeyStorage apiKeyStorage(CacheService cacheService, SyncLock syncLock,
                                        ApiKeyPersistenceService apiKeyService,
                                        ApiKeyConverter apiKeyConverter) {
-        log.info("Initializing MyBatisApiKeyStorage with cache impl: {}", cacheService.getClass().getSimpleName());
-        return new MyBatisApiKeyStorage(cacheService.getMap("api-key-storage"), apiKeyService, apiKeyConverter);
+        log.info("Initializing MyBatisApiKeyStorage with cache: {}",
+                cacheService.getClass().getSimpleName());
+        return new MyBatisApiKeyStorage(cacheService.getCache("api-key-storage"),
+                syncLock, apiKeyService, apiKeyConverter);
     }
 
     @Bean
@@ -111,7 +117,7 @@ public class AdminServerAutoConfiguration {
         return storage;
     }
 
-    // ==================== 认证拦截器 ====================
+    // ==================== Auth ====================
 
     @Bean
     @ConditionalOnMissingBean

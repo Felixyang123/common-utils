@@ -59,7 +59,7 @@ class BusinessExceptionTest {
     @Test
     @DisplayName("ConfigAlreadyExistsException has code 409")
     void configAlreadyExistsException() {
-        ResoureAlreadyExistsException ex = new ResoureAlreadyExistsException("already exists");
+        ResourceAlreadyExistsException ex = new ResourceAlreadyExistsException("already exists");
         assertThat(ex.getCode()).isEqualTo(409);
     }
 

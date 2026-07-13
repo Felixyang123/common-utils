@@ -4,136 +4,345 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API Key 管理 - ThreadPool Admin</title>
-  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/drawer.css">
 </head>
 <body>
-  <script src="/js/common.js"></script>
-  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('api-keys.html');</script>
 
-  <div class="page">
-    <div class="page-header">
+<script src="/js/common.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('redirect');
+</script>
+
+<!-- ═════════════════ TOPBAR ═════════════════ -->
+<nav class="topbar" id="topbar"></nav>
+
+<!-- ═════════════════ MAIN CONTENT ═════════════════ -->
+<div class="page">
+
+  <div class="breadcrumb">threadpool / API Keys</div>
+  <div class="page-header">
+    <div>
       <h1>API Key 管理</h1>
-      <button class="btn btn-primary" onclick="openModal('create-modal')">+ 新建 API Key</button>
+      <p class="text-sm text-muted mt-2">为客户端 SDK 提供接入凭证。每个应用对应一个 Key。</p>
     </div>
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>App ID</th><th>应用名称</th><th>状态</th><th>过期时间</th><th>创建时间</th><th>操作</th></tr>
-          </thead>
-          <tbody id="apikey-list"></tbody>
-        </table>
+    <button class="btn btn-primary" onclick="openCreateDrawer()">+ 新建 API Key</button>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="card mb-4" style="padding: 0;">
+    <div class="filter-bar">
+      <div>
+        <label>App ID</label>
+        <input type="text" class="form-control" id="f-search" placeholder="模糊搜索..." style="width:180px;" oninput="debounceSearch()">
       </div>
-      <div class="pagination" id="key-pager"></div>
+      <div>
+        <label>状态</label>
+        <select class="form-control" id="f-status" style="width:120px;" onchange="search()">
+          <option value="">全部</option>
+          <option value="enabled">已启用</option>
+          <option value="disabled">已禁用</option>
+          <option value="expired">已过期</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="resetFilter()">重置</button>
     </div>
   </div>
 
-  <div class="modal-overlay" id="create-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>新建 API Key</h3><button class="modal-close" onclick="closeModal('create-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>App ID *</label><input class="form-control" id="f-appId" placeholder="order-service"></div>
-        <div class="form-group"><label>应用名称</label><input class="form-control" id="f-appName" placeholder="订单服务"></div>
-        <div class="form-row">
-          <div class="form-group"><label>过期时间</label><input class="form-control" id="f-expire" type="datetime-local"></div>
-          <div class="form-group"><label>描述</label><input class="form-control" id="f-desc" placeholder="可选"></div>
+  <!-- API Key List -->
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>App ID</th>
+            <th>应用名称</th>
+            <th>状态</th>
+            <th>过期时间</th>
+            <th>创建时间</th>
+            <th style="width:180px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="apikey-list">
+          <tr><td colspan="6" class="empty-state" style="padding:40px;">
+            <div class="empty-state__desc">加载中...</div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="key-pager"></div>
+  </div>
+
+</div>
+
+<!-- ═════════════════ CREATE DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="create-overlay" onclick="closeCreateDrawer()"></div>
+<div class="drawer" id="create-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title">新建 API Key</div>
+    <button class="drawer__close" onclick="closeCreateDrawer()">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <div class="form-group">
+      <label for="f-appId">App ID *</label>
+      <input type="text" class="form-control" id="f-appId" placeholder="如：order-service">
+      <div class="form-error" id="f-appId-err" style="display:none;">App ID 只能包含字母、数字、连字符和下划线</div>
+    </div>
+    <div class="form-group">
+      <label for="f-appName">应用名称</label>
+      <input type="text" class="form-control" id="f-appName" placeholder="如：订单服务">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="f-expire">过期时间</label>
+        <input type="datetime-local" class="form-control" id="f-expire">
+      </div>
+      <div class="form-group">
+        <label for="f-desc">描述</label>
+        <input type="text" class="form-control" id="f-desc" placeholder="可选">
+      </div>
+    </div>
+    <div class="form-group" style="background:var(--color-accent-subtle);padding:12px;border-radius:6px;font-size:12px;color:var(--color-text-2);">
+      <strong>注意：</strong> 创建后的明文 Key 仅显示一次，请立即复制并妥善保管。
+    </div>
+  </div>
+  <div class="drawer__footer">
+    <button class="btn btn-ghost" onclick="closeCreateDrawer()">取消</button>
+    <button class="btn btn-primary" onclick="doCreate()">创建</button>
+  </div>
+</div>
+
+<!-- ═════════════════ KEY REVEAL DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="reveal-overlay" onclick="closeRevealDrawer()"></div>
+<div class="drawer" id="reveal-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title" style="color:var(--color-success);">✓ API Key 已创建</div>
+    <button class="drawer__close" onclick="closeRevealDrawer()">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <div style="background:var(--color-danger-subtle);border:1px solid rgba(220,38,38,0.2);padding:12px;border-radius:6px;font-size:12px;color:var(--color-danger);margin-bottom:16px;">
+      <strong>请立即复制保存</strong>，此明文 Key 仅显示一次！
+    </div>
+    <div class="form-group">
+      <label>App ID</label>
+      <div class="form-control" style="background:var(--color-surface-2);font-family:var(--font-mono);" id="reveal-appId"></div>
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" class="form-control" id="reveal-key" readonly style="font-family:var(--font-mono);font-size:12px;word-break:break-all;">
+        <button class="btn btn-ghost btn-sm" onclick="copyKey()" style="white-space:nowrap;">复制</button>
+      </div>
+    </div>
+  </div>
+  <div class="drawer__footer">
+    <button class="btn btn-primary" onclick="closeRevealDrawer()">已保存，关闭</button>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+renderTopbar('api-keys.html');
+
+let keyPage = 1, keyTotal = 0, keyCache = [];
+const KEY_PAGE_SIZE = 20;
+let searchTimer = null;
+
+// ── Load list ──
+(async () => { await search(); })();
+
+async function search() {
+  keyPage = 1;
+  await render();
+}
+
+async function render() {
+  const search = document.getElementById('f-search').value.trim();
+  const status = document.getElementById('f-status').value;
+  let url = `/api/api-keys?page=${keyPage}&pageSize=${KEY_PAGE_SIZE}`;
+  if (search) url += `&keyword=${encodeURIComponent(search)}`;
+  if (status) url += `&status=${status}`;
+
+  const data = await apiGet(url);
+  if (!data || data.code !== 0) return;
+  const d = data.data || { total: 0, list: [] };
+  keyTotal = d.total || 0;
+  keyCache = d.list || [];
+
+  const tbody = document.getElementById('apikey-list');
+  if (!keyCache.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="padding:40px;">
+      <div class="empty-state__title">暂无 API Key</div>
+      <div class="empty-state__desc">点击"新建 API Key"为客户端创建第一个接入凭证</div>
+    </td></tr>`;
+    document.getElementById('key-pager').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = keyCache.map(k => {
+    const status = !k.enabled
+      ? '<span class="badge badge-gray">禁用</span>'
+      : k.expired
+        ? '<span class="badge badge-red">已过期</span>'
+        : k.expiringSoon
+          ? '<span class="badge badge-yellow">即将过期</span>'
+          : '<span class="badge badge-green">启用</span>';
+    return `<tr>
+      <td><code>${k.appId}</code></td>
+      <td>${k.appName || '<span class="text-muted">-</span>'}</td>
+      <td>${status}</td>
+      <td class="text-sm text-muted">${k.expireTime ? new Date(k.expireTime).toLocaleString('zh-CN') : '永不过期'}</td>
+      <td class="text-sm text-muted">${new Date(k.createTime).toLocaleString('zh-CN')}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="openDetail(${JSON.stringify(k).replace(/"/g,'&quot;')})">查看</button>
+          <a class="btn btn-ghost btn-sm" href="operate-logs.html?bizType=APIKEY&bizId=${k.appId}">历史</a>
+          <button class="btn btn-ghost btn-sm" onclick="regenerateKey('${k.appId}')" title="重新生成">重生</button>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('create-modal')">取消</button>
-        <button class="btn btn-primary" onclick="createKey()">创建</button>
-      </div>
-    </div>
-  </div>
+      </td>
+    </tr>`;
+  }).join('');
 
-  <div class="modal-overlay" id="detail-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>API Key 详情</h3><button class="modal-close" onclick="closeModal('detail-modal')">&times;</button></div>
-      <div class="modal-body" id="detail-body"></div>
-      <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('detail-modal')">关闭</button></div>
-    </div>
-  </div>
+  const totalPages = Math.ceil(keyTotal / KEY_PAGE_SIZE) || 1;
+  document.getElementById('key-pager').innerHTML = `
+    <button class="btn btn-ghost btn-sm" ${keyPage<=1?'disabled':''} onclick="goKeyPage(${keyPage-1})">← 上一页</button>
+    <span>第 ${keyPage} / ${totalPages} 页 · 共 ${keyTotal} 条</span>
+    <button class="btn btn-ghost btn-sm" ${keyPage>=totalPages?'disabled':''} onclick="goKeyPage(${keyPage+1})">下一页 →</button>`;
+}
 
-  <div class="modal-overlay" id="newkey-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>API Key 已创建</h3><button class="modal-close" onclick="closeModal('newkey-modal')">&times;</button></div>
-      <div class="modal-body">
-        <p style="color:var(--danger);font-size:13px;margin-bottom:12px;">请立即复制保存，此明文 Key 仅显示一次！</p>
-        <input class="form-control" id="newkey-val" readonly style="font-family:monospace;">
-      </div>
-      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('newkey-modal')">已复制</button></div>
-    </div>
-  </div>
+function goKeyPage(p) { keyPage = p; render(); }
 
-  <script>
-    let keyPage = 1, keyTotal = 0;
-    const KEY_PAGE_SIZE = 20;
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(search, 300);
+}
 
-    (async () => {
-      await loadKeys();
-    })();
+function resetFilter() {
+  document.getElementById('f-search').value = '';
+  document.getElementById('f-status').value = '';
+  search();
+}
 
-    async function loadKeys() {
-      const data = await apiGet('/api/api-keys?page=' + keyPage + '&pageSize=' + KEY_PAGE_SIZE);
-      if (!data || data.code !== 0) return;
-      const d = data.data || { total: 0, list: [] };
-      keyTotal = d.total || 0;
-      const keys = d.list || [];
-      document.getElementById('apikey-list').innerHTML = keys.length ? keys.map(k =>
-        `<tr>
-          <td><code>${k.appId}</code></td>
-          <td>${k.appName || '-'}</td>
-          <td>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</td>
-          <td class="text-sm">${fmtTime(k.expireTime)}</td>
-          <td class="text-sm">${fmtTime(k.createTime)}</td>
-          <td class="actions">
-            <button class="btn btn-ghost btn-sm" onclick='showDetail(${JSON.stringify(k).replace(/'/g,"&#39;")})'>查看</button>
-            <a class="btn btn-ghost btn-sm" href="/operate-logs.html?bizType=APIKEY&bizId=${k.appId}">历史</a>
-          </td>
-        </tr>`
-      ).join('') : '<tr><td colspan="6" class="empty">暂无 API Key</td></tr>';
+// ── Detail modal (re-use diff-modal styling) ──
+function openDetail(k) {
+  const body = document.getElementById('detail-body');
+  if (!document.getElementById('detail-modal')) {
+    const m = document.createElement('div');
+    m.innerHTML = `
+      <div class="modal-overlay" id="detail-modal">
+        <div class="modal">
+          <div class="modal-header"><h3>API Key 详情</h3><button class="modal-close" onclick="closeDetail()">&times;</button></div>
+          <div class="modal-body" id="detail-body"></div>
+          <div class="modal-footer"><button class="btn btn-ghost" onclick="closeDetail()">关闭</button></div>
+        </div>
+      </div>`;
+    document.body.appendChild(m.firstElementChild);
+  }
+  document.getElementById('detail-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:12px 16px;font-size:13px;">
+      <span class="text-muted">App ID</span><code>${k.appId}</code>
+      <span class="text-muted">应用名称</span><span>${k.appName || '-'}</span>
+      <span class="text-muted">状态</span><span>${k.enabled ? (k.expired ? '<span class="badge badge-red">已过期</span>' : '<span class="badge badge-green">启用</span>') : '<span class="badge badge-gray">禁用</span>'}</span>
+      <span class="text-muted">创建时间</span><span class="text-muted">${new Date(k.createTime).toLocaleString('zh-CN')}</span>
+      <span class="text-muted">过期时间</span><span class="text-muted">${k.expireTime ? new Date(k.expireTime).toLocaleString('zh-CN') : '永不过期'}</span>
+      <span class="text-muted">描述</span><span>${k.description || '-'}</span>
+    </div>`;
+  document.getElementById('detail-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeDetail() {
+  document.getElementById('detail-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
 
-      const totalPages = Math.ceil(keyTotal / KEY_PAGE_SIZE) || 1;
-      document.getElementById('key-pager').innerHTML = `
-        <button ${keyPage<=1?'disabled':''} onclick="goKeyPage(${keyPage-1})">上一页</button>
-        <span>${keyPage} / ${totalPages} (共${keyTotal}条)</span>
-        <button ${keyPage>=totalPages?'disabled':''} onclick="goKeyPage(${keyPage+1})">下一页</button>`;
-    }
+// ── Create drawer ──
+function openCreateDrawer() {
+  document.getElementById('f-appId').value = '';
+  document.getElementById('f-appName').value = '';
+  document.getElementById('f-expire').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-appId-err').style.display = 'none';
+  document.body.classList.add('drawer-open');
+  document.getElementById('create-overlay').classList.add('open');
+  document.getElementById('create-drawer').classList.add('open');
+  setTimeout(() => document.getElementById('f-appId').focus(), 200);
+}
+function closeCreateDrawer() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('create-overlay').classList.remove('open');
+  document.getElementById('create-drawer').classList.remove('open');
+}
 
-    function goKeyPage(p) { keyPage = p; loadKeys(); }
+async function doCreate() {
+  const appId = document.getElementById('f-appId').value.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(appId)) {
+    document.getElementById('f-appId-err').style.display = 'block';
+    return;
+  }
+  const body = {
+    appId,
+    appName: document.getElementById('f-appName').value.trim() || null,
+    description: document.getElementById('f-desc').value.trim() || null,
+  };
+  const expireVal = document.getElementById('f-expire').value;
+  if (expireVal) body.expireTime = expireVal + ':00';
 
-    function showDetail(k) {
-      document.getElementById('detail-body').innerHTML = `
-        <div class="form-group"><label>App ID</label><div><code>${k.appId}</code></div></div>
-        <div class="form-group"><label>应用名称</label><div>${k.appName || '-'}</div></div>
-        <div class="form-group"><label>状态</label><div>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</div></div>
-        <div class="form-group"><label>创建时间</label><div class="text-sm">${fmtTime(k.createTime)}</div></div>
-        <div class="form-group"><label>过期时间</label><div class="text-sm">${fmtTime(k.expireTime)}</div></div>
-        <div class="form-group"><label>描述</label><div>${k.description || '-'}</div></div>`;
-      openModal('detail-modal');
-    }
+  const data = await apiPost('/api/api-keys', body);
+  if (data && data.code === 0) {
+    closeCreateDrawer();
+    showRevealDrawer(data.data);
+    render();
+  } else {
+    showToast('error', data?.message || '创建失败');
+  }
+}
 
-    async function createKey() {
-      const appId = document.getElementById('f-appId').value.trim();
-      if (!appId) { alert('App ID 必填'); return; }
-      const body = {
-        appId,
-        appName: document.getElementById('f-appName').value.trim() || null,
-        description: document.getElementById('f-desc').value.trim() || null,
-      };
-      const expireVal = document.getElementById('f-expire').value;
-      if (expireVal) body.expireTime = expireVal + ':00';
+function showRevealDrawer(d) {
+  document.getElementById('reveal-appId').textContent = d.appId || '';
+  document.getElementById('reveal-key').value = d.apiKey || '';
+  document.body.classList.add('drawer-open');
+  document.getElementById('reveal-overlay').classList.add('open');
+  document.getElementById('reveal-drawer').classList.add('open');
+}
+function closeRevealDrawer() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('reveal-overlay').classList.remove('open');
+  document.getElementById('reveal-drawer').classList.remove('open');
+}
 
-      const data = await apiPost('/api/api-keys', body);
-      if (data && data.code === 0) {
-        closeModal('create-modal');
-        document.getElementById('newkey-val').value = data.data.apiKey;
-        openModal('newkey-modal');
-        loadKeys();
-      } else {
-        alert(data ? data.message : '创建失败');
-      }
-    }
-  </script>
+function copyKey() {
+  const k = document.getElementById('reveal-key').value;
+  navigator.clipboard.writeText(k).then(() => {
+    showToast('success', '已复制到剪贴板');
+  });
+}
+
+async function regenerateKey(appId) {
+  if (!confirm('确认重新生成 App ID 为 "' + appId + '" 的 API Key？\n原 Key 将立即失效。')) return;
+  const data = await apiPost('/api/api-keys/regenerate', { appId });
+  if (data && data.code === 0) {
+    showRevealDrawer(data.data);
+    render();
+  } else {
+    showToast('error', data?.message || '重新生成失败');
+  }
+}
+
+// ── Toast helper ──
+function showToast(type, msg) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast--${type}`;
+  t.innerHTML = `<span>${msg}</span><span class="toast__close" onclick="this.parentElement.remove()">&times;</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation='toast-out .2s ease forwards'; setTimeout(()=>t.remove(),200); }, 3500);
+}
+</script>
+
 </body>
 </html>

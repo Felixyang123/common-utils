@@ -68,7 +68,7 @@ public class AdminUserManagementService {
         try {
             adminUserStorage.save(user);
         } catch (DataIntegrityViolationException e) {
-            throw new ResoureAlreadyExistsException("Admin user already exists: " + request.getUsername());
+            throw new ResourceAlreadyExistsException("Admin user already exists: " + request.getUsername());
         }
 
         log.info("Admin user created: {} ({}) by {}", user.getUsername(), role, AdminUserContextHolder.get().getUsername());

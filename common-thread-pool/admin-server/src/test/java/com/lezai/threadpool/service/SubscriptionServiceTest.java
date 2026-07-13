@@ -65,7 +65,7 @@ class SubscriptionServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.isSetOrExpired()).isFalse();
         // Should register listener
-        verify(configStorage).registerChangeListener(eq("app1"), any(ConfigChangeListener.class));
+        verify(listenerManager).register(eq("app1"), any(ConfigChangeListener.class));
         // Should schedule compensation poll
         verify(subscriptionExecutor).schedule(any(Runnable.class), eq(1000L), eq(TimeUnit.MILLISECONDS));
     }
@@ -93,7 +93,7 @@ class SubscriptionServiceTest {
         assertThat(response.getData().getVersion()).isEqualTo(10L);
 
         // Should NOT register listener since we returned immediately
-        verify(configStorage, never()).registerChangeListener(anyString(), any());
+        verify(listenerManager, never()).register(anyString(), any());
         verify(subscriptionExecutor, never()).schedule(any(Runnable.class), anyLong(), any());
     }
 
@@ -139,7 +139,7 @@ class SubscriptionServiceTest {
         assertThat(result.isSetOrExpired()).isFalse();
 
         // Verify listener registered
-        verify(configStorage).registerChangeListener(eq("app1"), listenerCaptor.capture());
+        verify(listenerManager).register(eq("app1"), listenerCaptor.capture());
         ConfigChangeListener registeredListener = listenerCaptor.getValue();
         assertThat(registeredListener).isNotNull();
     }

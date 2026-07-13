@@ -94,26 +94,4 @@ class ThreadPoolConfigControllerTest {
                 .andExpect(jsonPath("$.code").value(0));
         verify(configAdminService).deleteConfig("app1", "test-pool");
     }
-
-    @Test
-    @DisplayName("GET /api/thread-pool/configs/{appId}/version returns version")
-    void getConfigVersion() throws Exception {
-        when(configAdminService.getConfigVersion("app1")).thenReturn(5L);
-        mockMvc.perform(get("/api/thread-pool/configs/app1/version"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data").value(5));
-    }
-
-    @Test
-    @DisplayName("POST /api/thread-pool/config/{appId}/add adds config")
-    void addConfig() throws Exception {
-        ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configAdminService.addConfig(anyString(), any(ThreadPoolConfig.class))).thenReturn(config);
-        mockMvc.perform(post("/api/thread-pool/config/app1/add")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.toJSONString(config)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
-    }
 }

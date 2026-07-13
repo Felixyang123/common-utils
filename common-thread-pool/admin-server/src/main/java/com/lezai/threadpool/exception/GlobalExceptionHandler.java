@@ -29,8 +29,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_MODIFIED).build();
     }
 
-    @ExceptionHandler(ResoureAlreadyExistsException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConfigAlreadyExists(ResoureAlreadyExistsException e) {
+    @ExceptionHandler(ResourceAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConfigAlreadyExists(ResourceAlreadyExistsException e) {
         log.warn("Config already exists: {}", e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }

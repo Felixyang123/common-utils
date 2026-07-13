@@ -4,344 +4,564 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>线程池配置 - ThreadPool Admin</title>
-  <link rel="stylesheet" href="/css/common.css">
-  <style>
-    .app-bar { display: flex; gap: 12px; align-items: center; }
-    .app-bar select { min-width: 200px; }
-    .app-bar .ver { font-size: 12px; color: var(--gray-400); }
-  </style>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/drawer.css">
 </head>
 <body>
-  <script src="/js/common.js"></script>
-  <script>if (!requireAuth()) throw new Error('redirect'); renderTopbar('thread-pools.html');</script>
 
-  <div class="page">
-    <div class="page-header">
-      <h1>线程池配置管理</h1>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost" onclick="openAppManager()">管理应用</button>
-        <button class="btn btn-ghost" onclick="openRecycleBin()">回收站</button>
-        <button class="btn btn-primary" onclick="openCreate()">+ 新建池</button>
-      </div>
+<script src="/js/common.js"></script>
+<script>
+  if (!requireAuth()) throw new Error('redirect');
+</script>
+
+<!-- ═════════════════ TOPBAR ═════════════════ -->
+<nav class="topbar" id="topbar"></nav>
+
+<!-- ═════════════════ MAIN CONTENT ═════════════════ -->
+<div class="page">
+
+  <!-- Header -->
+  <div class="breadcrumb">threadpool / 线程池配置</div>
+  <div class="page-header">
+    <h1>线程池配置管理</h1>
+    <div class="actions">
+      <button class="btn btn-ghost btn-sm" onclick="openAppManager()">管理应用</button>
+      <button class="btn btn-ghost btn-sm" onclick="openRecycleBin()">回收站</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateDrawer()">+ 新建池</button>
     </div>
+  </div>
 
-    <div class="card mb-4">
-      <div class="app-bar">
-        <label style="font-weight:500;">应用：</label>
-        <select id="app-select" onchange="loadPools()"></select>
-        <span class="ver" id="app-ver"></span>
-      </div>
+  <!-- App Switcher -->
+  <div style="margin-bottom: var(--space-4);">
+    <div class="app-switcher" id="app-switcher" onclick="toggleAppDropdown()">
+      <span class="app-switcher__dot"></span>
+      <span class="app-switcher__name" id="switcher-name">选择应用...</span>
+      <span class="app-switcher__ver" id="switcher-ver" style="display:none;"></span>
+      <span class="app-switcher__arrow">▾</span>
+      <div class="app-switcher__dropdown" id="app-dropdown"></div>
     </div>
+  </div>
 
-    <div class="card">
+  <!-- Main: Pool List + Drawer (side by side) -->
+  <div style="display:flex;gap:0;position:relative;">
+
+    <!-- Pool Table -->
+    <div class="card" style="flex:1;">
       <div class="table-wrap">
-        <table>
-          <thead><tr><th>池名称</th><th>核心/最大</th><th>队列</th><th>拒绝策略</th><th>存活时间</th><th>操作</th></tr></thead>
-          <tbody id="pool-list"></tbody>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>池名</th>
+              <th>核心/最大</th>
+              <th>队列类型</th>
+              <th style="width:120px;">队列使用</th>
+              <th>拒绝率</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="pool-tbody">
+            <tr><td colspan="6" class="empty-state" style="padding:40px;">
+              <div class="empty-state__title">请先选择应用</div>
+              <div class="empty-state__desc">从上方切换器选择一个应用以查看其线程池列表</div>
+            </td></tr>
+          </tbody>
         </table>
       </div>
-      <div id="empty" class="empty" style="display:none">暂无配置</div>
     </div>
+
   </div>
 
-  <div class="modal-overlay" id="app-mgr-modal">
-    <div class="modal" style="max-width:640px;">
-      <div class="modal-header"><h3>管理应用</h3><button class="modal-close" onclick="closeModal('app-mgr-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div style="margin-bottom:12px;">
-          <div class="form-row" style="align-items:end;">
-            <div class="form-group"><label>App ID *</label><input class="form-control" id="f-ma-appId" placeholder="order-service"></div>
-            <div class="form-group"><label>应用名称</label><input class="form-control" id="f-ma-appName" placeholder="订单服务"></div>
-            <div class="form-group"><label>描述</label><input class="form-control" id="f-ma-desc" placeholder="可选"></div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="createApp()">+ 新建应用</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>App ID</th><th>应用名称</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-            <tbody id="app-mgr-list"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-primary" onclick="closeModal('app-mgr-modal');initApps();">关闭</button>
-      </div>
-    </div>
+</div>
+
+<!-- ═════════════════ EDIT DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="edit-overlay" onclick="closeEditDrawer()"></div>
+<div class="drawer" id="edit-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title" id="drawer-title">编辑 · <span id="drawer-pool-name"></span></div>
+    <button class="drawer__close" onclick="closeEditDrawer()" aria-label="关闭">&times;</button>
   </div>
 
-  <div class="modal-overlay" id="recycle-modal">
-    <div class="modal" style="max-width:700px;">
-      <div class="modal-header"><h3>回收站 - 已删除配置</h3><button class="modal-close" onclick="closeModal('recycle-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>App ID</th><th>池名称</th><th>核心/最大</th><th>更新时间</th><th>操作</th></tr></thead>
-            <tbody id="recycle-list"></tbody>
-          </table>
+  <!-- Template Pills -->
+  <div class="drawer__body">
+    <div class="template-pills mb-4" id="template-pills">
+      <span class="template-pill active" data-template="default" onclick="applyTemplate('default')">默认模板</span>
+      <span class="template-pill" data-template="throughput" onclick="applyTemplate('throughput')">高吞吐</span>
+      <span class="template-pill" data-template="low-latency" onclick="applyTemplate('low-latency')">低延迟</span>
+      <span class="template-pill" data-template="io-bound" onclick="applyTemplate('io-bound')">IO 密集</span>
+    </div>
+
+    <!-- Edit Form -->
+    <form id="config-form" onsubmit="saveConfig(event)">
+      <input type="hidden" id="f-appId">
+      <input type="hidden" id="f-poolName">
+      <input type="hidden" id="f-original" value='{}'>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-corePoolSize">核心线程数</label>
+          <input type="number" class="form-control" id="f-corePoolSize" min="1"
+                 onchange="markDirty(this)">
+        </div>
+        <div class="form-group">
+          <label for="f-maximumPoolSize">最大线程数</label>
+          <input type="number" class="form-control" id="f-maximumPoolSize" min="1"
+                 onchange="markDirty(this)">
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-primary" onclick="closeModal('recycle-modal');initApps();">关闭</button>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-queueType">队列类型</label>
+          <select class="form-control" id="f-queueType" onchange="markDirty(this)">
+            <option value="LINKED_BLOCKING_QUEUE">LinkedBlockingQueue（无界）</option>
+            <option value="ARRAY_BLOCKING_QUEUE">ArrayBlockingQueue（有界）</option>
+            <option value="SYNCHRONOUS_QUEUE">SynchronousQueue（直接传递）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="f-queueCapacity">队列容量</label>
+          <input type="number" class="form-control" id="f-queueCapacity" min="0"
+                 onchange="markDirty(this)">
+        </div>
       </div>
-    </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-rejectedExecutionHandlerName">拒绝策略</label>
+          <select class="form-control" id="f-rejectedExecutionHandlerName" onchange="markDirty(this)">
+            <option value="ABORT">AbortPolicy（抛异常）</option>
+            <option value="CALLER_RUNS">CallerRunsPolicy（调用者运行）</option>
+            <option value="DISCARD_OLDEST">DiscardOldestPolicy（丢弃最旧）</option>
+            <option value="DISCARD">DiscardPolicy（静默丢弃）</option>
+            <option value="BLOCKED">BlockedPolicy（阻塞等待）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="f-keepAliveTimeSeconds">存活时间（秒）</label>
+          <input type="number" class="form-control" id="f-keepAliveTimeSeconds" min="0"
+                 onchange="markDirty(this)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="f-allowCoreThreadTimeout">允许核心线程超时</label>
+        <select class="form-control" id="f-allowCoreThreadTimeout" onchange="markDirty(this)">
+          <option value="false">否</option>
+          <option value="true">是</option>
+        </select>
+      </div>
+
+      <!-- Diff Preview Area -->
+      <div id="diff-area" style="display:none;margin-top:var(--space-5);">
+        <h3 style="font-size:13px;font-weight:600;margin-bottom:8px;">变更预览</h3>
+        <div class="diff-grid" id="diff-grid"></div>
+      </div>
+    </form>
   </div>
 
-  <div class="modal-overlay" id="newkey-modal">
-    <div class="modal">
-      <div class="modal-header"><h3>API Key 已生成</h3><button class="modal-close" onclick="closeModal('newkey-modal')">&times;</button></div>
-      <div class="modal-body">
-        <p style="color:var(--danger);font-size:13px;margin-bottom:12px;">请立即复制保存，此明文 Key 仅显示一次！</p>
-        <input class="form-control" id="newkey-val" readonly style="font-family:monospace;">
+  <!-- Footer Actions -->
+  <div class="drawer__footer">
+    <div>
+      <button class="btn btn-ghost btn-sm" onclick="closeEditDrawer()">取消</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleDiffPreview()" id="btn-diff-preview">
+        查看差异
+      </button>
+    </div>
+    <button class="btn btn-primary" onclick="saveConfig(event)" id="btn-save-config">
+      保存配置
+    </button>
+  </div>
+</div>
+
+<!-- ═════════════════ CREATE DRAWER ═════════════════ -->
+<div class="drawer-overlay" id="create-overlay" onclick="closeCreateDrawer()"></div>
+<div class="drawer" id="create-drawer">
+  <div class="drawer__header">
+    <div class="drawer__title">新建线程池</div>
+    <button class="drawer__close" onclick="closeCreateDrawer()" aria-label="关闭">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <form id="create-form" onsubmit="doCreate(event)">
+      <div class="form-group">
+        <label for="cf-poolName">池名称 *</label>
+        <input type="text" class="form-control" id="cf-poolName" placeholder="如：order-async-pool" required>
       </div>
-      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('newkey-modal')">已复制</button></div>
+      <div class="template-pills mb-4">
+        <span class="template-pill active" onclick="setCreateTemplate('default')">默认模板</span>
+        <span class="template-pill" onclick="setCreateTemplate('throughput')">高吞吐</span>
+        <span class="template-pill" onclick="setCreateTemplate('low-latency')">低延迟</span>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>核心线程数</label><input type="number" class="form-control" id="cf-core" value="10" min="1"></div>
+        <div class="form-group"><label>最大线程数</label><input type="number" class="form-control" id="cf-max" value="20" min="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>队列类型</label><select class="form-control" id="cf-qtype"><option value="LINKED_BLOCKING_QUEUE">LinkedBlockingQueue</option><option value="ARRAY_BLOCKING_QUEUE">ArrayBlockingQueue</option></select></div>
+        <div class="form-group"><label>队列容量</label><input type="number" class="form-control" id="cf-qcap" value="1024" min="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>拒绝策略</label><select class="form-control" id="cf-reject"><option value="CALLER_RUNS">CallerRunsPolicy</option><option value="ABORT">AbortPolicy</option><option value="BLOCKED">BlockedPolicy</option></select></div>
+        <div class="form-group"><label>存活时间(秒)</label><input type="number" class="form-control" id="cf-alive" value="60" min="0"></div>
+      </div>
+    </form>
+  </div>
+  <div class="drawer__footer">
+    <button class="btn btn-ghost btn-sm" onclick="closeCreateDrawer()">取消</button>
+    <button class="btn btn-primary" onclick="doCreate(event)">创建</button>
+  </div>
+</div>
+
+<!-- ═════════════════ DIFF MODAL ═════════════════ -->
+<div class="modal-overlay" id="diff-modal">
+  <div class="modal modal--lg">
+    <div class="modal-header">
+      <h3 id="diff-modal-title">配置差异对比</h3>
+      <button class="modal-close" onclick="closeDiffModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="diff-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDiffModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmSaveFromDiff()">确认保存</button>
     </div>
   </div>
-    <div class="modal">
-      <div class="modal-header"><h3 id="edit-title">编辑配置</h3><button class="modal-close" onclick="closeModal('edit-modal')">&times;</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>池名称 *</label><input class="form-control" id="f-poolName"></div>
-        <div class="form-row">
-          <div class="form-group"><label>核心线程数</label><input class="form-control" id="f-core" type="number" min="1" max="1024"></div>
-          <div class="form-group"><label>最大线程数</label><input class="form-control" id="f-max" type="number" min="1" max="1024"></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>队列类型</label>
-            <select class="form-control" id="f-queue">
-              <option>LINKED_BLOCKING_QUEUE</option><option>BLOCKING_QUEUE</option>
-              <option>ARRAY_BLOCKING_QUEUE</option><option>SYNCHRONOUS_QUEUE</option>
-              <option>PRIORITY_BLOCKING_QUEUE</option><option>DELAY_QUEUE</option>
-            </select>
-          </div>
-          <div class="form-group"><label>队列容量</label><input class="form-control" id="f-cap" type="number" min="0" max="100000" value="1024"></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>拒绝策略</label>
-            <select class="form-control" id="f-reject">
-              <option>ABORT</option><option>CALLER_RUNS</option><option>DISCARD</option>
-              <option>DISCARD_OLDEST</option><option>BLOCKED</option>
-            </select>
-          </div>
-          <div class="form-group"><label>存活时间</label><input class="form-control" id="f-keep" type="number" min="0" value="60"></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>时间单位</label>
-            <select class="form-control" id="f-unit"><option>SECONDS</option><option>MINUTES</option><option>MILLISECONDS</option></select>
-          </div>
-          <div class="form-group"><label>线程名前缀</label><input class="form-control" id="f-prefix" placeholder="同池名"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('edit-modal')">取消</button>
-        <button class="btn btn-primary" onclick="savePool()">保存</button>
-      </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+renderTopbar('thread-pools.html');
+
+// ── State ──
+let currentAppId = '';
+let currentPools = [];
+let dirtyFields = new Set();
+let selectedPoolIndex = -1;
+
+const params = new URLSearchParams(location.search);
+currentAppId = params.get('app') || localStorage.getItem('currentApp') || '';
+
+// ── Load apps ──
+(async function init() {
+  try {
+    const res = await apiGet('/api/thread-pool/configs');
+    if (!res || res.code !== 0) return;
+    const apps = res.data || [];
+    renderAppDropdown(apps);
+    // Auto-select first or persisted app
+    if (!currentAppId && apps.length) {
+      currentAppId = apps[0].appId;
+    }
+    if (currentAppId) {
+      await loadAppConfigs(currentAppId);
+    }
+  } catch(e) { console.error(e); }
+})();
+
+// ── App Dropdown ──
+let dropdownOpen = false;
+function toggleAppDropdown() {
+  dropdownOpen = !dropdownOpen;
+  document.getElementById('app-dropdown').classList.toggle('open', dropdownOpen);
+}
+document.addEventListener('click', e => {
+  const sw = document.getElementById('app-switcher');
+  if (!sw.contains(e.target)) {
+    dropdownOpen = false;
+    document.getElementById('app-dropdown').classList.remove('open');
+  }
+});
+
+function renderAppDropdown(apps) {
+  const dd = document.getElementById('app-dropdown');
+  dd.innerHTML = apps.map(a =>
+    `<div class="app-switcher__option ${a.appId===currentAppId?'active':''}"
+         onclick="switchApp('${a.appId}')">
+      ${a.appId} <span style="margin-left:auto;font-size:11px;color:var(--color-text-3);">${a.poolCount||0}池</span>
+    </div>`
+  ).join('');
+}
+
+async function switchApp(appId) {
+  currentAppId = appId;
+  localStorage.setItem('currentApp', appId);
+  dropdownOpen = false;
+  document.getElementById('app-dropdown').classList.remove('open');
+  closeEditDrawer();
+  await loadAppConfigs(appId);
+}
+
+// ── Load pools for an app ──
+async function loadAppConfigs(appId) {
+  document.getElementById('switcher-name').textContent = appId || '全部应用';
+  const res = await apiGet('/api/thread-pool/configs/' + encodeURIComponent(appId));
+  const d = (res && res.code === 0) ? res.data : null;
+  currentPools = (d && d.configs) || [];
+
+  const tbody = document.getElementById('pool-tbody');
+  if (!currentPools.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="padding:40px;">
+      <div class="empty-state__title">该应用暂无线程池</div>
+      <div class="empty-state__desc">点击"新建池"为该应用添加第一个线程池配置</div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = currentPools.map((p, i) => {
+    const qCap = p.queueCapacity || 1024;
+    const qSize = p.queueSize || 0;
+    const qPct = Math.min(100, qCap ? Math.round(qSize / qCap * 100) : 0);
+    const rRate = (p.rejectedTaskCount || 0) > 0 && (p.submittedTaskCount || 0) > 0
+                  ? ((p.rejectedTaskCount / p.submittedTaskCount)*100).toFixed(1)
+                  : '0.0';
+    const status = parseFloat(rRate)>5 || qPct>80 ? 'alert' : parseFloat(rRate)>1 || qPct>50 ? 'warn' : 'healthy';
+    const statusBadge = {
+      alert: '<span class="badge badge-red">告警</span>',
+      warn:  '<span class="badge badge-yellow">关注</span>',
+      healthy: '<span class="badge badge-green">健康</span>',
+      idle:   '<span class="badge badge-gray">空闲</span>',
+    }[status] || '<span class="badge badge-green">健康</span>';
+
+    return `<tr onclick="openEditDrawer(${i})" class="${selectedPoolIndex===i?'selected':''}" data-index="${i}">
+      <td>
+        <div class="font-medium">${p.poolName}</div>
+      </td>
+      <td><code>${p.corePoolSize}/${p.maximumPoolSize}</code></td>
+      <td>${p.queueType || 'LINKED_BLOCKING_QUEUE'}</td>
+      <td>${renderSparkline(qPct)}</td>
+      <td style="${parseFloat(rRate)>5?'color:var(--color-danger);font-weight:600':''}">${rRate}%</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Sparkline helper ──
+function renderSparkline(pct) {
+  const vals = [12,28,42,58,72,85,pct];
+  return `<span class="sparkline" title="${pct}%">${vals.map(v => {
+    const cls = v<=pct?(pct>80?' sparkline__bar--danger':pct>50?' sparkline__bar--warn':''):'';
+    return `<span class="sparkline__bar${cls}" style="height:${v<=pct?Math.round(Math.random()*18+6):4}px;"></span>`;
+  }).join('')}</span>`;
+}
+
+// ── Edit Drawer ──
+function openEditDrawer(index) {
+  if (index < 0 || index >= currentPools.length) return;
+  selectedPoolIndex = index;
+  const p = currentPools[index];
+  dirtyFields.clear();
+
+  // Fill form
+  document.getElementById('f-appId').value = currentAppId;
+  document.getElementById('f-poolName').value = p.poolName;
+  document.getElementById('drawer-pool-name').textContent = p.poolName;
+  document.getElementById('f-corePoolSize').value = p.corePoolSize || '';
+  document.getElementById('f-maximumPoolSize').value = p.maximumPoolSize || '';
+  document.getElementById('f-queueType').value = p.queueType || 'LINKED_BLOCKING_QUEUE';
+  document.getElementById('f-queueCapacity').value = p.queueCapacity !== undefined ? p.queueCapacity : '';
+  document.getElementById('f-rejectedExecutionHandlerName').value = p.rejectPolicyType || 'CALLER_RUNS';
+  document.getElementById('f-keepAliveTimeSeconds').value = p.keepAliveTime || '';
+  document.getElementById('f-allowCoreThreadTimeout').value = String(p.allowCoreThreadTimeout !== false);
+
+  // Store original values for diff
+  document.getElementById('f-original').value = JSON.stringify({
+    corePoolSize: p.corePoolSize,
+    maximumPoolSize: p.maximumPoolSize,
+    queueType: p.queueType || 'LINKED_BLOCKING_QUEUE',
+    queueCapacity: p.queueCapacity,
+    rejectedExecutionHandlerName: p.rejectPolicyType || 'CALLER_RUNS',
+    keepAliveTimeSeconds: p.keepAliveTime,
+    allowCoreThreadTimeout: p.allowCoreThreadTimeout !== false,
+  });
+
+  // Clear dirty state on all fields
+  document.querySelectorAll('#config-form .form-control').forEach(el => el.classList.remove('form-control--dirty'));
+  document.getElementById('diff-area').style.display = 'none';
+
+  // Show drawer
+  document.body.classList.add('drawer-open');
+  document.getElementById('edit-overlay').classList.add('open');
+  document.getElementById('edit-drawer').classList.add('open');
+
+  // Highlight row
+  renderRowSelection();
+}
+
+function closeEditDrawer() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('edit-overlay').classList.remove('open');
+  document.getElementById('edit-drawer').classList.remove('open');
+  selectedPoolIndex = -1;
+  renderRowSelection();
+}
+
+function renderRowSelection() {
+  document.querySelectorAll('#pool-tbody tr').forEach(tr => tr.classList.toggle('selected', parseInt(tr.dataset.index)===selectedPoolIndex));
+}
+
+// ── Dirty tracking & Diff preview ──
+function markDirty(input) {
+  input.classList.add('form-control--dirty');
+  dirtyFields.add(input.id);
+  updateDiffPreviewInline();
+}
+
+function toggleDiffPreview() {
+  const area = document.getElementById('diff-area');
+  area.style.display = area.style.display==='none' ? '' : 'none';
+  if (area.style.display!=='none') updateFullDiffGrid();
+}
+
+function updateDiffPreviewInline() { /* inline hint could go here */ }
+
+function updateFullDiffGrid() {
+  const orig = JSON.parse(document.getElementById('f-original').value);
+  const fields = [
+    ['corePoolSize','核心线程'],['maximumPoolSize','最大线程'],
+    ['queueType','队列类型'],['queueCapacity','队列容量'],
+    ['rejectedExecutionHandlerName','拒绝策略'],
+    ['keepAliveTimeSeconds','存活时间(s)'],
+    ['allowCoreThreadTimeout','核心超时']
+  ];
+  let changed = 0;
+  const grid = document.getElementById('diff-grid');
+  grid.innerHTML = `
+    <div class="diff-col">
+      <div class="diff-col__header">当前 v${orig._version || '?'}</div>
+      ${fields.map(([k,l]) => `<div class="diff-row"><span class="diff-label">${l}</span><span class="diff-value${dirtyFields.has('f-'+k)?' diff-value--changed':''}">${String(orig[k]??'-')}</span></div>`).join('')}
     </div>
-  </div>
+    <div class="diff-col">
+      <div class="diff-col__header">目标（待保存）</div>
+      ${fields.map(([k,l]) => {
+        const val = document.getElementById('f-'+k)?.value;
+        const isChg = dirtyFields.has('f-'+k);
+        if (isChg) changed++;
+        return `<div class="diff-row"><span class="diff-label">${l}</span><span class="diff-value${isChg? ' diff-value--changed':''}">${val??'-'}</span></div>`;
+      }).join('')}
+    </div>
+  ` + `<div class="diff-summary">
+       <span class="badge ${changed>0?'badge-yellow':'badge-gray'}">${changed} 字段变更</span>
+       <span class="text-muted text-xs">变更人: ${getNickname()||getUsername()}</span>
+     </div>`;
+}
 
-  <script>
-    let currentAppId = null, currentPools = [], editPoolName = null;
+function closeDiffModal() { document.getElementById('diff-modal').classList.remove('open'); }
+function confirmSaveFromDiff() { closeDiffModal(); saveConfig(); }
 
-    async function initApps() {
-      const data = await apiGet('/api/thread-pool/configs');
-      if (!data || data.code !== 0) return;
-      const apps = data.data || [];
-      const sel = document.getElementById('app-select');
-      if (!apps.length) {
-        sel.innerHTML = '<option value="">暂无应用</option>';
-        document.getElementById('empty').style.display = '';
-        return;
-      }
-      sel.innerHTML = apps.map(a => `<option value="${a.appId}">${a.appId} (v${a.configVersion}, ${a.poolCount}池)</option>`).join('');
-      if (!currentAppId || !apps.find(a => a.appId === currentAppId)) {
-        currentAppId = null;
-        document.getElementById('pool-list').innerHTML = '';
-      }
-      loadPools();
-    }
 
-    initApps();
+// ── Save Config ──
+async function saveConfig(e) {
+  if (e) e.preventDefault();
+  const appId = document.getElementById('f-appId').value;
+  const poolName = document.getElementById('f-poolName').value;
+  const body = {
+    poolName,
+    corePoolSize: parseInt(document.getElementById('f-corePoolSize').value),
+    maximumPoolSize: parseInt(document.getElementById('f-maximumPoolSize').value),
+    queueType: document.getElementById('f-queueType').value,
+    queueCapacity: parseInt(document.getElementById('f-queueCapacity').value),
+    rejectPolicyType: document.getElementById('f-rejectedExecutionHandlerName').value,
+    keepAliveTime: parseInt(document.getElementById('f-keepAliveTimeSeconds').value),
+    allowCoreThreadTimeout: document.getElementById('f-allowCoreThreadTimeout').value === 'true'
+  };
 
-    async function loadPools() {
-      currentAppId = document.getElementById('app-select').value;
-      if (!currentAppId) return;
-      const data = await apiGet('/api/thread-pool/configs/' + encodeURIComponent(currentAppId));
-      if (!data || data.code !== 0) return;
-      const d = data.data;
-      document.getElementById('app-ver').textContent = '版本: v' + (d ? d.configVersion : 0);
-      currentPools = (d && d.configs) || [];
-      const tbody = document.getElementById('pool-list');
-      const empty = document.getElementById('empty');
-      if (!currentPools.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
-      empty.style.display = 'none';
-      tbody.innerHTML = currentPools.map((p, i) =>
-        `<tr>
-          <td><code>${p.poolName}</code></td>
-          <td>${p.corePoolSize} / ${p.maximumPoolSize}</td>
-          <td class="text-sm">${p.queueType} (${p.queueCapacity})</td>
-          <td><span class="badge badge-gray">${p.rejectPolicyType}</span></td>
-          <td>${p.keepAliveTime} ${p.timeUnit}</td>
-          <td class="actions">
-            <button class="btn btn-ghost btn-sm" onclick="editPool(${i})">编辑</button>
-            <button class="btn btn-ghost btn-sm" onclick="editHistory('${p.poolName}')">历史</button>
-            <button class="btn btn-danger btn-sm" onclick="deletePool('${p.poolName}')">删除</button>
-          </td>
-        </tr>`
-      ).join('');
-    }
+  const data = await apiPost(`/api/thread-pool/configs/${encodeURIComponent(appId)}/${encodeURIComponent(poolName)}`, body);
+  if (data && data.code === 0) {
+    showToast('success', `已保存 · ${poolName}`);
+    closeEditDrawer();
+    await loadAppConfigs(currentAppId);
+  } else {
+    showToast('error', data?.message || '保存失败');
+  }
+}
 
-    function editPool(i) {
-      const p = currentPools[i];
-      editPoolName = p.poolName;
-      document.getElementById('edit-title').textContent = '编辑 - ' + p.poolName;
-      document.getElementById('f-poolName').value = p.poolName;
-      document.getElementById('f-core').value = p.corePoolSize;
-      document.getElementById('f-max').value = p.maximumPoolSize;
-      document.getElementById('f-queue').value = p.queueType;
-      document.getElementById('f-cap').value = p.queueCapacity;
-      document.getElementById('f-reject').value = p.rejectPolicyType;
-      document.getElementById('f-keep').value = p.keepAliveTime;
-      document.getElementById('f-unit').value = p.timeUnit;
-      document.getElementById('f-prefix').value = p.threadNamePrefix || '';
-      openModal('edit-modal');
-    }
 
-    function openCreate() {
-      if (!currentAppId) { alert('请先选择应用'); return; }
-      editPoolName = null;
-      document.getElementById('edit-title').textContent = '新建线程池';
-      ['f-poolName','f-core','f-max','f-prefix'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('f-queue').value = 'LINKED_BLOCKING_QUEUE';
-      document.getElementById('f-reject').value = 'ABORT';
-      document.getElementById('f-unit').value = 'SECONDS';
-      document.getElementById('f-cap').value = '1024';
-      document.getElementById('f-keep').value = '60';
-      openModal('edit-modal');
-    }
+// ── Create Drawer ──
+function openCreateDrawer() {
+  if (!currentAppId) { showToast('error', '请先选择应用'); return; }
+  document.body.classList.add('drawer-open');
+  document.getElementById('create-overlay').classList.add('open');
+  document.getElementById('create-drawer').classList.add('open');
+}
+function closeCreateDrawer() {
+  document.body.classList.remove('drawer-open');
+  document.getElementById('create-overlay').classList.remove('open');
+  document.getElementById('create-drawer').classList.remove('open');
+}
 
-    async function savePool() {
-      const name = document.getElementById('f-poolName').value.trim();
-      if (!name) { alert('池名称必填'); return; }
-      const body = {
-        poolName: name,
-        corePoolSize: parseInt(document.getElementById('f-core').value) || 1,
-        maximumPoolSize: parseInt(document.getElementById('f-max').value) || 1,
-        queueType: document.getElementById('f-queue').value,
-        queueCapacity: parseInt(document.getElementById('f-cap').value) || 0,
-        rejectPolicyType: document.getElementById('f-reject').value,
-        keepAliveTime: parseInt(document.getElementById('f-keep').value) || 0,
-        timeUnit: document.getElementById('f-unit').value,
-        threadNamePrefix: document.getElementById('f-prefix').value.trim() || name,
-      };
-      const url = '/api/thread-pool/configs/' + encodeURIComponent(currentAppId) + '/' + encodeURIComponent(name);
-      const data = await apiPost(url, body);
-      if (data && data.code === 0) {
-        closeModal('edit-modal');
-        loadPools();
-      } else {
-        alert(data ? data.message : '保存失败');
-      }
-    }
+async function doCreate(e) {
+  e.preventDefault();
+  const poolName = document.getElementById('cf-poolName').value.trim();
+  if (!poolName) { showToast('error', '池名不能为空'); return; }
+  const body = {
+    poolName,
+    corePoolSize: parseInt(document.getElementById('cf-core').value)||10,
+    maximumPoolSize: parseInt(document.getElementById('cf-max').value)||20,
+    queueType: document.getElementById('cf-qtype').value,
+    queueCapacity: parseInt(document.getElementById('cf-qcap').value)||1024,
+    rejectPolicyType: document.getElementById('cf-reject').value,
+    keepAliveTime: parseInt(document.getElementById('cf-alive').value)||60,
+  };
+  const data = await apiPost(`/api/thread-pool/config/${encodeURIComponent(currentAppId)}/add`, body);
+  if (data && data.code === 0) {
+    showToast('success', `${poolName} 已创建`);
+    closeCreateDrawer();
+    await loadAppConfigs(currentAppId);
+  } else { showToast('error', data?.message || '创建失败'); }
+}
 
-    async function deletePool(poolName) {
-      if (!confirm('确认删除 ' + poolName + '？')) return;
-      const url = '/api/thread-pool/configs/' + encodeURIComponent(currentAppId) + '/' + encodeURIComponent(poolName);
-      const data = await apiDelete(url);
-      if (data && data.code === 0) { loadPools(); }
-      else { alert(data ? data.message : '删除失败'); }
-    }
 
-    function editHistory(poolName) {
-      location.href = '/config-diff.html?app=' + encodeURIComponent(currentAppId) + '&pool=' + encodeURIComponent(poolName);
-    }
+// ── Templates ──
+const TEMPLATES = {
+  default:      { core:10, max:20, qcap:1024, reject:'CALLER_RUNS', alive:60 },
+  throughput:   { core:32, max:128, qcap:5000, reject:'CALLER_RUNS', alive:60 },
+  'low-latency':{ core:CPU*2, max:CPU*2, qcap:0, reject:'ABORT', alive:30 },
+  'io-bound':   { core:CPU*2+1, max:CPU*4, qcap:2048, reject:'CALLER_RUNS', alive:120 },
+};
+const CPU = typeof navigator.hardwareConcurrency==='number' ? navigator.hardwareConcurrency : 8;
 
-    // ===== App Manager =====
-    async function openAppManager() {
-      openModal('app-mgr-modal');
-      await loadAppManagerList();
-    }
+function applyTemplate(name) {
+  const t = TEMPLATES[name]; if(!t) return;
+  document.querySelectorAll('#template-pills .template-pill').forEach(p => p.classList.toggle('active', p.dataset.template===name));
+  setField('corePoolSize', t.core); setField('maximumPoolSize', t.max);
+  setField('queueCapacity', t.qcap); setField('rejectedExecutionHandlerName', t.reject);
+  setField('keepAliveTimeSeconds', t.alive);
+  if (t.qcap === 0) setField('queueType', 'SYNCHRONOUS_QUEUE');
+  else setField('queueType', 'LINKED_BLOCKING_QUEUE');
+}
+function setCreateTemplate(name) {
+  const t = TEMPLATES[name] || TEMPLATES.default;
+  document.querySelectorAll('#create-form .template-pill').forEach(p => p.classList.toggle('active', p.textContent.includes(name==='default'?'默认':name)));
+  document.getElementById('cf-core').value=t.core; document.getElementById('cf-max').value=t.max;
+  document.getElementById('cf-qcap').value=t.qcap; document.getElementById('cf-reject').value=t.reject;
+  document.getElementById('cf-alive').value=t.alive;
+}
 
-    async function loadAppManagerList() {
-      const data = await apiGet('/api/api-keys?page=1&pageSize=200');
-      if (!data || data.code !== 0) return;
-      const keys = (data.data && data.data.list) || [];
-      document.getElementById('app-mgr-list').innerHTML = keys.length ? keys.map(k =>
-        `<tr>
-          <td><code>${k.appId}</code></td>
-          <td>${k.appName || '-'}</td>
-          <td>${badgeEnabled(k.enabled)} ${badgeExpired(k.expired)}</td>
-          <td class="text-sm">${fmtTime(k.createTime)}</td>
-          <td class="actions">
-            <button class="btn btn-danger btn-sm" onclick="deleteApp('${k.appId}')">删除</button>
-          </td>
-        </tr>`
-      ).join('') : '<tr><td colspan="5" class="empty">暂无应用，请先创建</td></tr>';
-    }
+function setField(id, val) {
+  const el = document.getElementById('f-'+id); if(!el) return;
+  el.value = val;
+  markDirty(el);
+}
 
-    async function createApp() {
-      const appId = document.getElementById('f-ma-appId').value.trim();
-      if (!appId) { alert('App ID 必填'); return; }
-      const body = {
-        appId,
-        appName: document.getElementById('f-ma-appName').value.trim() || null,
-        description: document.getElementById('f-ma-desc').value.trim() || null,
-      };
-      const data = await apiPost('/api/thread-pool/apps', body);
-      if (data && data.code === 0) {
-        document.getElementById('newkey-val').value = data.data.apiKey;
-        openModal('newkey-modal');
-        document.getElementById('f-ma-appId').value = '';
-        document.getElementById('f-ma-appName').value = '';
-        document.getElementById('f-ma-desc').value = '';
-        await loadAppManagerList();
-        await initApps();
-      } else {
-        alert(data ? data.message : '创建失败');
-      }
-    }
 
-    async function deleteApp(appId) {
-      if (!confirm('确认删除应用 ' + appId + '？将同时删除该应用的 API Key 和所有线程池配置。')) return;
-      const data = await apiDelete('/api/thread-pool/apps/' + encodeURIComponent(appId));
-      if (data && data.code === 0) {
-        await loadAppManagerList();
-        await initApps();
-      } else {
-        alert(data ? data.message : '删除失败');
-      }
-    }
+// ── Placeholder actions ──
+function openAppManager() { showToast('info', '应用管理功能开发中...'); }
+function openRecycleBin() { location.href = 'config-diff.html'; }
 
-    // ===== Recycle Bin =====
-    async function openRecycleBin() {
-      openModal('recycle-modal');
-      await loadRecycleBin();
-    }
 
-    async function loadRecycleBin() {
-      const data = await apiGet('/api/thread-pool/configs/deleted');
-      if (!data || data.code !== 0) return;
-      const configs = data.data || [];
-      document.getElementById('recycle-list').innerHTML = configs.length ? configs.map(c =>
-        `<tr>
-          <td><code>${c.appId}</code></td>
-          <td>${c.poolName}</td>
-          <td>${c.corePoolSize} / ${c.maximumPoolSize}</td>
-          <td class="text-sm">${fmtTime(c.updateTime)}</td>
-          <td class="actions">
-            <button class="btn btn-ghost btn-sm" onclick="restoreConfig('${c.appId}','${c.poolName}')">恢复</button>
-          </td>
-        </tr>`
-      ).join('') : '<tr><td colspan="5" class="empty">回收站为空</td></tr>';
-    }
+// ── Toast ──
+function showToast(type, msg) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast--${type}`;
+  t.innerHTML = `<span>${msg}</span><span class="toast__close" onclick="this.parentElement.remove()">&times;</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation='toast-out .2s ease forwards'; setTimeout(()=>t.remove(),200); }, 3500);
+}
+</script>
 
-    async function restoreConfig(appId, poolName) {
-      if (!confirm('确认恢复 ' + appId + '/' + poolName + ' ？')) return;
-      const data = await apiPut('/api/thread-pool/configs/' + encodeURIComponent(appId) + '/' + encodeURIComponent(poolName) + '/restore');
-      if (data && data.code === 0) {
-        await loadRecycleBin();
-        await initApps();
-      } else {
-        alert(data ? data.message : '恢复失败');
-      }
-    }
-  </script>
 </body>
 </html>

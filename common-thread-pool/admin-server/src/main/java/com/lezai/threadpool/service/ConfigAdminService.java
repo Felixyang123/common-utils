@@ -5,7 +5,7 @@ import com.lezai.threadpool.context.AdminUserContextHolder;
 import com.lezai.threadpool.controller.dto.request.CreateAppRequest;
 import com.lezai.threadpool.controller.dto.response.CreateApiKeyResponse;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
-import com.lezai.threadpool.exception.ResoureAlreadyExistsException;
+import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
@@ -86,25 +86,6 @@ public class ConfigAdminService {
         log.info("Config deleted for appId: {}, pool: {}, operator: {}", appId, poolName, currentOperator());
     }
 
-    public long getConfigVersion(String appId) {
-        return configStorage.getConfigVersion(appId);
-    }
-
-    public ThreadPoolConfig addConfig(String appId, ThreadPoolConfig config) {
-        ThreadPoolConfig added = configStorage.addConfig(appId, config);
-        snapshotStorage.recordSnapshot(appId, config.getPoolName(), added, currentOperator());
-        return added;
-    }
-
-    public List<ThreadPoolConfig> addConfigs(String appId, List<ThreadPoolConfig> configs) {
-        List<ThreadPoolConfig> added = configStorage.addConfigs(appId, configs);
-        String operator = currentOperator();
-        for (ThreadPoolConfig config : added) {
-            snapshotStorage.recordSnapshot(appId, config.getPoolName(), config, operator);
-        }
-        return added;
-    }
-
     public List<ConfigSnapshot> getSnapshots(String appId, String poolName, Integer limit) {
         configStorage.getConfig(appId, poolName)
                 .orElseThrow(() -> new ResourceNotFoundException("Config not found for pool: " + poolName));
@@ -148,7 +129,7 @@ public class ConfigAdminService {
                 .build();
 
         if (!apiKeyStorage.putIfAbsent(apiKey)) {
-            throw new ResoureAlreadyExistsException("App already exists: " + request.getAppId());
+            throw new ResourceAlreadyExistsException("App already exists: " + request.getAppId());
         }
 
         persistenceService.createAppEntry(request.getAppId());

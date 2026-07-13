@@ -29,7 +29,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("handleConfigAlreadyExists returns code 409")
     void handleConfigAlreadyExists() {
-        ResoureAlreadyExistsException ex = new ResoureAlreadyExistsException("already exists");
+        ResourceAlreadyExistsException ex = new ResourceAlreadyExistsException("already exists");
         ResponseEntity<ApiResponse<Void>> response = handler.handleConfigAlreadyExists(ex);
         assertThat(response.getBody().getCode()).isEqualTo(409);
         assertThat(response.getBody().getMessage()).isEqualTo("already exists");

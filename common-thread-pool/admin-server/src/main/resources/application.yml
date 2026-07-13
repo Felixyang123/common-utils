@@ -27,3 +27,15 @@ threadpool:
       secret: threadpool-admin-jwt-default-secret-please-change-in-production
       token-expire-minutes: 480        # 闲置超时 8 小时
       renew-threshold-minutes: 30      # 剩余 < 30 分钟时滑动续期
+  cache:
+    default-config:
+      ttl: 10m
+      max-size: 5000
+    configs:
+      config-storage:
+        ttl: 30m
+        max-size: 10000
+      api-key-storage:
+        ttl: 60m
+        max-size: 500
+    null-value-ttl: 1m

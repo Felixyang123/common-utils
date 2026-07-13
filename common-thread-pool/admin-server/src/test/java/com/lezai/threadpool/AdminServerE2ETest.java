@@ -3,6 +3,7 @@ package com.lezai.threadpool;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.lezai.threadpool.storage.cache.CacheService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -18,10 +19,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.context.SpringBootTestContextBootstrapper;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -91,8 +90,8 @@ class AdminServerE2ETest {
     /**
      * 测试环境覆盖：
      * <ul>
-     *   <li>用进程内 {@link com.lezai.threadpool.storage.localfile.LocalCacheService}
-     *       作为 {@link com.lezai.threadpool.storage.CacheService}（{@code @Primary} 覆盖）</li>
+     *   <li>用进程内 {@link com.lezai.threadpool.storage.cache.CaffeineCacheService}
+     *       作为 {@link CacheService}（{@code @Primary} 覆盖）</li>
      *   <li>Mock 一个 {@link RedissonClient}（虽然不会被 CacheService 用到，
      *       但 ApiKeyAuthInterceptor 等其他组件的依赖路径可能间接需要它存在）</li>
      * </ul>
@@ -101,8 +100,11 @@ class AdminServerE2ETest {
     static class MockConfig {
         @Bean
         @Primary
-        public com.lezai.threadpool.storage.CacheService cacheService() {
-            return new com.lezai.threadpool.storage.localfile.LocalCacheService();
+        public CacheService cacheService() {
+            var config = com.lezai.threadpool.storage.cache.CacheConfig.builder()
+                    .ttl(java.time.Duration.ofMinutes(10)).maxSize(100).build();
+            return new com.lezai.threadpool.storage.cache.CaffeineCacheService(
+                    java.util.Map.of(), config);
         }
 
         @Bean

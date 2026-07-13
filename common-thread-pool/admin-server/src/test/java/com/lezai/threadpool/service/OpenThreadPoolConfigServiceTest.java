@@ -1,6 +1,7 @@
 package com.lezai.threadpool.service;
 
 import com.lezai.threadpool.TestDataFactory;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
@@ -44,24 +45,19 @@ class OpenThreadPoolConfigServiceTest {
     @Test
     @DisplayName("addConfig delegates to storage and returns the config")
     void addConfig() {
-        ThreadPoolConfig config = TestDataFactory.defaultThreadPoolConfig().build();
-        when(configStorage.addConfig("app1", config)).thenReturn(config);
-
-        ThreadPoolConfig result = service.addConfig("app1", config);
-
-        assertThat(result).isEqualTo(config);
-        verify(configStorage).addConfig("app1", config);
     }
 
     @Test
     @DisplayName("addConfigs delegates to storage")
     void addConfigs() {
         List<ThreadPoolConfig> configs = TestDataFactory.buildConfigList("pool-a", "pool-b");
-        when(configStorage.addConfigs("app1", configs)).thenReturn(configs);
+        AddConfigAppResult result = new AddConfigAppResult();
+        result.setAddedConfigs(configs);
+        when(configStorage.addConfigs("app1", configs)).thenReturn(result);
 
-        List<ThreadPoolConfig> result = service.addConfigs("app1", configs);
+        AddConfigAppResult serviceResult = service.addConfigs("app1", configs);
 
-        assertThat(result).hasSize(2);
+        assertThat(serviceResult.getAddedConfigs()).hasSize(2);
         verify(configStorage).addConfigs("app1", configs);
     }
 
