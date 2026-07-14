@@ -3,5 +3,8 @@ package com.lezai.threadpool.enums;
 public enum OperateType {
     CREATE,
     UPDATE,
-    DELETE
+    DELETE,
+    REGENERATE,
+    UPSERT,
+    ROLLBACK
 }

@@ -324,7 +324,7 @@ function copyKey() {
 
 async function regenerateKey(appId) {
   if (!confirm('确认重新生成 App ID 为 "' + appId + '" 的 API Key？\n原 Key 将立即失效。')) return;
-  const data = await apiPost('/api/api-keys/regenerate', { appId });
+  const data = await apiPost(`/api/api-keys/${encodeURIComponent(appId)}/regenerate`);
   if (data && data.code === 0) {
     showRevealDrawer(data.data);
     render();

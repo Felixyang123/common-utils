@@ -505,7 +505,7 @@ async function doCreate(e) {
     rejectPolicyType: document.getElementById('cf-reject').value,
     keepAliveTime: parseInt(document.getElementById('cf-alive').value)||60,
   };
-  const data = await apiPost(`/api/thread-pool/config/${encodeURIComponent(currentAppId)}/add`, body);
+  const data = await apiPost(`/api/thread-pool/configs/${encodeURIComponent(currentAppId)}/${encodeURIComponent(poolName)}`, body);
   if (data && data.code === 0) {
     showToast('success', `${poolName} 已创建`);
     closeCreateDrawer();
