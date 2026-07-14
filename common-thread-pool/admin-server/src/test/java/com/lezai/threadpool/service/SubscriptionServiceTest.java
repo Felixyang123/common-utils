@@ -187,7 +187,7 @@ class SubscriptionServiceTest {
 
     @SuppressWarnings("unchecked")
     private ResponseEntity<ApiResponse<ConfigChangeNotification>> defaultTimeoutValue() {
-        // Mirror SubscriptionService's private NOT_MODIFIED constant via a fresh instance â€?
+        // Mirror SubscriptionService's private NOT_MODIFIED constant via a fresh instance éˆ¥?
         // the DeferredResult constructed by the service already carries it; here we only need
         // a same-shaped value to drive setResult() the way the async timeout callback would.
         return (ResponseEntity<ApiResponse<ConfigChangeNotification>>) (ResponseEntity<?>)

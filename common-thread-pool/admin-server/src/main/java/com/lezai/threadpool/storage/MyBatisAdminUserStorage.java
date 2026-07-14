@@ -13,10 +13,10 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * 基于 MyBatis 的管理员账号存储�?
+ * 鍩轰簬 MyBatis 鐨勭�＄悊鍛樿处鍙峰瓨鍌ㄣ�?
  * <p>
- * �?local / db 两个 profile 下共用�?
- * 首次启动若表为空，自动创建配置提供的默认管理员账号（SUPER_ADMIN）�?
+ * 鍦?local / db 涓や釜 profile 涓嬪叡鐢ㄣ�?
+ * 棣栨�″惎鍔ㄨ嫢琛ㄤ负绌猴紝鑷�鍔ㄥ垱寤洪厤缃�鎻愪緵鐨勯粯璁ょ�＄悊鍛樿处鍙凤紙SUPER_ADMIN锛夈�?
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -61,7 +61,7 @@ public class MyBatisAdminUserStorage implements AdminUserStorage {
     }
 
     /**
-     * 首次启动初始化：表为空时创建配置提供的默认管理员账号（SUPER_ADMIN�?
+     * 棣栨�″惎鍔ㄥ垵濮嬪寲锛氳〃涓虹┖鏃跺垱寤洪厤缃�鎻愪緵鐨勯粯璁ょ�＄悊鍛樿处鍙凤紙SUPER_ADMIN锛?
      */
     public void ensureDefaultUser(String defaultUsername, String defaultPassword) {
         if (adminUserRep.existsAny()) {

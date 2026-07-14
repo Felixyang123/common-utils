@@ -2,7 +2,7 @@ package com.lezai.threadpool.open;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.TestDataFactory;
-import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;

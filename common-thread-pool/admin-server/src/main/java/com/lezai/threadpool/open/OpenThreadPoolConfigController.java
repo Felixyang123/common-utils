@@ -4,7 +4,7 @@ import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
-import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import com.lezai.threadpool.service.SubscriptionService;

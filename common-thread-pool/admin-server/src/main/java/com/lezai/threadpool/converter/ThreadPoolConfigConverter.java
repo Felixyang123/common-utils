@@ -3,7 +3,7 @@ package com.lezai.threadpool.converter;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
-import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
 import com.lezai.threadpool.pojo.response.ThreadPoolConfigItemResponse;

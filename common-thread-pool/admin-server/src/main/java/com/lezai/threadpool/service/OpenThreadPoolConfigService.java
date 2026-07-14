@@ -5,7 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.exception.ValidationException;
-import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.storage.StatsStorage;

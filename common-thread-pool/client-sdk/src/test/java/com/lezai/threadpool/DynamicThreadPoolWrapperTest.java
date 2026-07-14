@@ -225,4 +225,37 @@ class DynamicThreadPoolWrapperTest {
                 "remaining capacity should reflect the new capacity after resize");
         pool.shutdownNow();
     }
+
+    @Test
+    @DisplayName("localDeclaredConfig preserves the original declared config")
+    void localDeclaredConfig_preserved() {
+        ThreadPoolConfig declared = defaultConfig();
+        DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(declared);
+
+        assertEquals(1, pool.getLocalDeclaredConfig().getCorePoolSize());
+        assertSame(declared, pool.getLocalDeclaredConfig(),
+                "localDeclaredConfig should be the exact config instance passed at construction");
+    }
+
+    @Test
+    @DisplayName("revertToLocalConfig restores declared config after server-side update (server unmanage)")
+    void revertToLocalConfig_restoresDeclaredValue() {
+        // declared value: corePoolSize=1
+        DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(defaultConfig());
+
+        // simulate server-side tuning: corePoolSize=8
+        ThreadPoolConfig serverTuned = ThreadPoolConfig.builder()
+                .poolName("test-pool")
+                .corePoolSize(8).maximumPoolSize(16)
+                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS)
+                .queueCapacity(10)
+                .build();
+        pool.updateConfig(serverTuned);
+        assertEquals(8, pool.getCorePoolSize(), "precondition: server-tuned value applied");
+
+        // server unmanage (tombstone) -> revert to local declared value
+        pool.revertToLocalConfig();
+        assertEquals(1, pool.getCorePoolSize(),
+                "revertToLocalConfig should restore the declared corePoolSize=1, not the server-tuned value");
+    }
 }

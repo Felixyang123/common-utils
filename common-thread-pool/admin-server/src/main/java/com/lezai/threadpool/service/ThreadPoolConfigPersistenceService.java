@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -151,18 +152,32 @@ public class ThreadPoolConfigPersistenceService {
         );
     }
 
+    /**
+     * 批量添加配置，不存在则保存（non-destructive add，见 ADR-0001）。
+     * 响应按三态区分：
+     * <ul>
+     *   <li>existConfigs — 普通已存在的活跃配置，本次不覆盖</li>
+     *   <li>retiredConfigs — 已软删除/退管的 tombstone 配置，拒绝复活（ADR-0004）</li>
+     *   <li>addedConfigs — 真正新增的配置</li>
+     * </ul>
+     */
     @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfigApp addConfigApp(String appId, List<ThreadPoolConfig> configs) {
         ThreadPoolConfigAppEntity configApp = ensureConfigApp(appId);
         List<String> poolNames = configs.stream().map(ThreadPoolConfig::getPoolName).toList();
 
-        List<ThreadPoolConfigEntity> oldConfigs = configRep.findByAppIdAndPoolNamesIn(appId, poolNames);
-        Map<String, ThreadPoolConfigEntity> configMap = oldConfigs.stream().collect(Collectors.toMap(
-                ThreadPoolConfigEntity::getPoolName, Function.identity()));
+        // 单次查询拉取 appId + poolNames 的全部记录（含 deleted=0/1），内存中按 deleted 分流
+        Map<Boolean, List<ThreadPoolConfigEntity>> allConfigs = configRep.findAllByAppIdAndPoolNamesIn(appId, poolNames)
+                .stream().collect(Collectors.partitioningBy(e -> Boolean.TRUE.equals(e.getDeleted())));
+        List<ThreadPoolConfigEntity> activeConfigs = allConfigs.get(Boolean.FALSE);
+        List<ThreadPoolConfigEntity> deletedConfigs = allConfigs.get(Boolean.TRUE);
+        Set<String> activeNames = activeConfigs.stream().map(ThreadPoolConfigEntity::getPoolName).collect(Collectors.toSet());
+        Set<String> deletedNames = deletedConfigs.stream().map(ThreadPoolConfigEntity::getPoolName).collect(Collectors.toSet());
 
-        List<ThreadPoolConfigEntity> newConfigs = configs.stream().filter(config ->
-                !configMap.containsKey(config.getPoolName())).map(config ->
-                configConverter.configConvertEntity(config, appId)).toList();
+        // 只把"既不在活跃、也不在软删除"的池加入新增，避免复活 tombstone（ADR-0004）
+        List<ThreadPoolConfigEntity> newConfigs = configs.stream()
+                .filter(config -> !activeNames.contains(config.getPoolName()) && !deletedNames.contains(config.getPoolName()))
+                .map(config -> configConverter.configConvertEntity(config, appId)).toList();
 
         boolean saved = configRep.saveBatch(newConfigs, 100);
 
@@ -171,7 +186,8 @@ public class ThreadPoolConfigPersistenceService {
         }
 
         return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion())
-                .existConfigs(configConverter.convertConfigs(oldConfigs))
+                .existConfigs(configConverter.convertConfigs(activeConfigs))
+                .retiredConfigs(configConverter.convertConfigs(deletedConfigs))
                 .addedConfigs(saved ? configConverter.convertConfigs(newConfigs) : List.of())
                 .build();
     }

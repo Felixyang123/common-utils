@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.TypeReference;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
@@ -30,11 +31,8 @@ public class ConfigServerClient {
             new TypeReference<>() {};
     private static final TypeReference<ApiResponse<ConfigChangeNotification>> NOTIFICATION_TYPE =
             new TypeReference<>() {};
-    private static final TypeReference<ApiResponse<ThreadPoolConfig>> CONFIG_TYPE =
+    private static final TypeReference<ApiResponse<AddConfigAppResult>> ADD_CONFIG_APP_RESULT_TYPE =
             new TypeReference<>() {};
-    private static final TypeReference<ApiResponse<Object>> VOID_RESP_TYPE =
-            new TypeReference<>() {};
-
     private final String serverUrl;
     private final String appId;
     private final String apiKey;
@@ -80,21 +78,27 @@ public class ConfigServerClient {
 
     // ── register ──
 
-    public ThreadPoolConfig registerConfig(ThreadPoolConfig config) throws IOException {
+    /**
+     * 单条注册：包成 1 元素 list 走批量端点（单条端点 /config/{appId}/add 不存在）。
+     * 返回服务端三态结果，调用方可据此按池名匹配 added/exist/retired。
+     */
+    public AddConfigAppResult registerConfig(ThreadPoolConfig config) throws IOException {
         if (config == null) throw new ValidationException("Config cannot be null");
-        String url = String.format("%s/open/api/thread-pool/config/%s/add", serverUrl, urle(appId));
-        Request request = post(url, JSON.toJSONString(config));
-        try (Response response = httpClient.newCall(request).execute()) {
-            return analyzeResponse(response, CONFIG_TYPE);
-        }
+        return registerConfigs(List.of(config));
     }
 
-    public void registerConfigs(List<ThreadPoolConfig> configs) throws IOException {
-        if (CollectionUtils.isEmpty(configs)) return;
+    /**
+     * 批量向服务端推送本地声明配置，返回服务端按三态区分的结果：
+     * addedConfigs（真正新增）、existConfigs（服务端普通已存在）、retiredConfigs（服务端已退管/软删除）。
+     */
+    public AddConfigAppResult registerConfigs(List<ThreadPoolConfig> configs) throws IOException {
+        if (CollectionUtils.isEmpty(configs)) {
+            return null;
+        }
         String url = String.format("%s/open/api/thread-pool/configs/%s/add", serverUrl, urle(appId));
         Request request = post(url, JSON.toJSONString(configs));
         try (Response response = httpClient.newCall(request).execute()) {
-            analyzeResponse(response, VOID_RESP_TYPE);
+            return analyzeResponse(response, ADD_CONFIG_APP_RESULT_TYPE);
         }
     }
 

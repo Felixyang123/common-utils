@@ -19,4 +19,5 @@ public class ThreadPoolConfigApp {
 
     private List<ThreadPoolConfig> existConfigs;
     private List<ThreadPoolConfig> addedConfigs;
+    private List<ThreadPoolConfig> retiredConfigs;
 }

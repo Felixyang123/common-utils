@@ -41,6 +41,17 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
     }
 
     /**
+     * 根据 appId 和 poolNames 批量查询全部配置（含 deleted=0 和 deleted=1）。
+     * 单次查询，由调用方在内存中按 deleted 分流，避免活跃/软删除分两次查库。
+     */
+    public List<ThreadPoolConfigEntity> findAllByAppIdAndPoolNamesIn(String appId, List<String> poolNames) {
+        if (poolNames == null || poolNames.isEmpty()) {
+            return List.of();
+        }
+        return getBaseMapper().selectAllByAppIdAndPoolNamesIn(appId, poolNames);
+    }
+
+    /**
      * 根据 appId 删除配置
      */
     public void deleteByAppId(String appId) {

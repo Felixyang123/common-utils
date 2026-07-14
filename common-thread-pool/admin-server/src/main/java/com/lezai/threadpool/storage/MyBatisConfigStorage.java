@@ -2,7 +2,7 @@ package com.lezai.threadpool.storage;
 
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
-import com.lezai.threadpool.pojo.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
 import com.lezai.threadpool.service.ThreadPoolConfigPersistenceService;

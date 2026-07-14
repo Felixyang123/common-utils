@@ -3,6 +3,7 @@ package com.lezai.threadpool.client;
 import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -10,7 +11,9 @@ import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -113,13 +116,39 @@ public class ConfigPollingService {
 
     private synchronized void updatePools(ThreadPoolConfigResp resp) {
         long cv = resp.getConfigVersion();
-        if (CollectionUtils.isEmpty(resp.getConfigs())) { log.warn("No configs for appId: {}", appId); return; }
-        if (cv <= configVersion.get()) { log.warn("Version backward for appId: {}", appId); return; }
-        int applied = applyConfigs(resp.getConfigs());
-        if (applied > 0) {
-            configVersion.set(cv);
-            log.info("Thread pools updated for appId: {}, version: {}, applied: {}/{}", appId, cv, applied, resp.getConfigs().size());
+        if (cv <= configVersion.get()) {
+            log.warn("Version backward for appId: {}", appId);
+            return;
         }
+        List<ThreadPoolConfig> serverConfigs = resp.getConfigs() != null ? resp.getConfigs() : List.of();
+        int applied = applyConfigs(serverConfigs);
+        // diff：本地有但服务端本次全量里没有的池，说明已被服务端退管/删除，恢复本地声明值（ADR-0004）
+        Set<String> serverPoolNames = serverConfigs.stream()
+                .map(ThreadPoolConfig::getPoolName)
+                .filter(name -> !StringUtils.isBlank(name))
+                .collect(Collectors.toSet());
+        int reverted = 0;
+        for (DynamicThreadPoolWrapper pool : threadPoolManager.getAllWrappers()) {
+            if (!serverPoolNames.contains(pool.getPoolName())) {
+                // 旧版本 SDK 创建的池可能没有 localDeclaredConfig，跳过避免 NPE（向后兼容）
+                if (pool.getLocalDeclaredConfig() == null) {
+                    log.warn("Pool '{}' has no localDeclaredConfig (old SDK pool), skipping revert for appId: {}", pool.getPoolName(), appId);
+                    continue;
+                }
+                try {
+                    pool.revertToLocalConfig();
+                    reverted++;
+                    log.info("Pool '{}' not present in server response for appId: {}, reverted to local declared value", pool.getPoolName(), appId);
+                } catch (Exception e) {
+                    log.error("failed to revert pool '{}' to local declared config for appId: {}", pool.getPoolName(), appId, e);
+                }
+            }
+        }
+        // 仅在 applied > 0 或 reverted > 0 时推进版本；全部失败时保留版本以便下次轮询重试
+        if (applied > 0 || reverted > 0) {
+            configVersion.set(cv);
+        }
+        log.info("Thread pools updated for appId: {}, version: {}, applied: {}/{}, reverted: {}", appId, cv, applied, serverConfigs.size(), reverted);
     }
 
     public int applyConfigs(List<ThreadPoolConfig> configs) {

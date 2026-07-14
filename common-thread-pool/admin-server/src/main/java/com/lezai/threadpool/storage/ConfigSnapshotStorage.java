@@ -6,37 +6,37 @@ import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
 import java.util.List;
 
 /**
- * 线程池配置版本快照存储接�?
+ * 绾跨▼姹犻厤缃�鐗堟湰蹇�鐓у瓨鍌ㄦ帴鍙?
  * <p>
- * 与审计日志（{@code operate_log}）职责分离：
- * 快照只存"某时间点配置是什么样"（单�?+ version），不存操作类型�?
- * version �?{@code (appId, poolName)} 维度递增�?
+ * 涓庡�¤�℃棩蹇楋紙{@code operate_log}锛夎亴璐ｅ垎绂伙細
+ * 蹇�鐓у彧瀛�"鏌愭椂闂寸偣閰嶇疆鏄�浠�涔堟牱"锛堝崟鍊?+ version锛夛紝涓嶅瓨鎿嶄綔绫诲瀷銆?
+ * version 鎸?{@code (appId, poolName)} 缁村害閫掑�炪�?
  */
 public interface ConfigSnapshotStorage {
 
     /**
-     * 记录一条配置快�?
+     * 璁板綍涓�鏉￠厤缃�蹇�鐓?
      *
-     * @param appId    应用ID
-     * @param poolName 线程池名�?
-     * @param value    快照值（删除时可�?null�?
-     * @param operator 操作�?
-     * @return 新写入的快照
+     * @param appId    搴旂敤ID
+     * @param poolName 绾跨▼姹犲悕绉?
+     * @param value    蹇�鐓у�硷紙鍒犻櫎鏃跺彲涓?null锛?
+     * @param operator 鎿嶄綔浜?
+     * @return 鏂板啓鍏ョ殑蹇�鐓�
      */
     ConfigSnapshot recordSnapshot(String appId, String poolName, ThreadPoolConfig value, String operator);
 
     /**
-     * 获取指定线程池的所有快照（�?version 降序�?
+     * 鑾峰彇鎸囧畾绾跨▼姹犵殑鎵�鏈夊揩鐓э紙鎸?version 闄嶅簭锛?
      */
     List<ConfigSnapshot> getSnapshots(String appId, String poolName);
 
     /**
-     * 获取指定线程池的快照（限制条数，�?version 降序�?
+     * 鑾峰彇鎸囧畾绾跨▼姹犵殑蹇�鐓э紙闄愬埗鏉℃暟锛屾�?version 闄嶅簭锛?
      */
     List<ConfigSnapshot> getSnapshots(String appId, String poolName, int limit);
 
     /**
-     * �?version 精确获取某条快照（回滚用�?
+     * 鎸?version 绮剧‘鑾峰彇鏌愭潯蹇�鐓э紙鍥炴粴鐢�锛?
      */
     ConfigSnapshot getByVersion(String appId, String poolName, long version);
 }

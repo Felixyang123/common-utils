@@ -14,10 +14,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 基于 MyBatis 的配置快照存储，对应 {@code config_history} 表�?
+ * 鍩轰簬 MyBatis 鐨勯厤缃�蹇�鐓у瓨鍌�锛屽�瑰簲 {@code config_history} 琛ㄣ�?
  * <p>
- * local �?db profile 共用——持久化层是唯一的不变量�?
- * version �?{@code (appId, poolName)} 维度递增�?
+ * local 涓?db profile 鍏辩敤鈥斺�旀寔涔呭寲灞傛槸鍞�涓�鐨勪笉鍙橀噺銆?
+ * version 鎸?{@code (appId, poolName)} 缁村害閫掑�炪�?
  */
 @Slf4j
 @Repository

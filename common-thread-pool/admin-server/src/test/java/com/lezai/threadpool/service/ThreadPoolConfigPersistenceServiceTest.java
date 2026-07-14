@@ -18,7 +18,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -159,6 +163,56 @@ class ThreadPoolConfigPersistenceServiceTest {
         when(configAppRep.findByAppId("unknown")).thenReturn(Optional.empty());
 
         service.deleteByAppIdAndPoolName("unknown", "pool-a");
+    }
+
+    @Test
+    @DisplayName("addConfigApp: single query, split active/exist/retired in memory; tombstone NOT resurrected")
+    void addConfigApp_threeState_singleQuery() {
+        // app entry exists at version 1 -> ensureConfigApp bumps to 2
+        ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
+                .appId("app1").version(1L).build();
+        when(configAppRep.findByAppId("app1")).thenReturn(Optional.of(appEntity));
+
+        // pool-a: active (deleted=false) -> existConfigs (no update)
+        // pool-b: soft-deleted (deleted=true) -> retiredConfigs (NOT resurrected)
+        // pool-c: absent -> addedConfigs
+        ThreadPoolConfigEntity activeA = ThreadPoolConfigEntity.builder()
+                .id(10L).appId("app1").poolName("pool-a").deleted(false).build();
+        ThreadPoolConfigEntity deletedB = ThreadPoolConfigEntity.builder()
+                .id(20L).appId("app1").poolName("pool-b").deleted(true).build();
+        when(configRep.findAllByAppIdAndPoolNamesIn(eq("app1"), anyList()))
+                .thenReturn(List.of(activeA, deletedB));
+
+        ThreadPoolConfig configC = ThreadPoolConfig.builder().poolName("pool-c").build();
+        ThreadPoolConfigEntity newEntityC = ThreadPoolConfigEntity.builder()
+                .appId("app1").poolName("pool-c").build();
+        when(configConverter.configConvertEntity(any(), eq("app1"))).thenReturn(newEntityC);
+        when(configRep.saveBatch(anyList(), anyInt())).thenReturn(true);
+
+        ThreadPoolConfig configA = ThreadPoolConfig.builder().poolName("pool-a").build();
+        ThreadPoolConfig configB = ThreadPoolConfig.builder().poolName("pool-b").build();
+        ThreadPoolConfig configCDto = ThreadPoolConfig.builder().poolName("pool-c").build();
+        when(configConverter.convertConfigs(argThat(list -> list != null && !list.isEmpty() && "pool-a".equals(list.get(0).getPoolName()))))
+                .thenReturn(List.of(configA));
+        when(configConverter.convertConfigs(argThat(list -> list != null && !list.isEmpty() && "pool-b".equals(list.get(0).getPoolName()))))
+                .thenReturn(List.of(configB));
+        when(configConverter.convertConfigs(argThat(list -> list != null && !list.isEmpty() && "pool-c".equals(list.get(0).getPoolName()))))
+                .thenReturn(List.of(configCDto));
+
+        ThreadPoolConfigApp result = service.addConfigApp("app1",
+                List.of(ThreadPoolConfig.builder().poolName("pool-a").build(),
+                        ThreadPoolConfig.builder().poolName("pool-b").build(),
+                        configC));
+
+        // retired pool-b must NOT trigger a saveBatch resurrection (only new pool-c saved)
+        verify(configRep).saveBatch(argThat((java.util.Collection<ThreadPoolConfigEntity> list) ->
+                list.size() == 1 && "pool-c".equals(list.iterator().next().getPoolName())), eq(100));
+
+        assertThat(result.getExistConfigs()).extracting(ThreadPoolConfig::getPoolName).containsExactly("pool-a");
+        assertThat(result.getRetiredConfigs()).extracting(ThreadPoolConfig::getPoolName).containsExactly("pool-b");
+        assertThat(result.getAddedConfigs()).extracting(ThreadPoolConfig::getPoolName).containsExactly("pool-c");
+        assertThat(result.getVersion()).isEqualTo(2L);
+        assertThat(result.getAppId()).isEqualTo("app1");
     }
 
     private static ThreadPoolConfig createConfig(String poolName) {

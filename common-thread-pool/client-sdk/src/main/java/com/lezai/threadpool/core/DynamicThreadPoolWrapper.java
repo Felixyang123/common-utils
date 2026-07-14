@@ -25,6 +25,13 @@ public class DynamicThreadPoolWrapper implements Executor {
     private final String poolName;
     private final ThreadPoolExecutor delegate;
     private final AtomicReference<ThreadPoolConfig> configRef;
+    /**
+     * 本地声明初始值：来自 thread.pool.pools[] YAML / @CreateThreadPool 注解属性 /
+     * registerPool(config) 传入的 config / default-pool 硬编码默认值。
+     * 独立于被服务端覆盖后的当前运行配置，供退管（server unmanage）时 revert 使用（ADR-0004）。
+     */
+    @Getter
+    private final ThreadPoolConfig localDeclaredConfig;
     private final AtomicLong completedTaskCount = new AtomicLong(0);
     private final AtomicLong submittedTaskCount = new AtomicLong(0);
     private final AtomicLong errorTaskCount = new AtomicLong(0);
@@ -33,6 +40,7 @@ public class DynamicThreadPoolWrapper implements Executor {
 
     public DynamicThreadPoolWrapper(ThreadPoolConfig config) {
         this.poolName = config.getPoolName();
+        this.localDeclaredConfig = config;
         this.configRef = new AtomicReference<>(config);
         this.delegate = new ThreadPoolExecutor(
                 config.getCorePoolSize(),
@@ -196,6 +204,15 @@ public class DynamicThreadPoolWrapper implements Executor {
         } finally {
             configLock.unlock();
         }
+    }
+
+    /**
+     * 恢复到本地声明初始值（localDeclaredConfig）。
+     * 用于服务端退管（server unmanage / tombstone）时，将池参数回归开发者最初声明的值（ADR-0004）。
+     */
+    public void revertToLocalConfig() {
+        log.info("Thread pool [{}] reverting to local declared config", poolName);
+        updateConfig(localDeclaredConfig);
     }
 
     // ────────── stats ──────────

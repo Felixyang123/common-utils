@@ -16,6 +16,14 @@ public interface ThreadPoolConfigMapper extends BaseMapper<ThreadPoolConfigEntit
     @Select("SELECT * FROM thread_pool_config WHERE deleted = 1 AND app_id = #{appId} AND pool_name = #{poolName} LIMIT 1")
     ThreadPoolConfigEntity selectDeletedByAppIdAndPoolName(@Param("appId") String appId, @Param("poolName") String poolName);
 
+    /**
+     * 查询指定 appId + poolNames 的全部配置（含 deleted=0 和 deleted=1），一次性拉取、内存中按 deleted 分流。
+     * 显式 SELECT 绕过 MyBatis-Plus @TableLogic 过滤。
+     */
+    @Select("<script>SELECT * FROM thread_pool_config WHERE app_id = #{appId} AND pool_name IN " +
+            "<foreach collection='poolNames' item='n' open='(' separator=',' close=')'>#{n}</foreach></script>")
+    List<ThreadPoolConfigEntity> selectAllByAppIdAndPoolNamesIn(@Param("appId") String appId, @Param("poolNames") List<String> poolNames);
+
     @Update("UPDATE thread_pool_config SET deleted = 0 WHERE deleted = 1 and id = #{id}")
     void restore(@Param("id") Long id);
 
