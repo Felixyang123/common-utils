@@ -214,6 +214,7 @@ function selectApp(appId) {
         document.getElementById('summary-line').textContent = (d.appCount||0) + ' 个应用 · ' + (d.configCount||0) + ' 个线程池 · ' + (d.apiKeyCount||0) + ' 个 API Key';
       }
       renderActivity((d.recentLogs || []).slice(0, 6));
+      renderAlerts(d.alerts || []);
     }
 
     // Step 2: App summaries (appId / poolCount / configVersion) — store, render later
@@ -356,22 +357,19 @@ function renderSparkline(pct) {
 }
 
 // ── Alert rows ──
-function renderAlerts(pools) {
+function renderAlerts(alerts) {
   var panel = document.getElementById('alerts-panel');
   var count = 0;
   var html = '';
-  pools.forEach(function(p) {
-    var qPct = p.queueCapacity ? Math.round((p.queueSize||0)/p.queueCapacity*100) : 0;
-    var rRate = p.submittedTaskCount > 0 ? (p.rejectedTaskCount / p.submittedTaskCount * 100) : 0;
-    if (qPct <= 80 && rRate <= 5) return;
+  (alerts || []).forEach(function(a) {
     count++;
-    var reason = rRate > 5 ? '拒绝率 ' + rRate.toFixed(1) + '%' : '队列使用率 ' + qPct + '%';
+    var reason = a.metric === 'rejectionRate' ? '拒绝率 ' + (a.value * 100).toFixed(1) + '%' : '队列使用率 ' + (a.value * 100).toFixed(1) + '%';
     html += '<div class="alert-row">' +
       '<div class="alert-row__icon">⚠</div>' +
       '<div class="alert-row__body">' +
-        '<div class="alert-row__title">' + p.poolName +
+        '<div class="alert-row__title">' + escapeHtml(a.poolName) +
           ' <span class="badge badge-red" style="margin-left:4px;">' + reason + '</span></div>' +
-        '<div class="alert-row__meta">' + p._appId + '</div>' +
+        '<div class="alert-row__meta">' + escapeHtml(a.appId) + '</div>' +
       '</div></div>';
   });
   document.getElementById('alert-count-badge').textContent = count;
