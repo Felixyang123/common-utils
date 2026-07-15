@@ -59,9 +59,15 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
 
     @Override
     public void deleteConfigs(String appId) {
-        configService.deleteByAppId(appId);
-        cache.remove(appId);
-        listenerManager.unregister(appId);
+        compute(appId, () -> {
+            long version = configService.getConfigAppByAppId(appId)
+                    .map(ThreadPoolConfigApp::getVersion)
+                    .orElse(Long.MAX_VALUE);
+            configService.deleteByAppId(appId);
+            cache.remove(appId);
+            listenerManager.triggerListeners(appId, version);
+            listenerManager.unregister(appId);
+        });
     }
 
     @Override
