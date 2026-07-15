@@ -13,7 +13,12 @@ class OperateTypeTest {
         assertThat(OperateType.values()).containsExactly(
                 OperateType.CREATE,
                 OperateType.UPDATE,
-                OperateType.DELETE
+                OperateType.DELETE,
+                OperateType.REGENERATE,
+                OperateType.UPSERT,
+                OperateType.ROLLBACK,
+                OperateType.ALERT,
+                OperateType.ALERT_RECOVERED
         );
     }
 }

@@ -12,7 +12,8 @@ class BizTypeTest {
     void values() {
         assertThat(BizType.values()).containsExactly(
                 BizType.APIKEY,
-                BizType.THREADPOOL_CONFIG
+                BizType.THREADPOOL_CONFIG,
+                BizType.THREAD_POOL_STATS
         );
     }
 }
