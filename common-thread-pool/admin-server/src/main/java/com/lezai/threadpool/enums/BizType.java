@@ -9,5 +9,10 @@ public enum BizType {
     /**
      * 线程池配置
      */
-    THREADPOOL_CONFIG
+    THREADPOOL_CONFIG,
+
+    /**
+     * 线程池统计
+     */
+    THREAD_POOL_STATS
 }

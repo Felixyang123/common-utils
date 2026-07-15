@@ -10,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +27,7 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolSta
     private static final Logger LOG = LoggerFactory.getLogger(ThreadPoolStatsPersistenceService.class);
 
     private final ThreadPoolStatsConverter statsConverter;
+    private final JdbcTemplate jdbcTemplate;
 
     public void saveStatsApp(String appId, List<ThreadPoolStats> stats) {
         if (StringUtils.isBlank(appId) || CollectionUtils.isEmpty(stats)) {
@@ -62,6 +65,50 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolSta
                         .last("LIMIT 1000"));
 
         return statsConverter.convertStatsBatch(statsEntities);
+    }
+
+    public List<ThreadPoolStatsEntity> queryRecentStats(LocalDateTime since) {
+        LocalDateTime begin = since != null ? since : LocalDateTime.now().minusMinutes(5);
+        return list(Wrappers.<ThreadPoolStatsEntity>lambdaQuery()
+                .ge(ThreadPoolStatsEntity::getCollectTime, begin)
+                .orderByAsc(ThreadPoolStatsEntity::getAppId)
+                .orderByAsc(ThreadPoolStatsEntity::getPoolName)
+                .orderByAsc(ThreadPoolStatsEntity::getCollectTime)
+                .last("LIMIT 5000"));
+    }
+
+    public int aggregateYesterdayStats() {
+        String sql = """
+                INSERT INTO thread_pool_stats_daily (
+                  app_id, pool_name, stat_date, avg_submitted, avg_rejected, avg_error, avg_completed,
+                  max_queue_size, avg_queue_usage, max_active_count, collect_count, created_at
+                )
+                SELECT app_id,
+                       pool_name,
+                       CAST(collect_time AS DATE) AS stat_date,
+                       AVG(submitted_task_count),
+                       AVG(rejected_task_count),
+                       AVG(error_task_count),
+                       AVG(completed_task_count),
+                       MAX(queue_size),
+                       AVG(CASE WHEN queue_capacity > 0 THEN queue_size * 1.0 / queue_capacity ELSE 0 END),
+                       MAX(active_count),
+                       COUNT(1),
+                       CURRENT_TIMESTAMP
+                FROM thread_pool_stats
+                WHERE collect_time >= DATEADD('DAY', -1, CURRENT_DATE)
+                  AND collect_time < CURRENT_DATE
+                GROUP BY app_id, pool_name, CAST(collect_time AS DATE)
+                """;
+        return jdbcTemplate.update(sql);
+    }
+
+    public int cleanRawStatsBefore(LocalDateTime before) {
+        return jdbcTemplate.update("DELETE FROM thread_pool_stats WHERE collect_time < ?", before);
+    }
+
+    public int cleanDailyStatsBefore(LocalDate before) {
+        return jdbcTemplate.update("DELETE FROM thread_pool_stats_daily WHERE stat_date < ?", before);
     }
 
     public void saveMockStats(String appId, String poolName, int count) {

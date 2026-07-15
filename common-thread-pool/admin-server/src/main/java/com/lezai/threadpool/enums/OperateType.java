@@ -6,5 +6,7 @@ public enum OperateType {
     DELETE,
     REGENERATE,
     UPSERT,
-    ROLLBACK
+    ROLLBACK,
+    ALERT,
+    ALERT_RECOVERED
 }
