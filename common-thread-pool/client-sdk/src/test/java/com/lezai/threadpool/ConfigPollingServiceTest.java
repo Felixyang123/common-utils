@@ -1,12 +1,11 @@
 package com.lezai.threadpool;
 
 import com.lezai.threadpool.bean.ConfigChangeNotification;
+import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.client.ConfigPollingService;
-import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.manager.ThreadPoolManager;
 import org.junit.jupiter.api.*;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -15,15 +14,15 @@ import static org.mockito.Mockito.*;
 @DisplayName("ConfigPollingService wire contract")
 class ConfigPollingServiceTest {
 
-    private ConfigServerClient client;
+    private ConfigOperations client;
     private ThreadPoolManager manager;
     private ConfigPollingService service;
 
     @BeforeEach
     void setUp() {
-        client = mock(ConfigServerClient.class);
+        client = mock(ConfigOperations.class);
         manager = new ThreadPoolManager();
-        service = new ConfigPollingService(client, manager, "test-app", 30000L, 0L, 1000L, 30000L);
+        service = new ConfigPollingService(client, manager, "test-app", 30000L, 0L, 0L, 1000L, 30000L, () -> false);
     }
 
     @AfterEach

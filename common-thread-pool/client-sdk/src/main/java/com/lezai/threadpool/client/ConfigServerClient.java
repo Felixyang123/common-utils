@@ -7,6 +7,8 @@ import com.lezai.threadpool.bean.ConfigChangeNotification;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.bean.ThreadPoolStatsReport;
+import com.lezai.threadpool.client.router.HealthResponse;
 import com.lezai.threadpool.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -17,15 +19,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * CS 模式的 HTTP 客户端，封装 OkHttp 调用和响应解析。
- * <p>
- * 纯 HTTP 门面——不依赖 {@link com.lezai.threadpool.manager.ThreadPoolManager}，
- * 不参与轮询编排。这是消除 {@code detector(@Lazy manager) ↔ manager(detector)}
- * 循环依赖的关键：manager 注入本类（无环），而不是完整的 detector。
- */
 @Slf4j
-public class ConfigServerClient {
+public class ConfigServerClient implements ConfigOperations {
 
     private static final TypeReference<ApiResponse<ThreadPoolConfigResp>> CONFIG_RESP_TYPE =
             new TypeReference<>() {};
@@ -33,6 +28,7 @@ public class ConfigServerClient {
             new TypeReference<>() {};
     private static final TypeReference<ApiResponse<AddConfigAppResult>> ADD_CONFIG_APP_RESULT_TYPE =
             new TypeReference<>() {};
+    private static final TypeReference<ApiResponse<Void>> VOID_RESP_TYPE = new TypeReference<>() {};
     private final String serverUrl;
     private final String appId;
     private final String apiKey;
@@ -49,9 +45,13 @@ public class ConfigServerClient {
                 .build();
     }
 
+    public String getServerUrl() {
+        return serverUrl;
+    }
+
     // ── subscribe ──
 
-    /** 长轮询订阅，返回变更通知（仅 {appId, version}）。未变更时返回 null（HTTP 304）。 */
+    @Override
     public ConfigChangeNotification subscribe(long version, long timeoutMs) throws IOException {
         String url = String.format("%s/open/api/thread-pool/configs/%s/subscribe?version=%d&timeout=%d",
                 serverUrl, urle(appId), version, timeoutMs);
@@ -64,11 +64,11 @@ public class ConfigServerClient {
 
     // ── pull ──
 
-    /** 拉取全量配置。version 为 null 时不传 version 参数（无条件拉全量）。 */
+    @Override
     public ThreadPoolConfigResp pullConfigs(Long version) throws IOException {
         String url = version == null
-                ? String.format("%s/open/api/thread-pool/config/%s/pull", serverUrl, urle(appId))
-                : String.format("%s/open/api/thread-pool/config/%s/pull?version=%d", serverUrl, urle(appId), version);
+                ? String.format("%s/open/api/thread-pool/configs/%s/pull", serverUrl, urle(appId))
+                : String.format("%s/open/api/thread-pool/configs/%s/pull?version=%d", serverUrl, urle(appId), version);
         Request request = get(url);
         try (Response response = httpClient.newCall(request).execute()) {
             if (response.code() == 304) return null;
@@ -78,19 +78,13 @@ public class ConfigServerClient {
 
     // ── register ──
 
-    /**
-     * 单条注册：包成 1 元素 list 走批量端点（单条端点 /config/{appId}/add 不存在）。
-     * 返回服务端三态结果，调用方可据此按池名匹配 added/exist/retired。
-     */
+    @Override
     public AddConfigAppResult registerConfig(ThreadPoolConfig config) throws IOException {
         if (config == null) throw new ValidationException("Config cannot be null");
         return registerConfigs(List.of(config));
     }
 
-    /**
-     * 批量向服务端推送本地声明配置，返回服务端按三态区分的结果：
-     * addedConfigs（真正新增）、existConfigs（服务端普通已存在）、retiredConfigs（服务端已退管/软删除）。
-     */
+    @Override
     public AddConfigAppResult registerConfigs(List<ThreadPoolConfig> configs) throws IOException {
         if (CollectionUtils.isEmpty(configs)) {
             return null;
@@ -102,7 +96,36 @@ public class ConfigServerClient {
         }
     }
 
-    /** 释放 OkHttp 资源 */
+    // ── stats ──
+
+    @Override
+    public void reportStats(ThreadPoolStatsReport report) throws IOException {
+        String url = serverUrl + "/open/api/thread-pool/stats/report";
+        Request request = post(url, JSON.toJSONString(report));
+        try (Response response = httpClient.newCall(request).execute()) {
+            analyzeResponse(response, VOID_RESP_TYPE);
+        }
+    }
+
+    // ── health ──
+
+    public HealthResponse health() throws IOException {
+        String url = serverUrl + "/open/api/thread-pool/health";
+        Request request = new Request.Builder().url(url).get().build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (response.code() == 503) {
+                String body = response.body() != null ? response.body().string() : "{}";
+                return JSON.parseObject(body, HealthResponse.class);
+            }
+            if (!response.isSuccessful()) {
+                throw new HttpStatusException(response.code(), "HTTP " + response.code());
+            }
+            String body = response.body() != null ? response.body().string() : "{}";
+            return JSON.parseObject(body, HealthResponse.class);
+        }
+    }
+
+    @Override
     public void release() {
         httpClient.dispatcher().executorService().shutdown();
         httpClient.connectionPool().evictAll();
@@ -127,13 +150,11 @@ public class ConfigServerClient {
 
     private <T> T analyzeResponse(Response response, TypeReference<ApiResponse<T>> typeRef) throws IOException {
         if (!response.isSuccessful()) {
-            log.error("Failed to call api, appId: {}, response code: {}", appId, response.code());
-            return null;
+            throw new HttpStatusException(response.code(), "HTTP " + response.code());
         }
         String responseBody = response.body() != null ? response.body().string() : "{}";
         ApiResponse<T> apiResponse = JSON.parseObject(responseBody, typeRef);
         if (apiResponse.getCode() == 0) {
-            log.info("Call api success, appId: {}, result: {}", appId, apiResponse);
             return apiResponse.getData();
         }
         log.warn("Failed to call api, appId: {}, message: {}", appId, apiResponse.getMessage());
@@ -142,5 +163,18 @@ public class ConfigServerClient {
 
     private static String urle(String s) {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    public static class HttpStatusException extends IOException {
+        private final int statusCode;
+
+        public HttpStatusException(int statusCode, String message) {
+            super(message);
+            this.statusCode = statusCode;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
     }
 }

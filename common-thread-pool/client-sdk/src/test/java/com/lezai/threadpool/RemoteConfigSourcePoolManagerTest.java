@@ -2,7 +2,7 @@ package com.lezai.threadpool;
 
 import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.client.ConfigServerClient;
+import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
 import com.lezai.threadpool.exception.PoolNotFoundException;
 import com.lezai.threadpool.manager.RemoteConfigSourcePoolManager;
@@ -10,7 +10,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -22,7 +21,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("RemoteConfigSourcePoolManager")
 class RemoteConfigSourcePoolManagerTest {
 
-    private ConfigServerClient client;
+    private ConfigOperations client;
     private RemoteConfigSourcePoolManager poolManager;
 
     private ThreadPoolConfig pool(String name) {
@@ -33,7 +32,7 @@ class RemoteConfigSourcePoolManagerTest {
 
     @BeforeEach
     void setUp() {
-        client = mock(ConfigServerClient.class);
+        client = mock(ConfigOperations.class);
         poolManager = new RemoteConfigSourcePoolManager(client);
     }
 
@@ -96,10 +95,6 @@ class RemoteConfigSourcePoolManagerTest {
     @Test
     @DisplayName("registerPools: retiredConfigs reverts local config to declared value (not retiredConfig value)")
     void registerPools_retiredRevertsToLocal() throws Exception {
-        // local declared value for pool-a uses corePoolSize=1 (see pool("...") helper)
-        // retiredConfig carries the tombstone record (a stale server-tuned value, e.g., corePoolSize=99)
-        // Expect: after handleAddConfig, pool reverts to LOCAL DECLARED value (corePoolSize=1),
-        // NOT the retiredConfig's value — proving localDeclaredConfig is the source of truth
         ThreadPoolConfig poolA = pool("pool-a");
         ThreadPoolConfig poolB = pool("pool-b");
         ThreadPoolConfig retiredA = ThreadPoolConfig.builder()

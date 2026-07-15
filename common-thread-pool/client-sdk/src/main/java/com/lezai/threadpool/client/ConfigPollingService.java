@@ -17,39 +17,39 @@ import java.util.stream.Collectors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
-/**
- * CS 模式配置轮询编排：长轮询订阅线程、短轮询调度、退避、applyConfigs。
- * <p>
- * 依赖 {@link ConfigServerClient}（纯 HTTP）和 {@link ThreadPoolManager}（池管理），
- * 两者都是单向依赖，不存在循环。
- */
 @Slf4j
 public class ConfigPollingService {
 
-    private final ConfigServerClient client;
+    private final ConfigOperations client;
     private final ThreadPoolManager threadPoolManager;
     private final String appId;
     private final long longPollingTimeoutMs;
     private final long pullIntervalMs;
+    private final long degradedPullIntervalMs;
     private final long backoffInitialMs;
     private final long backoffMaxMs;
+    private final BooleanSupplier degradedSupplier;
     private long backoffMs = 0;
     private final AtomicLong configVersion = new AtomicLong(0);
     private final Thread subscriptionThread;
     private volatile boolean running;
     private final ScheduledExecutorService pullScheduler;
 
-    public ConfigPollingService(ConfigServerClient client, ThreadPoolManager threadPoolManager,
+    public ConfigPollingService(ConfigOperations client, ThreadPoolManager threadPoolManager,
                                  String appId, long longPollingTimeoutMs, long pullIntervalMs,
-                                 long backoffInitialMs, long backoffMaxMs) {
+                                 long degradedPullIntervalMs, long backoffInitialMs, long backoffMaxMs,
+                                 BooleanSupplier degradedSupplier) {
         this.client = client;
         this.threadPoolManager = threadPoolManager;
         this.appId = appId;
         this.longPollingTimeoutMs = longPollingTimeoutMs;
         this.pullIntervalMs = pullIntervalMs;
+        this.degradedPullIntervalMs = degradedPullIntervalMs;
         this.backoffInitialMs = backoffInitialMs;
         this.backoffMaxMs = backoffMaxMs;
+        this.degradedSupplier = degradedSupplier;
         this.subscriptionThread = new Thread(this::subscribeWithLongPolling, "config-subscription-thread");
         this.subscriptionThread.setDaemon(true);
         this.pullScheduler = Executors.newSingleThreadScheduledExecutor();
@@ -61,8 +61,7 @@ public class ConfigPollingService {
         log.info("Starting config polling for appId: {}", appId);
         pullConfigsUnconditional();
         if (pullIntervalMs > 0) {
-            pullScheduler.scheduleAtFixedRate(this::pullConfigsWithVersionCheck, pullIntervalMs, pullIntervalMs, TimeUnit.MILLISECONDS);
-            log.info("Short-polling enabled: interval={}ms", pullIntervalMs);
+            scheduleNextPull(pullIntervalMs);
         }
         subscriptionThread.start();
     }
@@ -99,6 +98,21 @@ public class ConfigPollingService {
         }
     }
 
+    private void scheduleNextPull(long delayMs) {
+        if (running && pullIntervalMs > 0) {
+            pullScheduler.schedule(this::pullWithVersionCheckAndReschedule, Math.max(0, delayMs), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void pullWithVersionCheckAndReschedule() {
+        try {
+            pullConfigsWithVersionCheck();
+        } finally {
+            long interval = degradedSupplier.getAsBoolean() ? degradedPullIntervalMs : pullIntervalMs;
+            scheduleNextPull(Math.max(0, interval));
+        }
+    }
+
     private void pullConfigsUnconditional() { pullConfigs(null); }
     private void pullConfigsWithVersionCheck() { pullConfigs(configVersion.get()); }
 
@@ -122,7 +136,6 @@ public class ConfigPollingService {
         }
         List<ThreadPoolConfig> serverConfigs = resp.getConfigs() != null ? resp.getConfigs() : List.of();
         int applied = applyConfigs(serverConfigs);
-        // diff：本地有但服务端本次全量里没有的池，说明已被服务端退管/删除，恢复本地声明值（ADR-0004）
         Set<String> serverPoolNames = serverConfigs.stream()
                 .map(ThreadPoolConfig::getPoolName)
                 .filter(name -> !StringUtils.isBlank(name))
@@ -130,7 +143,6 @@ public class ConfigPollingService {
         int reverted = 0;
         for (DynamicThreadPoolWrapper pool : threadPoolManager.getAllWrappers()) {
             if (!serverPoolNames.contains(pool.getPoolName())) {
-                // 旧版本 SDK 创建的池可能没有 localDeclaredConfig，跳过避免 NPE（向后兼容）
                 if (pool.getLocalDeclaredConfig() == null) {
                     log.warn("Pool '{}' has no localDeclaredConfig (old SDK pool), skipping revert for appId: {}", pool.getPoolName(), appId);
                     continue;
@@ -144,7 +156,6 @@ public class ConfigPollingService {
                 }
             }
         }
-        // 仅在 applied > 0 或 reverted > 0 时推进版本；全部失败时保留版本以便下次轮询重试
         if (applied > 0 || reverted > 0) {
             configVersion.set(cv);
         }

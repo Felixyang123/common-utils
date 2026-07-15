@@ -2,7 +2,7 @@ package com.lezai.threadpool.manager;
 
 import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.client.ConfigServerClient;
+import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
 import com.lezai.threadpool.event.ThreadPoolEventPublisher;
 import lombok.extern.slf4j.Slf4j;
@@ -15,14 +15,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class RemoteConfigSourcePoolManager extends ThreadPoolManager {
 
-    private final ConfigServerClient client;
+    private final ConfigOperations client;
 
-    public RemoteConfigSourcePoolManager(ConfigServerClient client) {
+    public RemoteConfigSourcePoolManager(ConfigOperations client) {
         super();
         this.client = client;
     }
 
-    public RemoteConfigSourcePoolManager(ConfigServerClient client, ThreadPoolEventPublisher eventPublisher) {
+    public RemoteConfigSourcePoolManager(ConfigOperations client, ThreadPoolEventPublisher eventPublisher) {
         super(eventPublisher);
         this.client = client;
     }

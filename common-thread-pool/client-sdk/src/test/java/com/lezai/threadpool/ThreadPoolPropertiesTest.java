@@ -120,4 +120,41 @@ class ThreadPoolPropertiesTest {
         assertEquals(10, p.getPools()[0].getMaximumPoolSize());
         assertEquals(200, p.getPools()[0].getQueueCapacity());
     }
+
+    @Test
+    @DisplayName("remote mode defaults to single")
+    void remoteModeDefaultsSingle() {
+        var p = bind(Map.of());
+        assertEquals("single", p.getRemote().getMode());
+    }
+
+    @Test
+    @DisplayName("cluster mode with two server URLs passes validation")
+    void clusterWithTwoUrlsPasses() {
+        var p = bind(Map.of(
+                "thread.pool.remote.enabled", "true",
+                "thread.pool.remote.mode", "cluster",
+                "thread.pool.remote.server-url", "http://host1:8080,http://host2:8080",
+                "thread.pool.remote.app-id", "app1",
+                "thread.pool.remote.api-key", "key"
+        ));
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertTrue(factory.getValidator().validate(p).isEmpty());
+        }
+    }
+
+    @Test
+    @DisplayName("single mode with multiple server URLs fails validation")
+    void singleWithMultipleUrlsFails() {
+        var p = bind(Map.of(
+                "thread.pool.remote.enabled", "true",
+                "thread.pool.remote.mode", "single",
+                "thread.pool.remote.server-url", "http://host1:8080,http://host2:8080",
+                "thread.pool.remote.app-id", "app1",
+                "thread.pool.remote.api-key", "key"
+        ));
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            assertFalse(factory.getValidator().validate(p).isEmpty());
+        }
+    }
 }
