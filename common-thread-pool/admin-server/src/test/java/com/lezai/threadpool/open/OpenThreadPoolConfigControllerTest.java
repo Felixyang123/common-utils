@@ -78,7 +78,7 @@ class OpenThreadPoolConfigControllerTest {
     }
 
     @Test
-    @DisplayName("GET /open/api/thread-pool/config/{appId}/pull returns config")
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/pull returns config")
     void pullConfigs_noVersion() throws Exception {
         ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
                 .appId("app1")
@@ -87,25 +87,25 @@ class OpenThreadPoolConfigControllerTest {
                 .build();
         when(openThreadPoolConfigService.pullConfigs("app1", null)).thenReturn(appConfig);
 
-        mockMvc.perform(get("/open/api/thread-pool/config/app1/pull"))
+        mockMvc.perform(get("/open/api/thread-pool/configs/app1/pull"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.configVersion").value(5));
     }
 
     @Test
-    @DisplayName("GET /open/api/thread-pool/config/{appId}/pull with up-to-date version returns 304")
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/pull with up-to-date version returns 304")
     void pullConfigs_notModified() throws Exception {
         when(openThreadPoolConfigService.pullConfigs("app1", 5L))
                 .thenThrow(new ResourceNotModifiedException("Config not modified"));
 
-        mockMvc.perform(get("/open/api/thread-pool/config/app1/pull")
+        mockMvc.perform(get("/open/api/thread-pool/configs/app1/pull")
                         .param("version", "5"))
                 .andExpect(status().isNotModified());
     }
 
     @Test
-    @DisplayName("GET /open/api/thread-pool/config/{appId}/pull with old version returns updated config")
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/pull with old version returns updated config")
     void pullConfigs_outdatedVersion() throws Exception {
         ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
                 .appId("app1")
@@ -114,11 +114,18 @@ class OpenThreadPoolConfigControllerTest {
                 .build();
         when(openThreadPoolConfigService.pullConfigs("app1", 3L)).thenReturn(appConfig);
 
-        mockMvc.perform(get("/open/api/thread-pool/config/app1/pull")
+        mockMvc.perform(get("/open/api/thread-pool/configs/app1/pull")
                         .param("version", "3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.configVersion").value(5));
+    }
+
+    @Test
+    @DisplayName("GET legacy /open/api/thread-pool/config/{appId}/pull returns 410")
+    void legacyPullReturnsGone() throws Exception {
+        mockMvc.perform(get("/open/api/thread-pool/config/app1/pull"))
+                .andExpect(status().isGone());
     }
 
     @Test

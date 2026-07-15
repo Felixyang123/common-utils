@@ -106,6 +106,28 @@ public class ThreadPoolProperties {
         /** admin-server 地址（默认 http://localhost:8080） */
         private String serverUrl = "http://localhost:8080";
 
+        /** 远程连接模式：single / cluster */
+        private String mode = "single";
+
+        /** 集群路由算法 */
+        private String routingAlgorithm = "round-robin";
+
+        /** 健康检查间隔（毫秒） */
+        @PositiveOrZero
+        private long healthCheckIntervalMs = 30000L;
+
+        /** 快速健康检查间隔（毫秒） */
+        @PositiveOrZero
+        private long healthCheckFastIntervalMs = 5000L;
+
+        /** 熔断配置 */
+        @Valid
+        private CircuitBreakerConfig circuitBreaker = new CircuitBreakerConfig();
+
+        /** 降级轮询配置 */
+        @Valid
+        private DegradedConfig degraded = new DegradedConfig();
+
         /** 应用 ID（客户端身份标识） */
         private String appId = "default-app";
 
@@ -147,6 +169,39 @@ public class ThreadPoolProperties {
             return serverUrl != null && !serverUrl.isBlank()
                     && appId != null && !appId.isBlank()
                     && apiKey != null && !apiKey.isBlank();
+        }
+
+        @AssertTrue(message = "remote.mode=single requires exactly one server-url, remote.mode=cluster requires at least two server-url values")
+        public boolean isModeAndServerUrlValid() {
+            if (!enabled) {
+                return true;
+            }
+            int count = com.lezai.threadpool.client.router.ServerNodeParser.parse(serverUrl).size();
+            if ("single".equalsIgnoreCase(mode)) {
+                return count == 1;
+            }
+            if ("cluster".equalsIgnoreCase(mode)) {
+                return count >= 2;
+            }
+            return false;
+        }
+
+        @Data
+        public static class CircuitBreakerConfig {
+            @Min(1)
+            private int failureThreshold = 3;
+
+            @PositiveOrZero
+            private long openDurationMs = 30000L;
+        }
+
+        @Data
+        public static class DegradedConfig {
+            @PositiveOrZero
+            private long pullIntervalMs = 120000L;
+
+            @PositiveOrZero
+            private long reportIntervalMs = 300000L;
         }
     }
 

@@ -1,16 +1,19 @@
 # ThreadPool Admin Server 产品规格文档（PRD）
 
-> **版本**: v2.1
-> **状态**: 活跃迭代（设计评审完成，7 项关键决策已落地）
+> **版本**: v3.2
+> **状态**: 活跃迭代（代码验证完成，高可用设计评审已落 ADR）
 > **模块**: `common-thread-pool/admin-server` + `common-thread-pool/client-sdk`（联合发布）
 > **关联模块**: `common-thread-pool/core`（指标模型）
 > **技术栈**: Spring Boot 3.x / JDK 21 / MyBatis-Plus / JWT / BCrypt / Redisson
 > **作者**: 产品通
-> **日期**: 2026-07-11
+> **日期**: 2026-07-15
 > **变更说明**:
 > - v1.0：纯逆向文档（2026-07-10）
 > - v2.0：增加功能缺口分析、架构重构建议、v2 建设规格和演进路线图（2026-07-11 上午）
 > - v2.1：grill-with-docs 评审后更新——新增依赖与前置条件章节、配置退管完整规格（ADR-0004）、告警 MVP 拆分、统计数据两级保留策略、发布里程碑定义、模块归属标注、指标字段映射（2026-07-11 下午）
+> - v3.0：基于代码全量验证更新——8 项已完成（ARCH-02/08/09、GAP-03、SDK-01/02/03、Dashboard 基础摘要）、2 项部分完成（GAP-01 仅 deleteConfig 触发、ARCH-04 仅 4/7 方法正确）、SDK 侧配置退管已全链路落地；调整路线图和任务拆分（2026-07-15）
+> - v3.1：修正 ARCH-05 误判（`@Bean` 方法同样由 Spring 容器管理并支持 AOP 代理）；F2-T-04/05 分布式锁改用 `RedissonSyncLock` 新增 `tryLock` API；F2-O-01 重写为 admin-server 高可用 + 客户端故障切换（非运维监控链路）；移除 F2-U-01（2026-07-15）
+> - v3.2：grill-with-docs 评审 T-13 后落地 [ADR-0005](./adr/0005-client-side-admin-server-ha-routing.md)：显式 single/cluster 模式、FailoverRouter、路由算法、健康三态、节点级熔断、Redis DOWN 全局降级和 T-13a/b/c 拆分（2026-07-15）
 
 ---
 
@@ -53,13 +56,13 @@
 | # | 目标 | 衡量标准 | v1 状态 |
 |---|------|---------|---------|
 | G1 | **集中配置管理**：管理员可通过 Web UI 对所有接入应用的线程池进行增删改查 | 支持至少 100 个应用、每个应用 50+ 线程池配置 | ✅ 已达成 |
-| G2 | **运行时状态可见**：客户端 SDK 上报线程池运行时指标，管理后台可查询历史数据 | 统计上报延迟 < 5s，保留至少 7 天历史 | ⚠️ 部分达成（数据已收集，仪表盘未展示运行时指标） |
+| G2 | **运行时状态可见**：客户端 SDK 上报线程池运行时指标，管理后台可查询历史数据 | 统计上报延迟 < 5s，保留至少 7 天历史 | ⚠️ 部分达成（数据已收集入库，仪表盘基础摘要已实现，但未展示运行时指标和告警） |
 | G3 | **配置变更追溯**：每次配置修改记录版本快照，支持版本对比和回滚 | 快照保留全量历史，回滚操作 < 1s | ✅ 已达成 |
-| G4 | **实时配置推送**：管理后台修改配置后，客户端通过长轮询在 30s 内感知变更 | 长轮询超时 30s，补偿轮询兜底 | ✅ 已达成 |
+| G4 | **实时配置推送**：管理后台修改配置后，客户端通过长轮询在 30s 内感知变更 | 长轮询超时 30s，补偿轮询兜底 | ✅ 已达成（单删除已触发通知，批量删除待修复） |
 | G5 | **安全认证**：管理后台使用 JWT 认证，客户端使用 API Key 认证，操作记录审计日志 | 密码 BCrypt 哈希，API Key 仅创建时返回明文 | ✅ 已达成 |
 | G6 | **多环境适配**：单机开发环境零依赖（H2 + 内存缓存），生产环境高可用（MySQL + Redis） | 通过 Spring Profile 一键切换 | ✅ 已达成 |
-| G7 | **运行时告警**：当线程池出现异常时在仪表盘标记，并记录告警日志 | 拒绝率 > 5% 或队列使用率 > 80% 时仪表盘红色 Badge + operate_log 告警记录（v2.0 MVP）；完整告警系统（Webhook/分级/自定义阈值）v2.2 | ⚠️ v2.0 部分达成（仪表盘 Badge MVP） |
-| G8 | **多实例高可用**：admin-server 支持多实例部署，配置变更跨实例广播 | 多实例部署时长轮询订阅 100% 通知到达 | ❌ 未达成（v2 目标） |
+| G7 | **运行时告警**：当线程池出现异常时在仪表盘标记，并记录告警日志 | 拒绝率 > 5% 或队列使用率 > 80% 时仪表盘红色 Badge + operate_log 告警记录（v3.0 MVP）；完整告警系统（Webhook/分级/自定义阈值）v3.2 | ❌ 未达成（v3.0 待实现） |
+| G8 | **多实例高可用**：admin-server 支持多实例部署，配置变更跨实例广播 | 多实例部署时长轮询订阅 100% 通知到达 | ❌ 未达成（v3.1 目标） |
 
 ### 2.2 非目标（Non-goals）
 
@@ -188,6 +191,8 @@
 | 异常线程池提醒 | ❌ | 未实现 |
 | 分页加载更多日志 | ❌ | 固定 5 条，无分页 |
 
+> **v3.0 验证**：仪表盘基础摘要已实现（appCount/apiKeyCount/configCount/recentLogs），运行指标和告警功能尚未实现。
+
 ### 5.2 线程池配置管理
 
 | 功能 | 实现状态 | 说明 |
@@ -196,8 +201,9 @@
 | 配置列表表格 | ✅ | 展示池名称、核心/最大线程数、队列类型(容量)、拒绝策略、存活时间 |
 | 新建/编辑线程池弹窗 | ✅ | 6 种队列类型 + 5 种拒绝策略 + 全部参数可配置 |
 | 参数校验 | ✅ | 前端即时校验 + 后端 `@Valid` |
-| 删除线程池（软删除） | ✅ | `@TableLogic` 逻辑删除 + 二次确认弹窗 |
-| 回收站（已删除配置查看与恢复） | ✅ | `GET /api/thread-pool/configs/deleted` + `PUT .../restore` |
+| 删除单个线程池（软删除 + 通知客户端） | ✅ | `@TableLogic` 逻辑删除 + 二次确认 + `triggerListeners` 触发客户端通知 |
+| 删除应用全部配置（通知缺失） | ⚠️ | `deleteConfigs(appId)` 调用 `unregister(appId)` 移除监听器但未 `triggerListeners`，客户端仅靠超时感知 |
+| 回收站（已删除配置查看与恢复） | ✅ | `GET /api/thread-pool/configs/deleted` + `PUT .../restore`，返回 DTO |
 | 版本快照（每次修改自动记录） | ✅ | `config_history` 表，版本号按 (appId, poolName) 递增 |
 | 配置历史页 + 版本对比 | ✅ | `config-diff.html` 双栏 11 字段对比 + 差异高亮 |
 | 配置回滚 | ✅ | 回滚创建新快照 + 触发客户端通知 |
@@ -205,7 +211,6 @@
 | 批量编辑 | ❌ | 未实现 |
 | 配置模板 | ❌ | 未实现 |
 | 配置导入/导出 | ❌ | 未实现 |
-| **删除配置通知客户端** | ❌ | **删除操作不触发 ConfigChangeListener，客户端无感知** |
 
 ### 5.3 API Key 管理
 
@@ -232,9 +237,11 @@
 | 分页（pageSize 上限 100） | ✅ | `GET /api/operate-logs/list` |
 | JSON 内容格式化展示 | ✅ | `showContent()` 尝试 `JSON.parse` |
 | 操作类型/业务类型 Badge | ✅ | 5 种颜色区分 |
+| API 返回 DTO（非 Entity） | ✅ | `OperateLogResponse` DTO，通过 `OperateLogConverter` 转换 |
 | 日志导出 | ❌ | 未实现 |
 | 保留策略 | ❌ | 无自动清理 |
 | 敏感字段脱敏 | ❌ | API Key 哈希可能出现在 JSON 快照中 |
+| Storage 层抽象 | ❌ | `OperateLogService` 直接继承 `ServiceImpl`，未走 Storage 接口 |
 
 ### 5.5 管理员账号管理
 
@@ -255,14 +262,16 @@
 
 | 功能 | 实现状态 | 说明 |
 |------|---------|------|
-| 单条/批量配置上报 | ✅ | 已存在跳过，不覆盖 |
+| 单条/批量配置上报 | ✅ | 已存在跳过，不覆盖；三态返回 (added/exist/retired)，tombstone 不复活 |
 | 短轮询拉取（304 优化） | ✅ | 版本号对比 |
 | 长轮询订阅（DeferredResult） | ✅ | 超时 1-60s 可配，补偿轮询兜底 |
-| 统计上报 | ✅ | 15+ 指标异步写入 |
+| 统计上报 | ✅ | 17+ 指标异步写入 |
 | API Key 认证 | ✅ | `X-App-Id` + `X-API-Key` |
 | 限流（100 次/60s per appId） | ✅ | Redisson RRateLimiter（仅 db profile） |
+| **删除配置→客户端退管（SDK 侧）** | ✅ | `ConfigPollingService.updatePools` 已实现 diff + `revertToLocalConfig()`；`RemoteConfigSourcePoolManager.handleAddResult` 已处理 retired 三态 |
+| **删除配置→客户端退管（Server 侧）** | ⚠️ | `deleteConfig` 单个删除已触发 `triggerListeners`；`deleteConfigs` 批量删除仅 `unregister` 未触发通知 |
 | 健康检查端点 | ❌ | `ApiKeyAuthInterceptor` 排除了 `/health` 路径但无实际实现 |
-| **mock 接口暴露生产** | ⚠️ | `POST /api/stats/mock` 在所有 profile 下可用 |
+| mock 接口暴露生产 | ✅ 已修复 | `POST /api/stats/mock` 已添加 `@Profile("local")` 限制 |
 | 多实例长轮询 | ❌ | 订阅者仅注册在单个实例内存 |
 
 ### 5.7 认证与安全
@@ -283,28 +292,30 @@
 
 | 功能 | 实现状态 | 说明 |
 |------|---------|------|
-| 双 Profile（local: H2+CHM, db: MySQL+Redisson） | ✅ | Profile 切换透明 |
-| 优雅停机 | ✅ | 5 个隔离线程池 + `ExecutorUtils.shutdown()` |
-| 缓存层抽象（CacheService） | ✅ | local CHM / remote Redisson RMap |
+| 双 Profile（local: H2+Caffeine, db: MySQL+Redisson） | ✅ | Profile 切换透明 |
+| 优雅停机 | ✅ | 3 个隔离线程池 + `ExecutorUtils.shutdown()` |
+| 缓存层抽象（CacheService + CachedStorageSupport） | ✅ | local: CaffeineCache / remote: RedissonCache，`getOrLoad` 双重检查 + SyncLock |
 | 配置变更监听器 | ✅ | `ConfigChangeListenerManager` + `CopyOnWriteArrayList` |
+| 异步审计日志 | ✅ | `@Async` + `AdminUserContextTaskDecorator` 上下文传递 |
 | 游标分页 | ✅ | `cursorQueryByAppIds` 解决大数据量 |
-| 异步审计日志 | ✅ | `@Async` + 上下文传递 |
+| 异常类命名规范 | ✅ | `ResourceAlreadyExistsException` 拼写正确 |
 | Spring Boot Actuator | ❌ | 未集成 |
 | 统计数据清理 | ❌ | `thread_pool_stats` 表无限增长 |
+| 统计预聚合表 | ❌ | 无 `thread_pool_stats_daily` 表 |
 
 ---
 
 ## 6. 功能缺口分析
 
-> 基于代码逆向分析，按严重度排序识别出的功能缺口。
+> 基于 2026-07-15 代码全量验证，按严重度排序。已完成项标注 ✅。
 
 ### 6.1 P0 级缺口（影响核心价值）
 
-| # | 缺口 | 模块 | 影响 | 根因分析 |
-|---|------|------|------|---------|
-| GAP-01 | **删除配置不通知客户端** | 配置管理 | 管理员删除线程池配置后，客户端长轮询不触发，客户端仍以旧参数运行 | `MyBatisConfigStorage.deleteConfig` / `deleteConfigs` 在 `compute` 内执行 DB 删除和缓存清除，但**未调用 `triggerListeners`**，只有 save/add 操作触发了监听器 |
-| GAP-02 | **仪表盘无运行时指标** | 仪表盘 | G2 目标"运行时状态可见"实际未达成——统计上报接口存在且数据入库，但仪表盘只展示 3 个计数 | `DashboardController.summary` 仅聚合 appCount/apiKeyCount/configCount，未查询 `thread_pool_stats` 表 |
-| GAP-03 | **mock 接口暴露生产环境** | Open API | `POST /api/stats/mock` 生成随机模拟数据，在 db profile 下仍可调用，存在数据污染风险 | `StatsController` 未按 profile 限制 mock 端点 |
+| # | 缺口 | 模块 | 影响 | 状态 |
+|---|------|------|------|------|
+| ~~GAP-01~~ | ~~删除配置不通知客户端~~ | 配置管理 | ~~管理员删除线程池配置后，客户端无感知~~ | ⚠️ **部分修复**：单个删除 `deleteConfig` 已触发 `triggerListeners`；批量删除 `deleteConfigs(appId)` 仅 `unregister` 未触发通知，需改为先 `triggerListeners` 再 `unregister` |
+| ~~GAP-02~~ | ~~仪表盘无运行时指标~~ | 仪表盘 | 统计数据已入库但仪表盘未展示运行时指标 | ❌ **待实现**：`DashboardController.summary` 未查询 `thread_pool_stats` 表 |
+| ~~GAP-03~~ | ~~mock 接口暴露生产环境~~ | Open API | ~~db profile 下可调用 mock 接口~~ | ✅ **已修复**：`@Profile("local")` 限制 |
 
 ### 6.2 P1 级缺口（影响安全/可用性）
 
@@ -335,26 +346,26 @@
 
 ## 7. 架构问题诊断
 
-> 基于代码审查发现的技术架构问题，按严重度排序。
+> 基于 2026-07-15 代码全量验证。已完成项标注 ✅。
 
 ### 7.1 P0 级架构问题（必须修复）
 
-| # | 问题 | 位置 | 影响 | 修复建议 |
-|---|------|------|------|---------|
-| ARCH-01 | **ConfigAdminService 多步操作无事务保护** | `ConfigAdminService.createApp` / `deleteApp` / `saveConfig` / `rollback` | `createApp` 先写 API Key 再建 app entry，部分失败导致数据不一致；`saveConfig` 先写配置再记快照，快照可能丢失 | 在 Service 方法上添加 `@Transactional(rollbackFor = Exception.class)`，跨 Storage 的操作考虑编程式事务 |
-| ARCH-02 | **DAO Entity 泄露到 API 层** | `ConfigAdminService.listDeletedConfigs()` / `restoreConfig()` 返回 `ThreadPoolConfigEntity`；`OperateLogController` 直接返回 `OperateLogEntity` | 内部数据库结构暴露给前端，增加耦合 | 增加 DTO 转换层，Service 返回领域模型或 DTO，不返回 Entity |
-| ARCH-03 | **OperateLogService 绕过 Storage 抽象** | `DashboardController` 和 `OperateLogController` 直接注入 `OperateLogService`（extends `ServiceImpl`） | 违反分层架构，操作日志无法替换存储实现 | 创建 `OperateLogStorage` 接口 + `MyBatisOperateLogStorage` 实现 |
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|------|------|------|------|
+| ARCH-01 | **ConfigAdminService 多步操作无事务保护** | `ConfigAdminService.createApp` / `deleteApp` / `saveConfig` / `rollback` | `createApp` 先写 API Key 再建 app entry，部分失败导致数据不一致；`saveConfig` 先写配置再记快照，快照可能丢失 | ❌ **待修复**：所有写操作方法均无 `@Transactional` |
+| ~~ARCH-02~~ | ~~DAO Entity 泄露到 API 层~~ | ~~ConfigAdminService / OperateLogController~~ | ~~内部数据库结构暴露给前端~~ | ✅ **已修复**：Controller/Service 层均返回 DTO（`OperateLogResponse`、`ThreadPoolConfigItemResponse`），通过 Converter 转换 |
+| ARCH-03 | **OperateLogService 绕过 Storage 抽象** | `OperateLogService` 直接继承 `ServiceImpl<OperateLogMapper, OperateLogEntity>` | 违反分层架构，操作日志无法替换存储实现 | ❌ **待修复**：`OperateLogStorage` 接口不存在 |
 
 ### 7.2 P1 级架构问题（应该修复）
 
-| # | 问题 | 位置 | 影响 | 修复建议 |
-|---|------|------|------|---------|
-| ARCH-04 | **事务注解不一致** | `ThreadPoolConfigPersistenceService` 中 3 个方法用裸 `@Transactional`，4 个用 `@Transactional(rollbackFor=Exception.class)` | checked exception 时回滚行为不可预测 | 统一使用 `@Transactional(rollbackFor = Exception.class)` |
-| ARCH-05 | **AdminAuthService 不是 Spring Bean** | 无 `@Service` 注解，手动构造 | 无法使用 AOP 代理（如事务、缓存）、生命周期管理不规范 | 添加 `@Service` 注解，通过构造器注入依赖 |
-| ARCH-06 | **角色鉴权未在 Controller 层** | Controller 注释说"仅 SUPER_ADMIN"但无 `@PreAuthorize` | 权限校验散落在 Service 层，容易遗漏 | 引入 Spring Security 方法级注解或自定义 `@RequireRole` AOP 注解 |
-| ARCH-07 | **API 路径不一致** | `ThreadPoolConfigController` 端点 #27 `/config/{appId}/add` vs #28 `/configs/{appId}/add` | API 设计混乱，客户端容易混淆 | 统一为复数 `configs`（RESTful 惯例），废弃单数路径 |
-| ARCH-08 | **异常类拼写错误** | `ResoureAlreadyExistsException`（缺少 `c`） | 代码质量问题，影响可读性 | 重命名为 `ResourceAlreadyExistsException` |
-| ARCH-09 | **本地缓存可能失效** | `LocalCacheService.getMap()` 每次返回新的 `ConcurrentHashMap` | 若 `CachedStorageSupport` 多次调用 `getMap` 获取同一名称的缓存，会得到不同实例导致缓存失效 | `LocalCacheService` 内部维护 `ConcurrentHashMap<String, ConcurrentMap>` 缓存 Map 实例 |
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|------|------|------|------|
+| ARCH-04 | **事务注解不一致** | `ThreadPoolConfigPersistenceService` 中 3 个方法用裸 `@Transactional`（`createAppEntry`、`restoreConfigByAppIdAndPoolName`、`restoreConfigsByAppId`），4 个用 `@Transactional(rollbackFor=Exception.class)` | checked exception 时回滚行为不可预测 | ⚠️ **部分修复**：4/7 方法已正确，3/7 需补充 `rollbackFor` |
+| ~~ARCH-05~~ | ~~AdminAuthService 不是 Spring Bean~~ | ~~`AdminServerAutoConfiguration` 第 131 行通过 `@Bean` 注册~~ | ✅ **非问题**：`@Bean` 方法返回的对象同样由 Spring 容器管理，完全支持 AOP 代理（与 `@Service` 扫描等效） |
+| ARCH-06 | **角色鉴权未在 Controller 层** | Controller Javadoc 说"仅 SUPER_ADMIN"但无 `@PreAuthorize` | 权限校验散落在 Service 层，容易遗漏 | ❌ **待修复** |
+| ARCH-07 | **API 路径不一致** | `GET /open/api/thread-pool/config/{appId}/pull` 使用单数 | `add` 路径已统一为复数 `configs`，但 `pull` 仍为单数 `config` | ⚠️ **部分修复**：`add` 已统一，`pull` 待修复 |
+| ~~ARCH-08~~ | ~~异常类拼写错误~~ | ~~`ResoureAlreadyExistsException`~~ | ~~代码质量问题~~ | ✅ **已修复**：已重命名为 `ResourceAlreadyExistsException` |
+| ~~ARCH-09~~ | ~~本地缓存可能失效~~ | ~~`LocalCacheService.getMap()`~~ | ~~缓存实例不复用~~ | ✅ **已修复**：`LocalCacheService` 已移除，缓存系统重构为 `Cache` 接口 + `CachedStorageSupport` 基类（Caffeine/Redisson 实现），不再有此问题 |
 
 ### 7.3 P2 级架构问题（建议优化）
 
@@ -375,22 +386,22 @@
 
 | 需求编号 | 依赖的模块 | 被依赖的模块 | 类型 |
 |---------|-----------|------------|------|
-| F2-C-01（删除通知） | 🅰 `triggerListeners` + tombstone | 🅲 diff + revert + localDeclaredConfig | 🔗 联合交付，缺一不可 |
+| F2-C-01（删除通知） | 🅰 `triggerListeners` 修复 `deleteConfigs` | 🅲 diff + revert + localDeclaredConfig | ✅ 🅲 侧已完成，🅰 侧仅剩 `deleteConfigs` 修复 |
 | F2-D-01（运行指标） | 🅰 DashboardController 查询 stats | 🅲 `getStats()` 已实现（无改动） | ✅ 无阻塞 |
 | F2-D-04/F2-D-05（趋势图） | 🅰 查 `thread_pool_stats_daily` | 🅰 预聚合定时任务 | 🅰 自闭环 |
 | F2-M-01（告警 MVP） | 🅰 仪表盘 Badge + operate_log | 🅲 `getStats()` 已上报 rejected | ✅ 无阻塞 |
-| F2-O-03（多实例） | 🅰 Redis Pub/Sub | 🅲 无需改动 | v2.1 交付 |
+| F2-O-03（多实例） | 🅰 Redis Pub/Sub | 🅲 无需改动 | v3.1 交付 |
 | F2-T-04（统计聚合+清理） | 🅰 预聚合表 + 定时任务 | 🅲 `getStats()` 已上报 | 🅰 自闭环 |
 
-### 8.0 客户端 SDK 前置改造清单（v2.0 联合发布必须）
+### 8.0 客户端 SDK 前置改造清单（v3.0 联合发布）
 
-| # | 改造项 | 文件 | 工作量 |
-|---|--------|------|--------|
-| SDK-01 | `DynamicThreadPoolWrapper` 新增 `localDeclaredConfig` 字段 | `core/DynamicThreadPoolWrapper.java` | 0.5d |
-| SDK-02 | `ConfigPollingService.applyConfigs` 增加 diff + revert 逻辑 | `client/ConfigPollingService.java` | 1d |
-| SDK-03 | 启动时 `registerConfigs` 处理 tombstone 409 响应 | `manager/RemoteConfigSourcePoolManager.java` | 0.5d |
+| # | 改造项 | 文件 | 状态 |
+|---|--------|------|------|
+| ~~SDK-01~~ | ~~`DynamicThreadPoolWrapper` 新增 `localDeclaredConfig` 字段~~ | ~~`core/DynamicThreadPoolWrapper.java`~~ | ✅ **已完成**：字段 + `revertToLocalConfig()` 方法已实现 |
+| ~~SDK-02~~ | ~~`ConfigPollingService.applyConfigs` 增加 diff + revert 逻辑~~ | ~~`client/ConfigPollingService.java`~~ | ✅ **已完成**：`updatePools` 已实现 diff（本地有但服务端无的池→`revertToLocalConfig()`） |
+| ~~SDK-03~~ | ~~启动时 `registerConfigs` 处理 tombstone 409 响应~~ | ~~`manager/RemoteConfigSourcePoolManager.java`~~ | ✅ **已完成**：`handleAddResult` 已处理三态（exist→对齐，retired→revertToLocalConfig） |
 
-> **⚠️ 关键约束**：SDK-01/SDK-02/SDK-03 三项与 🅰 侧 F2-C-01 互为前置条件，v2.0 发布前必须双方都完成并通过联调测试。
+> **v3.0 状态**：SDK 侧配置退管已全链路落地。仅剩 🅰 侧 `deleteConfigs(appId)` 批量删除未触发 `triggerListeners` 的修复。
 
 ---
 
@@ -406,7 +417,7 @@
 |---------|---------|---------|---------|
 | F2-D-01 | 增加"运行指标摘要"卡片：展示当前有异常的线程池数量（拒绝率 > 5% 或队列使用率 > 80%） | 从 `thread_pool_stats` 表查询最近 5 分钟数据计算 | GAP-02 |
 | F2-D-02 | 仪表盘操作记录改为 20 条 + 分页加载更多 | 点击"加载更多"追加 20 条 | GAP-11 |
-| F2-D-03 | 移除 `POST /api/stats/mock` 在 db profile 下的可用性 | `@Profile("local")` 或配置开关控制 | GAP-03 |
+| ~~F2-D-03~~ | ~~移除 `POST /api/stats/mock` 在 db profile 下的可用性~~ | ✅ **已完成**：已添加 `@Profile("local")` | ~~GAP-03~~ |
 
 #### P1 - v2.1 实现
 
@@ -422,8 +433,8 @@
 
 | 需求编号 | 需求描述 | 验收条件 | 对应缺口/问题 |
 |---------|---------|---------|-------------|
-| F2-C-01 | 🔗 **删除配置触发客户端通知与退管** | 🅰 侧：`deleteConfig` / `deleteConfigs` 调用 `triggerListeners`；add 接口检测软删除 tombstone 返回 409 Gone。🅲 侧：`applyConfigs` 增加 diff 逻辑，消失的池调用 `revertToLocalConfig()`；`DynamicThreadPoolWrapper` 新增 `localDeclaredConfig` 字段；启动重推时处理 409 跳过推送。📄 详见 [ADR-0004](../docs/adr/0004-server-unmanage-not-pool-destroy.md) | GAP-01 |
-| F2-C-02 | 修复 DAO Entity 泄露：`listDeletedConfigs` 和 `restoreConfig` 返回 DTO 而非 `ThreadPoolConfigEntity` | 增加 `DeletedConfigResponse` DTO，通过 Converter 转换 | ARCH-02 |
+| F2-C-01 | 🔗 **删除配置触发客户端通知与退管** | ⚠️ **部分完成**：🅲 侧 SDK 全链路已实现（diff + revert + tombstone 三态处理）；🅰 侧 `deleteConfig` 单个删除已触发 `triggerListeners`，但 `deleteConfigs(appId)` 批量删除仅调用 `unregister` 未触发通知。**待修复**：`deleteConfigs` 改为先 `triggerListeners(appId)` 再 `unregister(appId)`。📄 详见 [ADR-0004](../docs/adr/0004-server-unmanage-not-pool-destroy.md) | GAP-01 (部分) |
+| ~~F2-C-02~~ | ~~修复 DAO Entity 泄露~~ | ✅ **已完成**：Controller/Service 层均返回 DTO | ~~ARCH-02~~ |
 | F2-C-03 | ConfigAdminService 多步操作添加事务保护 | `createApp` / `deleteApp` / `saveConfig` / `rollback` 方法添加 `@Transactional(rollbackFor = Exception.class)` | ARCH-01 |
 
 #### P1 - v2.1 实现
@@ -480,7 +491,7 @@
 
 | 需求编号 | 需求描述 | 验收条件 | 对应缺口/问题 |
 |---------|---------|---------|-------------|
-| F2-U-01 | AdminAuthService 添加 `@Service` 注解 | 成为由 Spring 管理的 Bean | ARCH-05 |
+| ~~F2-U-01~~ | ~~AdminAuthService 添加 `@Service` 注解~~ | ✅ **非问题**：`AdminServerAutoConfiguration` 中通过 `@Bean` 注册，已由 Spring 容器管理，AOP 代理正常工作 | ~~ARCH-05~~ |
 | F2-U-02 | 角色鉴权改为 Controller 层注解 | 自定义 `@RequireSuperAdmin` AOP 注解或 Spring Security `@PreAuthorize` | ARCH-06 |
 
 #### P1 - v2.1 实现
@@ -497,7 +508,9 @@
 
 | 需求编号 | 需求描述 | 验收条件 | 对应缺口/问题 |
 |---------|---------|---------|-------------|
-| F2-O-01 | 健康检查端点 `GET /open/api/thread-pool/health` | 返回 `{ status: "UP", timestamp: ... }`，无需认证 | GAP-09 |
+| F2-O-01a | 🅰 健康检查端点 `GET /open/api/thread-pool/health` | **目标**：为 client-side HA Router 提供节点状态输入。<br>**三态响应**：`status=UP|DEGRADED|DOWN`，字段包含 `db=UP|DOWN`、`redis=UP|DOWN|N/A`、`timestamp`。<br>**判定规则**：DB DOWN → `DOWN` + HTTP 503；DB UP + Redis UP → `UP` + HTTP 200；DB UP + Redis DOWN → `DEGRADED` + HTTP 200；local profile 下 Redis 为 `N/A`，不参与整体健康判定。Redis DOWN 不视为节点不可用，因为 admin-server 使用 cache-aside，可回源 DB。 | GAP-09 / ADR-0005 |
+| F2-O-01b | 🅲 client-sdk HA Router + 客户端故障切换 | **配置模型**：显式 `thread.pool.remote.mode=single|cluster`；`single` 只允许一个地址，`cluster` 必须两个及以上地址，配置不一致 fail-fast；多地址复用 `server-url` 逗号分隔，权重跟随地址（如 `http://host1:8080,http://host2:8080:3`）。<br>**架构**：新增 `FailoverRouter` 独立层，`ConfigServerClient` 保持单节点 HTTP 门面；`ThreadPoolStatsReporter` 的 HTTP 上报合并进 `ConfigServerClient`，统一使用同一套 HTTP connection 与 failover。<br>**路由算法**：支持 `round-robin` / `weighted-round-robin` / `random` / `failover`，默认 `round-robin`；长轮询每次重连重新路由，不做粘性。<br>**failover 触发**：IOException 和 HTTP 5xx 触发；HTTP 4xx、业务码 `code != 0`、长轮询 30s 自然超时不触发。当前节点失败后立即尝试下一节点；所有节点重试一遍仍失败则上抛，由 `ConfigPollingService` 现有指数退避接管。<br>**健康刷新**：后台线程探测全部节点，默认 30s；全部节点不可用时加速到 5s；一次成功即恢复。<br>**节点级熔断**：默认连续失败阈值 3、冷却 30s，HALF_OPEN 只放行 1 个试探请求；熔断与健康检查独立，不按接口维度隔离。<br>**DEGRADED 降级**：`DEGRADED` 与 `UP` 同等参与路由；任一可用节点 DEGRADED 时客户端全局进入降级，pull/report 使用可配置降级间隔，长轮询不降级；恢复后自动恢复正常间隔。动态调度按最近一次完成时间计算剩余延迟，避免简单 `schedule(currentInterval)` 导致额外延迟。 | GAP-09 / ADR-0005 |
+| F2-O-01c | 🔗 HA 联调测试 | 覆盖 3 节点 cluster 模式：节点宕机自动切换、所有节点失败后上抛并由 PollingService 退避、节点恢复重新加入、健康三态 UP/DEGRADED/DOWN、Redis DOWN 触发 pull/report 全局降级、节点级熔断 CLOSED→OPEN→HALF_OPEN→CLOSED、`failover` 算法不主动回切主节点、StatsReporter 通过 ConfigServerClient 统一上报。 | GAP-09 / ADR-0005 |
 | F2-O-02 | 统一 API 路径：废弃 `/config/{appId}/add` 单数路径，统一为 `/configs/{appId}/add` | 旧路径返回 308 重定向或 410 Gone | ARCH-07 |
 
 #### P1 - v2.1 实现
@@ -512,16 +525,16 @@
 
 | 需求编号 | 需求描述 | 验收条件 | 对应缺口/问题 |
 |---------|---------|---------|-------------|
-| F2-T-01 | 修复 `ResoureAlreadyExistsException` 拼写错误 | 重命名为 `ResourceAlreadyExistsException`，全仓库替换 | ARCH-08 |
-| F2-T-02 | 统一事务注解为 `@Transactional(rollbackFor = Exception.class)` | 全仓库审计，消除裸 `@Transactional` | ARCH-04 |
-| F2-T-03 | 修复 `LocalCacheService.getMap()` 缓存实例不复用问题 | 内部维护 `ConcurrentHashMap<String, ConcurrentMap>` | ARCH-09 |
+| ~~F2-T-01~~ | ~~修复 `ResoureAlreadyExistsException` 拼写错误~~ | ✅ **已完成**：已重命名为 `ResourceAlreadyExistsException` | ~~ARCH-08~~ |
+| F2-T-02 | 统一事务注解为 `@Transactional(rollbackFor = Exception.class)` | `ThreadPoolConfigPersistenceService` 中 `createAppEntry`、`restoreConfigByAppIdAndPoolName`、`restoreConfigsByAppId` 3 个方法需补充 `rollbackFor` | ARCH-04 |
+| ~~F2-T-03~~ | ~~修复 `LocalCacheService.getMap()` 缓存实例不复用问题~~ | ✅ **已完成**：`LocalCacheService` 已移除，缓存系统重构为 `Cache` 接口 + `CachedStorageSupport`（Caffeine/Redisson 实现） | ~~ARCH-09~~ |
 
 #### P1 - v2.1 实现
 
 | 需求编号 | 需求描述 | 验收条件 | 对应缺口 |
 |---------|---------|---------|---------|
-| F2-T-04 | 🅰 统计数据预聚合（支撑 F2-D-04/F2-D-05 趋势图） | 新增 `thread_pool_stats_daily` 预聚合表（按 `(app_id, pool_name, date)` 聚合），`@Scheduled` 每日凌晨执行聚合任务（先聚合后清理）。日聚合表保留 365 天 | — |
-| F2-T-05 | 🅰 原始统计表定时清理 | `thread_pool_stats`（原始 10s 粒度）保留 7 天，`@Scheduled` 每日凌晨执行 `DELETE WHERE collect_time < NOW() - 7d` | GAP-06 |
+| F2-T-04 | 🅰 统计数据预聚合（支撑 F2-D-04/F2-D-05 趋势图） | 新增 `thread_pool_stats_daily` 预聚合表（按 `(app_id, pool_name, date)` 聚合），`@Scheduled` 每日凌晨执行聚合任务（先聚合后清理）。⚡ **分布式锁**：在 `RedissonSyncLock` 中新增 `tryLock(String lockName, String key, long waitTime, long leaseTime, TimeUnit)` 方法；`StatsAggregationService` 注入 `SyncLock`，方法入口调用 `syncLock.tryLock("stats", "aggregation", 0, 120, SECONDS)`，未获取到锁的节点跳过执行。日聚合表保留 365 天 | — |
+| F2-T-05 | 🅰 原始统计表定时清理 | `thread_pool_stats`（原始 10s 粒度）保留 7 天，`@Scheduled` 每日凌晨执行 `DELETE WHERE collect_time < NOW() - 7d`。⚡ **分布式锁**：与 F2-T-04 共用同一把锁 `stats:aggregation`，聚合完成后再执行清理，避免聚合和清理并发读写 | GAP-06 |
 | F2-T-06 | CORS 配置支持 | 通过配置项 `threadpool.admin.cors.allowed-origins` 控制 | GAP-18 |
 | F2-T-07 | 集成 Spring Boot Actuator | 暴露 `/actuator/health` 和 `/actuator/metrics`，health 端点无需认证 | GAP-08 |
 
@@ -785,47 +798,51 @@ threadpool:
 
 ## 13. 演进路线图
 
-> **v2.0 采用联合发布策略**：admin-server + client-sdk + core 一起发版。
+> **v3.2 联合发布策略**：admin-server + client-sdk + core 一起发版。
+> SDK 侧配置退管已全链路落地，仅剩 🅰 侧修复和增强。
 > 以下标注每个工作项的模块归属：🅰 admin-server / 🅲 client-sdk / 🅺 core。
 
 ### 发布里程碑
 
 | 里程碑 | 版本号 | 范围 | 出口条件 |
 |--------|--------|------|---------|
-| **M1: 核心修复** | v2.0.0 | 🅰 架构修复（ARCH-01~12）+ 🅰 仪表盘增强（F2-D-01~03）+ 🅰 告警 MVP（F2-M-01~03）+ 🅰 健康检查/API 统一 | 🅰 侧全部 17 个需求完成，CI 通过 |
-| **M2: SDK 配套** | v2.0.1-rc1 | 🅲 配置退管联动（SDK-01~03）+ 🔗 F2-C-01 联调测试 | 联调测试通过：删除配置 → 客户端 diff + revert + tombstone 全链路 |
-| **M3: v2.0 正式发布** | v2.0.0 | M1 + M2 合并为 v2.0.0 联合发布 | M1 + M2 出口条件全部满足 |
+| **M1: 核心修复** | v3.2.0 | 🅰 架构修复（ARCH-01/03/04/06/07）+ 🅰 仪表盘增强（F2-D-01/02）+ 🅰 告警 MVP（F2-M-01~03）+ 🅰 健康检查 + 🅰 `deleteConfigs` 通知修复 | 🅰 侧全部需求完成，CI 通过 |
+| **M2: HA Router 配套** | v3.2.0-rc1 | 🅲 client-sdk HA Router（T-13b）+ 🔗 HA 联调测试（T-13c） | 3 节点集群故障切换、熔断恢复、DEGRADED 降级和统计上报统一链路测试通过 |
+| **M3: v3.2 正式发布** | v3.2.0 | M1 + M2 联合发布 | 删除退管全链路 + HA Router 全链路全部通过 |
 
-### v2.0 核心修复（🅰 侧 + 🔗 联动）
+### v3.2 核心修复与 HA 增强（🅰 + 🅲 + 🔗）
 
 > 目标：修复影响核心价值和数据一致性的 P0 级问题
+> SDK 侧配置退管已完成；v3.2 新增 HA Router 能力需要 client-sdk 配套改造
 
-| 工作项 | 类型 | 对应编号 | 模块 | 工作量 |
-|--------|------|---------|------|--------|
-| 删除配置触发客户端通知与退管（服务端侧） | 功能修复 | F2-C-01 / GAP-01 | 🅰 | 0.5d |
-| ConfigAdminService 事务保护 | 架构修复 | F2-C-03 / ARCH-01 | 🅰 | 1d |
-| DAO Entity 泄露修复（配置管理） | 架构修复 | F2-C-02 / ARCH-02 | 🅰 | 1d |
-| 仪表盘运行指标摘要卡片 | 功能新增 | F2-D-01 / GAP-02 | 🅰 | 1d |
-| 仪表盘告警 MVP（Badge + operate_log） | 功能新增 | F2-M-01~03 | 🅰 | 1d |
-| 仪表盘日志分页（20 条 + 加载更多） | UX 优化 | F2-D-02 / GAP-11 | 🅰 | 0.5d |
-| mock 接口按 Profile 限制 | 安全修复 | F2-D-03 / GAP-03 | 🅰 | 0.5d |
-| 异常类拼写修正 | 架构修复 | F2-T-01 / ARCH-08 | 🅰 | 0.5d |
-| 事务注解统一 | 架构修复 | F2-T-02 / ARCH-04 | 🅰 | 0.5d |
-| LocalCacheService 修复 | 架构修复 | F2-T-03 / ARCH-09 | 🅰 | 0.5d |
-| AdminAuthService 注册为 Bean | 架构修复 | F2-U-01 / ARCH-05 | 🅰 | 0.5d |
-| 角色鉴权 Controller 层注解 | 架构修复 | F2-U-02 / ARCH-06 | 🅰 | 1d |
-| 健康检查端点 | 功能新增 | F2-O-01 / GAP-09 | 🅰 | 0.5d |
-| API 路径统一 | 架构修复 | F2-O-02 / ARCH-07 | 🅰 | 0.5d |
-| 统计数据预聚合（日聚合表） | 架构新增 | F2-T-04 | 🅰 | 1d |
-| 统计数据定时清理（原始 7d + 聚合 365d） | 运维增强 | F2-T-05 / GAP-06 | 🅰 | 0.5d |
-| **SDK: DynamicThreadPoolWrapper localDeclaredConfig** | SDK 改造 | SDK-01 | 🅲 | 0.5d |
-| **SDK: applyConfigs diff + revert** | SDK 改造 | SDK-02 | 🅲 | 1d |
-| **SDK: tombstone 409 处理** | SDK 改造 | SDK-03 | 🅲 | 0.5d |
-| **联调测试** | 集成测试 | — | 🔗 | 1d |
+| 工作项 | 类型 | 对应编号 | 模块 | 工作量 | 状态 |
+|--------|------|---------|------|--------|------|
+| `deleteConfigs` 批量删除触发 `triggerListeners` | 功能修复 | F2-C-01 | 🅰 | 0.5d | ❌ 待实现 |
+| ConfigAdminService 事务保护 | 架构修复 | F2-C-03 / ARCH-01 | 🅰 | 1d | ❌ 待实现 |
+| 统一事务注解（3 个方法补充 rollbackFor） | 架构修复 | F2-T-02 / ARCH-04 | 🅰 | 0.5d | ❌ 待实现 |
+| 角色鉴权 Controller 层注解 | 架构修复 | F2-U-02 / ARCH-06 | 🅰 | 1d | ❌ 待实现 |
+| API 路径统一（`pull` 单数→复数） | 架构修复 | F2-O-02 / ARCH-07 | 🅰 | 0.5d | ❌ 待实现 |
+| OperateLogStorage 抽象 | 架构修复 | F2-L-01 / ARCH-03 | 🅰 | 1d | ❌ 待实现 |
+| 仪表盘运行指标摘要卡片 | 功能新增 | F2-D-01 / GAP-02 | 🅰 | 1d | ❌ 待实现 |
+| 仪表盘告警 MVP（Badge + operate_log） | 功能新增 | F2-M-01~03 | 🅰 | 1d | ❌ 待实现 |
+| 仪表盘日志分页（20 条 + 加载更多） | UX 优化 | F2-D-02 / GAP-11 | 🅰 | 0.5d | ❌ 待实现 |
+| 健康检查端点（三态 UP/DEGRADED/DOWN） | 高可用 | F2-O-01a / GAP-09 | 🅰 | 0.5d | ❌ 待实现 |
+| client-sdk HA Router + 客户端故障切换 | 高可用 | F2-O-01b / GAP-09 | 🅲 | 2d | ❌ 待实现 |
+| HA Router 联调测试 | 集成测试 | F2-O-01c / GAP-09 | 🔗 | 1d | ❌ 待实现 |
+| 统计数据预聚合（日聚合表） | 架构新增 | F2-T-04 | 🅰 | 1d | ❌ 待实现 |
+| 统计数据定时清理（原始 7d + 聚合 365d） | 运维增强 | F2-T-05 / GAP-06 | 🅰 | 0.5d | ❌ 待实现 |
+| 联调测试 | 集成测试 | — | 🔗 | 1d | ❌ 待实现 |
+| ~~异常类重命名~~ | ~~架构修复~~ | ~~F2-T-01~~ | ~~🅰~~ | — | ✅ 已完成 |
+| ~~LocalCacheService 修复~~ | ~~架构修复~~ | ~~F2-T-03~~ | ~~🅰~~ | — | ✅ 已完成（缓存系统重构） |
+| ~~DAO Entity 泄露修复~~ | ~~架构修复~~ | ~~F2-C-02~~ | ~~🅰~~ | — | ✅ 已完成 |
+| ~~mock 端点 Profile 限制~~ | ~~安全修复~~ | ~~F2-D-03~~ | ~~🅰~~ | — | ✅ 已完成 |
+| ~~SDK: localDeclaredConfig~~ | ~~SDK 改造~~ | ~~SDK-01~~ | ~~🅲~~ | — | ✅ 已完成 |
+| ~~SDK: diff + revert~~ | ~~SDK 改造~~ | ~~SDK-02~~ | ~~🅲~~ | — | ✅ 已完成 |
+| ~~SDK: tombstone 三态处理~~ | ~~SDK 改造~~ | ~~SDK-03~~ | ~~🅲~~ | — | ✅ 已完成 |
 
-> 🅰 侧工作量：~11d | 🅲 侧工作量：~2d | 联调：~1d | 总计：~14d
+> 🅰 侧工作量：~9.5d | 🅲 侧工作量：~2d（HA Router）| 联调：~2d（删除退管 + HA）| 总计：~13.5d（任务拆分文档当前执行子集为 ~10.5d）
 
-### Next（v2.1 — 安全与可用性增强）
+### Next（v3.1 — 安全与可用性增强）
 
 > 目标：补全安全防护、多实例支持、可观测性
 
@@ -845,7 +862,7 @@ threadpool:
 | 配置列表搜索 | UX 优化 | F2-C-04 / GAP-14 |
 | 批量编辑 + 配置模板 | 功能新增 | F2-C-05 / F2-C-06 |
 
-### Later（v2.2 — 体验优化与扩展）
+### Later（v3.2 — 体验优化与扩展）
 
 > 目标：锦上添花
 
@@ -866,16 +883,16 @@ threadpool:
 
 | # | 问题 | 负责人 | 类型 | 状态 | v2 更新 |
 |---|------|--------|------|------|---------|
-| Q1 | 多实例部署时，长轮询订阅如何跨实例通知？ | 架构 | 非阻塞 | v2.1 解决 | 确认引入 Redis Pub/Sub |
-| Q2 | 统计上报数据保留策略？ | 产品 | ✅ **已解决** | **v2.0 解决** | 原始表 7 天 + 日聚合表 365 天 |
-| Q3 | 是否需要集成 Spring Boot Actuator？ | 工程 | 非阻塞 | v2.1 解决 | 确认集成 |
-| Q4 | 前端是否需要迁移到现代框架？ | 工程 | 非阻塞 | v2.2 评估 | 当前纯 HTML 可满足 v2 |
-| Q5 | 客户端 SDK 重连策略？ | 工程 | 非阻塞 | 待定义 | — |
-| Q6 | 是否需要支持配置灰度发布？ | 产品 | 非阻塞 | v2.2 评估 | 列入 Later |
-| Q7 | 删除配置后客户端是否应同步移除线程池？ | 产品 | ✅ **已解决** | v2.0 解决 | 否——采用配置退管语义（[ADR-0004](../docs/adr/0004-server-unmanage-not-pool-destroy.md)），客户端回退到本地声明配置，不销毁池 |
-| Q8 | mock 接口是否应在生产环境保留？ | 安全 | 非阻塞 | v2.0 解决 | 否，按 Profile 限制 |
-| Q9 | 操作日志是否需要记录登录/登出行为？ | 产品 | 非阻塞 | 待决策 | v2.2 评估 |
-| Q10 | 是否需要 Webhook 告警通知机制？ | 产品 | ✅ **已解决** | v2.0 解决 | v2.0 仅做仪表盘 Badge MVP，Webhook 推迟至 v2.2 |
+| Q1 | 多实例部署时，长轮询订阅如何跨实例通知？ | 架构 | 非阻塞 | v3.1 解决 | 确认引入 Redis Pub/Sub |
+| Q2 | 统计上报数据保留策略？ | 产品 | ✅ **已解决** | **v3.0 解决** | 原始表 7 天 + 日聚合表 365 天 |
+| Q3 | 是否需要集成 Spring Boot Actuator？ | 工程 | 非阻塞 | v3.1 解决 | 确认集成 |
+| Q4 | 前端是否需要迁移到现代框架？ | 工程 | 非阻塞 | v3.2 评估 | 当前纯 HTML 可满足 v3 |
+| Q5 | 客户端 SDK 重连策略？ | 工程 | ✅ **已解决** | v3.2 解决 | 采用 ADR-0005：FailoverRouter + 健康刷新 + 节点级熔断 + PollingService 退避兜底 |
+| Q6 | 是否需要支持配置灰度发布？ | 产品 | 非阻塞 | v3.2 评估 | 列入 Later |
+| Q7 | 删除配置后客户端是否应同步移除线程池？ | 产品 | ✅ **已解决** | v3.0 解决 | 否——采用配置退管语义（[ADR-0004](../docs/adr/0004-server-unmanage-not-pool-destroy.md)），客户端回退到本地声明配置，不销毁池。SDK 侧已全链路实现 |
+| Q8 | mock 接口是否应在生产环境保留？ | 安全 | ✅ **已解决** | v3.0 解决 | 否，已通过 `@Profile("local")` 限制 |
+| Q9 | 操作日志是否需要记录登录/登出行为？ | 产品 | 非阻塞 | 待决策 | v3.2 评估 |
+| Q10 | 是否需要 Webhook 告警通知机制？ | 产品 | ✅ **已解决** | v3.0 解决 | v3.0 仅做仪表盘 Badge MVP，Webhook 推迟至 v3.2 |
 
 ---
 
@@ -902,21 +919,21 @@ threadpool:
 | `POST` | `/api/thread-pool/configs/{appId}/{poolName}` | 保存单个配置 | v2.0 增加事务 |
 | `POST` | `/api/thread-pool/config/{appId}/add` | 添加单条（存在不覆盖） | v2.0 废弃，统一为 configs |
 | `POST` | `/api/thread-pool/configs/{appId}/add` | 批量添加（已存在跳过） | — |
-| `DELETE` | `/api/thread-pool/configs/{appId}` | 清空应用配置 | v2.0 触发客户端通知 |
-| `DELETE` | `/api/thread-pool/configs/{appId}/{poolName}` | 删除单个配置 | v2.0 触发客户端通知 |
+| `DELETE` | `/api/thread-pool/configs/{appId}` | 清空应用配置 | v3.0 触发客户端通知（待修复） |
+| `DELETE` | `/api/thread-pool/configs/{appId}/{poolName}` | 删除单个配置 | ✅ 已触发客户端通知 |
 | `GET` | `/api/thread-pool/configs/{appId}/version` | 获取配置版本号 | — |
 | `GET` | `/api/thread-pool/configs/{appId}/{poolName}/snapshots` | 获取配置快照历史 | — |
 | `POST` | `/api/thread-pool/configs/{appId}/{poolName}/rollback` | 回滚到指定版本 | v2.0 增加事务 |
 | `POST` | `/api/thread-pool/apps` | 创建应用 | v2.0 增加事务 |
 | `DELETE` | `/api/thread-pool/apps/{appId}` | 删除应用 | v2.0 增加事务 |
-| `GET` | `/api/thread-pool/configs/deleted` | 列出已删除配置 | v2.0 返回 DTO |
-| `PUT` | `/api/thread-pool/configs/{appId}/{poolName}/restore` | 恢复单个已删除配置 | v2.0 返回 DTO |
+| `GET` | `/api/thread-pool/configs/deleted` | 列出已删除配置 | ✅ 返回 DTO |
+| `PUT` | `/api/thread-pool/configs/{appId}/{poolName}/restore` | 恢复单个已删除配置 | ✅ 返回 DTO |
 | `PUT` | `/api/thread-pool/configs/{appId}/restore` | 批量恢复已删除配置 | — |
 | `GET` | `/api/dashboard/summary` | 仪表盘聚合数据 | v2.0 增加运行指标 |
 | `GET` | `/api/operate-logs/list` | 分页查询操作日志 | v2.1 通过 Storage 层 |
 | `GET` | `/api/operate-logs/export` | 导出日志 CSV | v2.1 新增 |
 | `GET` | `/api/stats/{appId}/{poolName}` | 查询统计历史 | — |
-| `POST` | `/api/stats/mock` | 生成模拟统计数据 | v2.0 仅 local profile |
+| `POST` | `/api/stats/mock` | 生成模拟统计数据 | ✅ 已限制 `@Profile("local")` |
 | `GET` | `/api/admin-users` | 管理员列表 | v2.0 注解鉴权 |
 | `POST` | `/api/admin-users` | 创建管理员 | v2.0 注解鉴权 |
 | `PUT` | `/api/admin-users/{username}` | 更新管理员 | v2.0 注解鉴权 |
@@ -930,7 +947,7 @@ threadpool:
 |------|------|------|---------|
 | `POST` | `/open/api/thread-pool/config/{appId}/add` | 上报单条配置 | v2.0 废弃 |
 | `POST` | `/open/api/thread-pool/configs/{appId}/add` | 批量上报配置 | — |
-| `GET` | `/open/api/thread-pool/config/{appId}/pull` | 短轮询拉取配置 | — |
+| `GET` | `/open/api/thread-pool/config/{appId}/pull` | 短轮询拉取配置 | v3.0 统一为复数 `configs` |
 | `GET` | `/open/api/thread-pool/configs/{appId}/subscribe` | 长轮询订阅变更 | v2.1 多实例支持 |
 | `POST` | `/open/api/thread-pool/stats/report` | 上报运行时统计 | — |
 | `GET` | `/open/api/thread-pool/health` | 健康检查 | v2.0 新增 |
@@ -972,16 +989,21 @@ threadpool:
 
 基于 `REFACTORING_PROPOSAL.md`（2026-06-20）和 `REFACTORING_PLAN.md`（2026-06-21）：
 
-| 重构项 | v1 状态 | v2 目标 |
+| 重构项 | v1 状态 | v3.0 状态 |
 |--------|---------|---------|
 | 删除死代码（controller/dto/ 5 个类） | ✅ 已清理 | — |
 | 修复远程模式启动 Bug | ✅ 已修复（统一 MyBatis Storage） | — |
 | 统一 Web DTO 模型 | ✅ 已收敛 | — |
 | 重建应用服务层 | ✅ 已完成（ConfigAdminService 等） | — |
-| OperateLogService 绕过 Storage | ❌ 未修复 | v2.1 修复 |
-| DAO Entity 泄露到 API | ❌ 未修复 | v2.0 修复 |
-| 事务保护 | ❌ 未修复 | v2.0 修复 |
-| 模型去重 | ⏳ 渐进 | v2.2 持续 |
+| DAO Entity 泄露到 API | ✅ 已修复 | ✅ Controller/Service 层均返回 DTO |
+| 异常类命名规范 | ✅ 已修复 | ✅ `ResourceAlreadyExistsException` |
+| 缓存系统重构 | ✅ 已完成 | ✅ `Cache` 接口 + `CachedStorageSupport` + Caffeine/Redisson |
+| Mock 端点 Profile 限制 | ✅ 已修复 | ✅ `@Profile("local")` |
+| SDK 配置退管全链路 | ✅ 已完成 | ✅ `localDeclaredConfig` + diff + revert + tombstone 三态 |
+| OperateLogService 绕过 Storage | ❌ 未修复 | ❌ v3.0 修复 |
+| 事务保护 | ❌ 未修复 | ❌ v3.0 修复 |
+| 事务注解一致性 | ❌ 未修复 | ⚠️ 4/7 方法已正确，3/7 待修复 |
+| 模型去重 | ⏳ 渐进 | v3.2 持续 |
 
 ### D. 异常体系
 
@@ -992,7 +1014,7 @@ RuntimeException
        ├─ AuthForbiddenException        (code=403, 权限不足)
        ├─ ValidationException            (code=400, 参数校验)
        ├─ ResourceNotFoundException      (code=404, 资源不存在)
-       ├─ ResoureAlreadyExistsException  (code=409, 资源已存在)  ← v2.0 修正拼写
+       ├─ ResourceAlreadyExistsException  (code=409, 资源已存在)  ← ✅ 拼写已修正
        ├─ ResourceNotModifiedException   (code=304, 未修改)
        └─ StorageException               (code=500, 存储异常)
 ```
@@ -1029,4 +1051,4 @@ RuntimeException
 
 ---
 
-> **文档维护**：本文档基于 `admin-server` 模块代码逆向分析 + 产品差距分析撰写。v2.1 为 grill-with-docs 评审后版本（7 项决策落地）。v2.0 聚焦核心修复（联合发布），v2.1 聚焦安全与可用性，v2.2 聚焦体验优化。
+> **文档维护**：本文档基于 `admin-server` 模块代码逆向分析 + 产品差距分析撰写。v3.0 为代码全量验证后版本（8 项已完成、2 项部分完成、10 项待实现）。SDK 侧配置退管已全链路落地；v3.2 在 ADR-0005 中补全 admin-server 高可用与 client-side HA Router 设计。

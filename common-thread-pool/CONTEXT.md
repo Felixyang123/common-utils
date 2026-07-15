@@ -55,6 +55,16 @@
 - **管理员（Admin User）**：操作 admin-server 管理后台的人员身份。通过账号密码认证获取 JWT token，与客户端的 `app-id` + `api-key` 体系互相独立。管理员为全局角色，不做 appId 级别隔离。
 - **配置语义边界**：`thread.pool.remote.*` 是"客户端连服务端"的连接信息（如 server-url），**不是**"服务端自身"的配置。两者（`thread.pool.remote.*` vs `threadpool.admin.*`）归属不同进程，不得混用。
 
+## 服务端连接与高可用（CS 模式）
+
+- **单机连接模式（Single Server Mode）**：客户端只面向一个 admin-server 节点建立 CS 通信关系。该节点不可用时，客户端无法切换到其他服务端节点，只能按自身重试策略等待恢复。
+- **集群连接模式（Cluster Server Mode）**：客户端面向多个 admin-server 节点建立 CS 通信关系。客户端在节点不可用时可切换到其他健康节点，目标是保持配置同步与统计上报链路可用。
+- **健康节点（Healthy Admin Node）**：能够支撑客户端配置同步核心链路的 admin-server 节点。Redis 不可用但可回源数据库时属于降级可用，不等同于节点不健康。
+- **故障切换（Failover）**：客户端在当前 admin-server 节点出现网络不可达或服务端不可用时，停止使用该节点处理后续请求，并切换到其他健康节点。
+- **节点级熔断（Node-level Circuit Break）**：客户端在请求过程中识别某个 admin-server 节点连续不可用后，临时阻止所有业务请求继续打到该节点；熔断与健康检查彼此独立，不按具体接口分别计算。
+- **降级可用（Degraded Available）**：服务端核心链路仍可用，但某些加速或保护性依赖不可用时的状态。客户端应降低非必要请求频率，避免进一步放大后端压力。集群连接模式下，降级状态按客户端全局生效，不按单个当前路由节点隔离。
+- **健康状态刷新（Health State Refresh）**：客户端后台周期性探测全部 admin-server 节点，用于主动摘除故障节点、发现故障节点恢复，以及识别或解除降级可用状态。
+
 ## 订阅通知协议（CS 模式）
 
 - **变更通知（ConfigChangeNotification）**：subscribe 接口返回的轻量信号，仅含 `{appId, version}`。客户端收到后主动 pull 获取全量配置。设计意图：避免服务端高频变更时直接推送全量配置导致脏写客户端缓存。

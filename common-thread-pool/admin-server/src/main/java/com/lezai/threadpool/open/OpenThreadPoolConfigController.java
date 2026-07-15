@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -50,11 +51,16 @@ public class OpenThreadPoolConfigController {
         return subscriptionService.subscribe(appId, version, timeout);
     }
 
-    @GetMapping("/config/{appId}/pull")
+    @GetMapping("/configs/{appId}/pull")
     public ApiResponse<ThreadPoolAppConfig> pullConfigs(
             @PathVariable String appId,
             @RequestParam(required = false) Long version) {
         return ApiResponse.success(openThreadPoolConfigService.pullConfigs(appId, version));
+    }
+
+    @GetMapping("/config/{appId}/pull")
+    public ResponseEntity<Void> legacyPullConfigs() {
+        return ResponseEntity.status(HttpStatus.GONE).build();
     }
 
     @PostMapping("/stats/report")

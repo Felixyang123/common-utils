@@ -189,6 +189,45 @@ class ConfigAdminServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("unknown");
     }
+
+    @Test
+    @DisplayName("write methods have rollbackFor Exception transactional boundary")
+    void writeMethodsHaveRollbackForException() throws Exception {
+        assertTransactional("saveConfig", String.class, ThreadPoolConfig.class);
+        assertTransactional("saveConfigs", String.class, List.class);
+        assertTransactional("deleteConfigs", String.class);
+        assertTransactional("deleteConfig", String.class, String.class);
+        assertTransactional("rollback", String.class, String.class, long.class);
+        assertTransactional("createApp", com.lezai.threadpool.pojo.request.CreateAppRequest.class);
+        assertTransactional("deleteApp", String.class);
+        assertTransactional("restoreConfig", String.class, String.class);
+        assertTransactional("restoreConfigs", String.class);
+    }
+
+    @Test
+    @DisplayName("createApp writes api key before app entry and propagates exception on app entry failure")
+    void createAppFailurePropagatesForTransactionRollback() {
+        var request = new com.lezai.threadpool.pojo.request.CreateAppRequest();
+        request.setAppId("app1");
+        request.setAppName("App 1");
+        when(apiKeyStorage.putIfAbsent(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.doThrow(new IllegalStateException("app entry failed"))
+                .when(persistenceService).createAppEntry("app1");
+
+        assertThatThrownBy(() -> service.createApp(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app entry failed");
+
+        verify(apiKeyStorage).putIfAbsent(org.mockito.ArgumentMatchers.any());
+        verify(persistenceService).createAppEntry("app1");
+    }
+
+    private void assertTransactional(String methodName, Class<?>... paramTypes) throws Exception {
+        var annotation = ConfigAdminService.class.getMethod(methodName, paramTypes)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.rollbackFor()).contains(Exception.class);
+    }
 }
 
 

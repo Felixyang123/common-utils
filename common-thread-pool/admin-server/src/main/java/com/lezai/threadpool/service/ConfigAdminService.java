@@ -20,6 +20,7 @@ import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,6 +62,7 @@ public class ConfigAdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Config not found for pool: " + poolName));
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void saveConfig(String appId, ThreadPoolConfig config) {
         if (config == null) throw new IllegalArgumentException("config must not be null");
         configStorage.saveConfig(appId, config);
@@ -68,6 +70,7 @@ public class ConfigAdminService {
         log.info("Config saved for appId: {}, pool: {}, operator: {}", appId, config.getPoolName(), currentOperator());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void saveConfigs(String appId, List<ThreadPoolConfig> configs) {
         if (configs == null || configs.isEmpty()) throw new IllegalArgumentException("configs must not be null or empty");
         configStorage.saveConfigs(appId, configs);
@@ -78,11 +81,13 @@ public class ConfigAdminService {
         log.info("Configs saved for appId: {}, operator: {}", appId, operator);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void deleteConfigs(String appId) {
         configStorage.deleteConfigs(appId);
         log.info("Configs deleted for appId: {}, operator: {}", appId, currentOperator());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(String appId, String poolName) {
         configStorage.deleteConfig(appId, poolName);
         log.info("Config deleted for appId: {}, pool: {}, operator: {}", appId, poolName, currentOperator());
@@ -103,6 +108,7 @@ public class ConfigAdminService {
         return snapshot;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfig rollback(String appId, String poolName, long version) {
         ConfigSnapshot target = getSnapshotByVersion(appId, poolName, version);
         if (target.getValue() == null) {
@@ -116,6 +122,7 @@ public class ConfigAdminService {
         return targetConfig;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public CreateApiKeyResponse createApp(CreateAppRequest request) {
         String plainApiKey = ApiKeyUtils.generateRandomApiKey();
         String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
@@ -148,6 +155,7 @@ public class ConfigAdminService {
         return response;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void deleteApp(String appId) {
         configStorage.deleteConfigs(appId);
         apiKeyStorage.deleteApiKey(appId);
@@ -158,6 +166,7 @@ public class ConfigAdminService {
         return configConverter.convertItemResponses(persistenceService.listDeletedConfigs());
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfigItemResponse restoreConfig(String appId, String poolName) {
         var restored = persistenceService.restoreConfigByAppIdAndPoolName(appId, poolName);
         if (restored == null) {
@@ -168,6 +177,7 @@ public class ConfigAdminService {
         return configConverter.convertItemResponse(restored);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void restoreConfigs(String appId) {
         persistenceService.restoreConfigsByAppId(appId);
         log.info("All configs restored for appId: {}, operator={}", appId, currentOperator());
