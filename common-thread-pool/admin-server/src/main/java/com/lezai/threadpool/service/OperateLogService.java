@@ -54,9 +54,15 @@ public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogE
     }
 
     public List<OperateLogResponse> getRecentLogs(int limit) {
+        return getRecentLogs(limit, 0);
+    }
+
+    public List<OperateLogResponse> getRecentLogs(int limit, int offset) {
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        int safeOffset = Math.max(0, offset);
         List<OperateLogEntity> entities = list(Wrappers.<OperateLogEntity>lambdaQuery()
                 .orderByDesc(OperateLogEntity::getCreateTime)
-                .last("LIMIT " + Math.max(1, limit)));
+                .last("LIMIT " + safeLimit + " OFFSET " + safeOffset));
         return operateLogConverter.convert(entities);
     }
 }
