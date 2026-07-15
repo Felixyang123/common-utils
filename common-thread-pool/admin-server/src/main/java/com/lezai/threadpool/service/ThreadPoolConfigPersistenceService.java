@@ -40,7 +40,7 @@ public class ThreadPoolConfigPersistenceService {
         return configAppRep.allAppIds();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void createAppEntry(String appId) {
         if (configAppRep.findByAppId(appId).isPresent()) return;
         ThreadPoolConfigAppEntity entity = ThreadPoolConfigAppEntity.builder()
@@ -196,7 +196,7 @@ public class ThreadPoolConfigPersistenceService {
         return configRep.getBaseMapper().selectDeleted();
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfigEntity restoreConfigByAppIdAndPoolName(String appId, String poolName) {
         ThreadPoolConfigEntity deleted = configRep.getBaseMapper().selectDeletedByAppIdAndPoolName(appId, poolName);
         if (deleted == null) {
@@ -207,7 +207,7 @@ public class ThreadPoolConfigPersistenceService {
         return deleted;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void restoreConfigsByAppId(String appId) {
         configRep.getBaseMapper().restoreByAppId(appId);
         configAppRep.getBaseMapper().restore(appId);

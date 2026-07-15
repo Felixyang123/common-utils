@@ -113,7 +113,7 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public String regenerateApiKey(String appId) {
         return compute(appId, () -> {
             Optional<ApiKey> opt = apiKeyService.findByAppId(appId);
