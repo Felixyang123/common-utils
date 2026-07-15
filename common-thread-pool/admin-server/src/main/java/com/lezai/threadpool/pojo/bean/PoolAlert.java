@@ -1,18 +1,18 @@
 package com.lezai.threadpool.pojo.bean;
 
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
 
 import java.time.LocalDateTime;
 
-@Data
+@Value
 @Builder
 public class PoolAlert {
-    private String appId;
-    private String poolName;
-    private String metric;
-    private double value;
-    private double threshold;
-    private LocalDateTime detectedAt;
-    private String message;
+    String appId;
+    String poolName;
+    String metric;
+    double value;
+    double threshold;
+    LocalDateTime detectedAt;
+    String message;
 }

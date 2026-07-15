@@ -118,3 +118,21 @@ CREATE TABLE IF NOT EXISTS config_history (
   deleted      TINYINT      NOT NULL DEFAULT 0,
   INDEX idx_app_pool_version (app_id, pool_name, version)
 );
+
+-- 线程池运行时统计日聚合表
+CREATE TABLE IF NOT EXISTS thread_pool_stats_daily (
+  id                   BIGINT       PRIMARY KEY AUTO_INCREMENT,
+  app_id               VARCHAR(128) NOT NULL,
+  pool_name            VARCHAR(128) NOT NULL,
+  stat_date            DATE         NOT NULL,
+  avg_submitted        DOUBLE       NOT NULL DEFAULT 0,
+  avg_rejected         DOUBLE       NOT NULL DEFAULT 0,
+  avg_error            DOUBLE       NOT NULL DEFAULT 0,
+  avg_completed        DOUBLE       NOT NULL DEFAULT 0,
+  max_queue_size       INT          NOT NULL DEFAULT 0,
+  avg_queue_usage      DOUBLE       NOT NULL DEFAULT 0,
+  max_active_count     INT          NOT NULL DEFAULT 0,
+  collect_count        BIGINT       NOT NULL DEFAULT 0,
+  created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (app_id, pool_name, stat_date)
+);
