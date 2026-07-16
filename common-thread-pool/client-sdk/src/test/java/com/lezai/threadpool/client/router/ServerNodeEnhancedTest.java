@@ -91,7 +91,7 @@ class ServerNodeEnhancedTest {
         ServerNode node = new ServerNode("test-node", "http://n1:8080", 1, client, breaker);
 
         AtomicReference<CircuitBreakerState> observed = new AtomicReference<>();
-        node.setBreakerCallback((old, newVal) -> observed.set(newVal));
+        node.setBreakerObserver((n, old, newVal) -> observed.set(newVal));
 
         breaker.recordFailure(0L);
         assertThat(observed.get()).isEqualTo(CircuitBreakerState.OPEN);

@@ -11,7 +11,6 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 @Getter
 public class ServerNode implements ConfigOperations {
@@ -22,7 +21,7 @@ public class ServerNode implements ConfigOperations {
     private final ConfigServerClient client;
     private final CircuitBreaker circuitBreaker;
     private volatile NodeHealthStatus healthStatus = NodeHealthStatus.UNKNOWN;
-    private BiConsumer<CircuitBreakerState, CircuitBreakerState> breakerCallback;
+    private CircuitBreakerObserver breakerObserver;
 
     public ServerNode(String name, String baseUrl, int weight,
                       ConfigServerClient client, CircuitBreaker circuitBreaker) {
@@ -44,14 +43,14 @@ public class ServerNode implements ConfigOperations {
                 new CircuitBreaker(3, 30000));
     }
 
-    public void setBreakerCallback(BiConsumer<CircuitBreakerState, CircuitBreakerState> callback) {
-        this.breakerCallback = callback;
+    public void setBreakerObserver(CircuitBreakerObserver observer) {
+        this.breakerObserver = observer;
     }
 
     private void wireBreakerCallback() {
         circuitBreaker.addObserver((oldState, newState) -> {
-            if (breakerCallback != null) {
-                breakerCallback.accept(oldState, newState);
+            if (breakerObserver != null) {
+                breakerObserver.onBreakerStateChanged(this, oldState, newState);
             }
         });
     }
