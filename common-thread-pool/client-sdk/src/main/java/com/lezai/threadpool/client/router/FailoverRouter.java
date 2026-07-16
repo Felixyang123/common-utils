@@ -93,10 +93,10 @@ public class FailoverRouter implements ConfigOperations {
 
     // ─── Routing & failover ───
 
-    public ServerNode selectNode(long nowMs) {
+    public ServerNode selectNode(long nowMs) throws IOException {
         List<ServerNode> candidates = candidates(nowMs);
         if (candidates.isEmpty()) {
-            throw new IllegalStateException("No available admin-server node");
+            throw new IOException("No available admin-server node");
         }
         return switch (routingAlgorithm) {
             case WEIGHTED_ROUND_ROBIN -> weightedRoundRobin(candidates);
@@ -123,10 +123,10 @@ public class FailoverRouter implements ConfigOperations {
         return weighted.get(Math.floorMod(roundRobin.getAndIncrement(), weighted.size()));
     }
 
-    private ServerNode failover(List<ServerNode> candidates) {
+    private synchronized ServerNode failover(List<ServerNode> candidates) {
         ServerNode current = nodes.get(failoverIndex);
         if (candidates.contains(current)) return current;
-        ServerNode next = candidates.get(0);
+        ServerNode next = candidates.getFirst();
         failoverIndex = nodes.indexOf(next);
         return next;
     }

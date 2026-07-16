@@ -68,13 +68,14 @@ public class ThreadPoolAutoConfiguration {
                         new CircuitBreaker(remote.getCircuitBreaker().getFailureThreshold(),
                                 remote.getCircuitBreaker().getOpenDurationMs())))
                 .toList();
-        RoutingAlgorithm algorithm = RoutingAlgorithm.valueOf(
-                remote.getRoutingAlgorithm().toUpperCase().replace('-', '_'));
         if ("single".equalsIgnoreCase(remote.getMode())) {
-            ServerNode node = nodes.get(0);
+            log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode and are ignored here");
+            ServerNode node = nodes.getFirst();
             return new ConfigServerClient(node.getBaseUrl(), remote.getAppId(), remote.getApiKey(),
                     remote.getLongPollingTimeoutMs() + 5000);
         }
+        RoutingAlgorithm algorithm = RoutingAlgorithm.valueOf(
+                remote.getRoutingAlgorithm().toUpperCase().replace('-', '_'));
         FailoverRouter router = new FailoverRouter(nodes, algorithm,
                 node -> new ConfigServerClient(node.getBaseUrl(), remote.getAppId(), remote.getApiKey(),
                         remote.getLongPollingTimeoutMs() + 5000),
@@ -91,13 +92,11 @@ public class ThreadPoolAutoConfiguration {
     public ConfigPollingService configPollingService(ConfigOperations configOperations,
                                                      ThreadPoolManager threadPoolManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-        BooleanSupplier degradedSupplier = configOperations instanceof FailoverRouter router
-                ? router::isDegraded : () -> false;
         return new ConfigPollingService(configOperations, threadPoolManager, remote.getAppId(),
                 remote.getLongPollingTimeoutMs(), remote.getPullIntervalMs(),
                 remote.getDegraded().getPullIntervalMs(),
                 remote.getBackoffInitialMs(), remote.getBackoffMaxMs(),
-                degradedSupplier);
+                degradedSupplier(configOperations));
     }
 
     @Bean
@@ -140,14 +139,16 @@ public class ThreadPoolAutoConfiguration {
                                                            ThreadPoolManager threadPoolManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         if (!remote.isReportEnabled()) { log.info("ThreadPoolStatsReporter is disabled"); return null; }
-        BooleanSupplier degradedSupplier = configOperations instanceof FailoverRouter router
-                ? router::isDegraded : () -> false;
         ThreadPoolStatsReporter reporter = new ThreadPoolStatsReporter(
                 configOperations, remote.getAppId(),
                 remote.getReportIntervalMs(), remote.getDegraded().getReportIntervalMs(),
-                threadPoolManager, degradedSupplier);
+                threadPoolManager, degradedSupplier(configOperations));
         log.info("Created ThreadPoolStatsReporter, interval: {}ms", remote.getReportIntervalMs());
         return reporter;
+    }
+
+    private static BooleanSupplier degradedSupplier(ConfigOperations configOperations) {
+        return configOperations instanceof FailoverRouter router ? router::isDegraded : () -> false;
     }
 
     // ==================== 初始化器 ====================

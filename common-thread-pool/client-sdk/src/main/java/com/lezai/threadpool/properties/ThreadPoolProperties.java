@@ -1,10 +1,13 @@
 package com.lezai.threadpool.properties;
 
+import com.lezai.threadpool.client.router.ServerNodeParser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -14,6 +17,7 @@ import org.springframework.validation.annotation.Validated;
 @Data
 @Validated
 @ConfigurationProperties(prefix = "thread.pool")
+@Slf4j
 public class ThreadPoolProperties {
 
     /**
@@ -110,6 +114,8 @@ public class ThreadPoolProperties {
         private String mode = "single";
 
         /** 集群路由算法 */
+        @Pattern(regexp = "(?i)round-robin|weighted-round-robin|random|failover",
+                message = "routing-algorithm must be one of: round-robin, weighted-round-robin, random, failover")
         private String routingAlgorithm = "round-robin";
 
         /** 健康检查间隔（毫秒） */
@@ -176,7 +182,13 @@ public class ThreadPoolProperties {
             if (!enabled) {
                 return true;
             }
-            int count = com.lezai.threadpool.client.router.ServerNodeParser.parse(serverUrl).size();
+            int count;
+            try {
+                count = ServerNodeParser.parse(serverUrl).size();
+            } catch (IllegalArgumentException e) {
+                log.error("parse server-url failed: {}", e.getMessage());
+                return false;
+            }
             if ("single".equalsIgnoreCase(mode)) {
                 return count == 1;
             }

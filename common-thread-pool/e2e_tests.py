@@ -25,6 +25,10 @@ except ImportError:
     sys.exit(1)
 
 
+class SkipTest(Exception):
+    """Raised by a test to mark itself as intentionally skipped (not passed, not failed)."""
+
+
 ADMIN_URL = os.environ.get("ADMIN_URL", "http://localhost:8080")
 E2E_APP_ID = "e2e-test-app"
 E2E_POOL_NAME = "e2e-test-pool"
@@ -53,20 +57,20 @@ def admin_headers(token):
     }
 
 
-def app_headers():
+def app_headers(api_key):
     return {
         "X-App-Id": E2E_APP_ID,
-        "X-API-Key": "test-api-key-e2e",
+        "X-API-Key": api_key,
         "Content-Type": "application/json"
     }
 
 
 def ensure_app(token):
-    """Create app if it doesn't exist."""
+    """Create app if it doesn't exist and return its API key (None if the app already existed)."""
     r = requests.get(admin_url(f"/api/thread-pool/configs/{E2E_APP_ID}/list"),
                      headers=admin_headers(token), timeout=5)
     if r.status_code == 200:
-        return
+        return None
     r = requests.post(admin_url("/api/api-keys"), json={
         "appId": E2E_APP_ID,
         "appName": APP_NAME,
@@ -75,8 +79,8 @@ def ensure_app(token):
     if r.status_code == 200:
         body = r.json()
         print(f"  Created app: {E2E_APP_ID}")
-        return body.get("data", {}).get("apiKey", "")
-    return ""
+        return body.get("data", {}).get("apiKey")
+    return None
 
 
 def cleanup_app(token):
@@ -141,8 +145,8 @@ def test_batch_delete():
 
 # ── Scenario 3: restart tombstone ──
 def test_restart_tombstone():
-    print("=== Scenario 3: Restart tombstone (verified via RemoteConfigSourcePoolManagerTest) ===")
-    print("  PASS (unit-tested)")
+    print("=== Scenario 3: Restart tombstone ===")
+    raise SkipTest("verified via RemoteConfigSourcePoolManagerTest (unit-tested)")
 
 
 # ── Scenario 4: alert on dashboard ──
@@ -166,25 +170,32 @@ def test_alert_dashboard():
 # ── Scenario 5: pull path plural and legacy 410 ──
 def test_pull_path():
     print("=== Scenario 5: Pull path ===")
-    # Legacy path returns 410
-    r = requests.get(admin_url("/open/api/thread-pool/config/app1/pull"),
-                     timeout=5)
-    assert r.status_code == 410, f"Expected 410, got {r.status_code}"
-    print("  Legacy path: 410")
+    token = login()
+    assert token, "Login failed"
+    cleanup_app(token)  # ensure a clean slate so ensure_app() creates a fresh key
+    api_key = ensure_app(token)
+    try:
+        # Legacy path returns 410
+        r = requests.get(admin_url("/open/api/thread-pool/config/app1/pull"),
+                         timeout=5)
+        assert r.status_code == 410, f"Expected 410, got {r.status_code}"
+        print("  Legacy path: 410")
 
-    # New path works (may return 401 without auth, but path is correct)
-    r = requests.get(admin_url(f"/open/api/thread-pool/configs/{E2E_APP_ID}/pull"),
-                     headers=app_headers(), timeout=5)
-    # 401 is expected (no valid API key), 200 means config returned
-    assert r.status_code in (200, 401), f"Unexpected status: {r.status_code}"
-    print(f"  Plural path: {r.status_code}")
-    print("  PASS")
+        # New path works with a valid API key
+        assert api_key, "ensure_app did not return a fresh API key"
+        r = requests.get(admin_url(f"/open/api/thread-pool/configs/{E2E_APP_ID}/pull"),
+                         headers=app_headers(api_key), timeout=5)
+        assert r.status_code in (200, 304), f"Unexpected status: {r.status_code}"
+        print(f"  Plural path: {r.status_code}")
+        print("  PASS")
+    finally:
+        cleanup_app(token)
 
 
 # ── Scenario 6: createApp failure rolls back ──
 def test_create_app_rollback():
-    print("=== Scenario 6: createApp rollback (verified via ConfigAdminServiceTest) ===")
-    print("  PASS (unit-tested)")
+    print("=== Scenario 6: createApp rollback ===")
+    raise SkipTest("verified via ConfigAdminServiceTest (unit-tested)")
 
 
 def main():
@@ -202,19 +213,20 @@ def main():
 
     passed = 0
     failed = 0
+    skipped = 0
     for test in tests:
         try:
             test()
             passed += 1
+        except SkipTest as e:
+            print(f"  SKIP: {e}")
+            skipped += 1
         except Exception as e:
-            if "SKIP" in str(e) or "unit-tested" in str(e):
-                passed += 1
-            else:
-                print(f"  FAIL: {e}")
-                failed += 1
+            print(f"  FAIL: {e}")
+            failed += 1
 
     print()
-    print(f"Results: {passed} passed, {failed} failed")
+    print(f"Results: {passed} passed, {failed} failed, {skipped} skipped")
     if failed:
         sys.exit(1)
 

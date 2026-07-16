@@ -45,10 +45,6 @@ public class ConfigServerClient implements ConfigOperations {
                 .build();
     }
 
-    public String getServerUrl() {
-        return serverUrl;
-    }
-
     // ── subscribe ──
 
     @Override
