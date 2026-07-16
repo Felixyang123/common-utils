@@ -7,8 +7,14 @@ import com.lezai.threadpool.client.ConfigPollingService;
 import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.client.ThreadPoolStatsReporter;
 import com.lezai.threadpool.client.router.CircuitBreaker;
+import com.lezai.threadpool.client.router.DefaultHealthChecker;
+import com.lezai.threadpool.client.router.DefaultNodeManager;
 import com.lezai.threadpool.client.router.FailoverRouter;
+import com.lezai.threadpool.client.router.HealthChecker;
+import com.lezai.threadpool.client.router.NodeManager;
 import com.lezai.threadpool.client.router.RoutingAlgorithm;
+import com.lezai.threadpool.client.router.RoutingStrategy;
+import com.lezai.threadpool.client.router.RoundRobinStrategy;
 import com.lezai.threadpool.client.router.ServerNode;
 import com.lezai.threadpool.client.router.ServerNodeParser;
 import com.lezai.threadpool.event.DefaultEventPublisher;
@@ -56,12 +62,12 @@ public class ThreadPoolAutoConfiguration {
         return new DefaultEventPublisher(listeners);
     }
 
-    // ==================== ConfigOperations ====================
+    // ==================== NodeManager ====================
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public ConfigOperations configOperations() {
+    public NodeManager nodeManager() {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         List<ServerNode> nodes = ServerNodeParser.parse(remote.getServerUrl()).stream()
                 .map(node -> {
@@ -74,20 +80,40 @@ public class ThreadPoolAutoConfiguration {
                     return new ServerNode(node.getBaseUrl(), node.getBaseUrl(), node.getWeight(), client, breaker);
                 })
                 .toList();
-        if ("single".equalsIgnoreCase(remote.getMode())) {
-            log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode and are ignored here");
-            ServerNode node = nodes.getFirst();
-            return new ConfigServerClient(node.getBaseUrl(), remote.getAppId(), remote.getApiKey(),
-                    remote.getLongPollingTimeoutMs() + 5000);
+
+        DefaultNodeManager manager = new DefaultNodeManager(nodes);
+
+        if (!"single".equalsIgnoreCase(remote.getMode())) {
+            HealthChecker healthChecker = new DefaultHealthChecker(nodes, manager,
+                    remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
+            nodes.forEach(n -> n.setBreakerObserver(manager::onBreakerStateChanged));
+            healthChecker.start();
         }
-        RoutingAlgorithm algorithm = RoutingAlgorithm.valueOf(
-                remote.getRoutingAlgorithm().toUpperCase().replace('-', '_'));
-        FailoverRouter router = new FailoverRouter(nodes, algorithm,
-                node -> new ConfigServerClient(node.getBaseUrl(), remote.getAppId(), remote.getApiKey(),
-                        remote.getLongPollingTimeoutMs() + 5000),
-                remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
-        router.startHealthCheck();
-        return router;
+        return manager;
+    }
+
+    // ==================== ConfigOperations ====================
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    public ConfigOperations configOperations(NodeManager nodeManager) {
+        ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
+        if ("single".equalsIgnoreCase(remote.getMode())) {
+            log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode");
+            return nodeManager.getCandidates().getFirst();
+        }
+
+        RoutingStrategy strategy = switch (RoutingAlgorithm.valueOf(
+                remote.getRoutingAlgorithm().toUpperCase().replace('-', '_'))) {
+            case ROUND_ROBIN -> new RoundRobinStrategy();
+            default -> {
+                log.warn("Routing algorithm {} not yet wired, falling back to round-robin",
+                        remote.getRoutingAlgorithm());
+                yield new RoundRobinStrategy();
+            }
+        };
+        return new FailoverRouter(nodeManager, strategy);
     }
 
     // ==================== CS 模式组件 ====================
@@ -96,13 +122,14 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ConfigPollingService configPollingService(ConfigOperations configOperations,
-                                                     ThreadPoolManager threadPoolManager) {
+                                                     ThreadPoolManager threadPoolManager,
+                                                     NodeManager nodeManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         return new ConfigPollingService(configOperations, threadPoolManager, remote.getAppId(),
                 remote.getLongPollingTimeoutMs(), remote.getPullIntervalMs(),
                 remote.getDegraded().getPullIntervalMs(),
                 remote.getBackoffInitialMs(), remote.getBackoffMaxMs(),
-                degradedSupplier(configOperations));
+                nodeManager::isDegraded);
     }
 
     @Bean
@@ -142,19 +169,16 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ThreadPoolStatsReporter threadPoolStatsReporter(ConfigOperations configOperations,
-                                                           ThreadPoolManager threadPoolManager) {
+                                                           ThreadPoolManager threadPoolManager,
+                                                           NodeManager nodeManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         if (!remote.isReportEnabled()) { log.info("ThreadPoolStatsReporter is disabled"); return null; }
         ThreadPoolStatsReporter reporter = new ThreadPoolStatsReporter(
                 configOperations, remote.getAppId(),
                 remote.getReportIntervalMs(), remote.getDegraded().getReportIntervalMs(),
-                threadPoolManager, degradedSupplier(configOperations));
+                threadPoolManager, nodeManager::isDegraded);
         log.info("Created ThreadPoolStatsReporter, interval: {}ms", remote.getReportIntervalMs());
         return reporter;
-    }
-
-    private static BooleanSupplier degradedSupplier(ConfigOperations configOperations) {
-        return configOperations instanceof FailoverRouter router ? router::isDegraded : () -> false;
     }
 
     // ==================== 初始化器 ====================
