@@ -64,9 +64,15 @@ public class ThreadPoolAutoConfiguration {
     public ConfigOperations configOperations() {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         List<ServerNode> nodes = ServerNodeParser.parse(remote.getServerUrl()).stream()
-                .map(node -> new ServerNode(node.getBaseUrl(), node.getWeight(),
-                        new CircuitBreaker(remote.getCircuitBreaker().getFailureThreshold(),
-                                remote.getCircuitBreaker().getOpenDurationMs())))
+                .map(node -> {
+                    ConfigServerClient client = new ConfigServerClient(node.getBaseUrl(),
+                            remote.getAppId(), remote.getApiKey(),
+                            remote.getLongPollingTimeoutMs() + 5000);
+                    CircuitBreaker breaker = new CircuitBreaker(
+                            remote.getCircuitBreaker().getFailureThreshold(),
+                            remote.getCircuitBreaker().getOpenDurationMs());
+                    return new ServerNode(node.getBaseUrl(), node.getBaseUrl(), node.getWeight(), client, breaker);
+                })
                 .toList();
         if ("single".equalsIgnoreCase(remote.getMode())) {
             log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode and are ignored here");
