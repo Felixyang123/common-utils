@@ -81,10 +81,8 @@ public class ThreadPoolAutoConfiguration {
     public HealthChecker healthChecker(NodeManager nodeManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
         List<ServerNode> nodes = nodeManager.getAllNodes();
-        HealthChecker healthChecker = new DefaultHealthChecker(nodes, nodeManager,
+        return new DefaultHealthChecker(nodes, nodeManager,
                 remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
-        healthChecker.start();
-        return healthChecker;
     }
 
     // ==================== ConfigOperations ====================

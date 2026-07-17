@@ -43,6 +43,7 @@ public class ThreadPoolLifecycle implements SmartLifecycle {
         log.info("Starting ThreadPoolLifecycle");
         initializer.initialize();
         if (reporter != null) reporter.start();
+        if (healthChecker != null) healthChecker.start();
         log.info("ThreadPoolLifecycle started");
         running = true;
     }
