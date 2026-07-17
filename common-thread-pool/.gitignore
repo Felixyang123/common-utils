@@ -1,3 +1,8 @@
 target/
 logs/
 *.log
+
+# Tool-generated directories (not project source)
+.claude/
+.mimocode/
+.workbuddy/
