@@ -98,6 +98,7 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
             record.setResultType(rs.getString("result_type"));
             record.setErrorMessage(rs.getString("error_message"));
             record.setDuration(rs.getLong("duration"));
+            record.setRequestId(rs.getString("request_id"));
 
             Timestamp createTimeTs = rs.getTimestamp("create_time");
             if (createTimeTs != null) {

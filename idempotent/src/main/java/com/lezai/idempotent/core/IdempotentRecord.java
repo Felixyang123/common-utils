@@ -60,4 +60,9 @@ public class IdempotentRecord implements Serializable {
      * 执行耗时（毫秒）
      */
     private Long duration;
+
+    /**
+     * 请求ID（用于追踪）
+     */
+    private String requestId;
 }
