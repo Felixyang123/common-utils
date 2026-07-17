@@ -16,7 +16,7 @@ public class RedisLockProvider implements IdempotentLockProvider {
     @Override
     public boolean tryLock(String key, long expireSeconds) {
         String lockKey = "lock:" + key;
-        boolean locked = lock.tryLock(lockKey, expireSeconds * 1000, expireSeconds * 1000);
+        boolean locked = lock.tryLock(lockKey, expireSeconds * 1000);
 
         if (locked) {
             log.debug("Lock acquired for key: {}", lockKey);
