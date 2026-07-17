@@ -136,4 +136,35 @@ class LocalLockProviderTest {
         lockProvider.unlock("key-2");
         assertFalse(lockProvider.heldByCurrentThread("key-2"));
     }
+
+    @Test
+    @DisplayName("锁被持有时不会因ConcurrentHashMap操作而泄漏")
+    void testHeldLockNotLeaked() {
+        // 获取锁但不释放
+        assertTrue(lockProvider.tryLock("eviction-test", 5));
+
+        // 模拟大量不同键，ConcurrentHashMap 不会驱逐已持有锁的条目
+        for (int i = 0; i < 11000; i++) {
+            lockProvider.tryLock("filler-" + i, 1);
+            lockProvider.unlock("filler-" + i);
+        }
+
+        // 原始锁仍应被正确持有
+        assertTrue(lockProvider.heldByCurrentThread("eviction-test"));
+
+        // 释放后应正常解锁
+        lockProvider.unlock("eviction-test");
+        assertFalse(lockProvider.heldByCurrentThread("eviction-test"));
+    }
+
+    @Test
+    @DisplayName("释放后清理不再引用的锁")
+    void testLockCleanupAfterRelease() {
+        assertTrue(lockProvider.tryLock("cleanup-test", 5));
+        lockProvider.unlock("cleanup-test");
+        // 释放后内部的 lockMap 应清理该条目（通过 remove(key, lock)）
+        // 验证可以重新获取
+        assertTrue(lockProvider.tryLock("cleanup-test", 5));
+        lockProvider.unlock("cleanup-test");
+    }
 }
