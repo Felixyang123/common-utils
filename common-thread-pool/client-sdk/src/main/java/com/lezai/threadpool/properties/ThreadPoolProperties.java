@@ -186,7 +186,7 @@ public class ThreadPoolProperties {
             try {
                 count = ServerNodeParser.parse(serverUrl).size();
             } catch (IllegalArgumentException e) {
-                log.error("parse server-url failed: {}", e.getMessage());
+                log.error("parse server-url failed", e);
                 return false;
             }
             if ("single".equalsIgnoreCase(mode)) {

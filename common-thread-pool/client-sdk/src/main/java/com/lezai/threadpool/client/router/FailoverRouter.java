@@ -6,6 +6,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.client.ConfigOperations;
+import com.lezai.threadpool.utils.LogEvents;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ public class FailoverRouter implements ConfigOperations {
 
     private <T> T execute(IoNodeCall<T> call) throws IOException {
         IOException last = null;
+        ServerNode lastNode = null;
         for (int attempt = 0; attempt < nodeManager.nodeCount(); attempt++) {
             List<ServerNode> candidates = nodeManager.getCandidates();
             if (candidates.isEmpty()) {
@@ -62,8 +64,10 @@ public class FailoverRouter implements ConfigOperations {
                 return call.apply(node);
             } catch (IOException e) {
                 last = e;
-                log.warn("Node {} failed, failover to next (attempt {}/{})",
-                        node.getBaseUrl(), attempt + 1, nodeManager.nodeCount());
+                if (lastNode != null && !lastNode.getBaseUrl().equals(node.getBaseUrl())) {
+                    LogEvents.failover(lastNode.getBaseUrl(), node.getBaseUrl(), e.getMessage());
+                }
+                lastNode = node;
             }
         }
         throw last != null ? last : new IOException("No available admin-server node");

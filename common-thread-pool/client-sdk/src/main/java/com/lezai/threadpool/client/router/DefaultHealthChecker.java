@@ -1,5 +1,6 @@
 package com.lezai.threadpool.client.router;
 
+import com.lezai.threadpool.utils.LogEvents;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -58,6 +59,7 @@ public class DefaultHealthChecker implements HealthChecker {
                     allDown = false;
                 }
                 if (newStatus != node.getHealthStatus()) {
+                    LogEvents.nodeHealthChanged(node.getBaseUrl(), node.getHealthStatus().name(), newStatus.name());
                     observer.onStatusChanged(node, newStatus);
                 }
             }

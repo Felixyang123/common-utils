@@ -8,6 +8,7 @@ import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.client.ConfigServerClient.HttpStatusException;
+import com.lezai.threadpool.utils.LogEvents;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -48,6 +49,7 @@ public class ServerNode implements ConfigOperations {
 
     private void wireBreakerCallback() {
         circuitBreaker.addObserver((oldState, newState) -> {
+            LogEvents.circuitBreakerStateChanged(baseUrl, oldState, newState);
             if (breakerObserver != null) {
                 breakerObserver.onBreakerStateChanged(this, oldState, newState);
             }

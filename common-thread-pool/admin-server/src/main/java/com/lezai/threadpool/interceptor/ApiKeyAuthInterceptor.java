@@ -3,6 +3,7 @@ package com.lezai.threadpool.interceptor;
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.bean.ApiResponse;
 import com.lezai.threadpool.storage.ApiKeyStorage;
+import com.lezai.threadpool.utils.LogContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,11 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
 
         String appId = request.getHeader(HEADER_APP_ID);
         String apiKey = request.getHeader(HEADER_API_KEY);
+
+        // 注入 MDC，后续日志自动携带 appId
+        if (StringUtils.isNotBlank(appId)) {
+            LogContext.setAppId(appId);
+        }
 
         // 记录请求信息
         if (log.isDebugEnabled()) {
@@ -66,6 +72,12 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
         }
 
         return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
+                                Object handler, Exception ex) {
+        LogContext.clear();
     }
 
     /**
