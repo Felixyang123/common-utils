@@ -223,6 +223,27 @@ class IdempotentExecutionManagerTest {
     }
 
     @Test
+    @DisplayName("重试时记录过期应优雅处理为首次请求")
+    void testRetryWithExpiredRecordHandledGracefully() throws Throwable {
+        IdempotentRecord processingRecord = createTestRecord("expired-retry-key", IdempotentStatus.PROCESSING);
+
+        when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("expired-retry-key");
+        when(storage.get("expired-retry-key"))
+                .thenReturn(processingRecord)   // 第一次查到 PROCESSING
+                .thenReturn(null);              // 重试时记录已过期
+        when(idempotent.failFast()).thenReturn(false);
+        when(idempotent.maxRetryCount()).thenReturn(3);
+        when(idempotent.retryInterval()).thenReturn(10L);
+        when(joinPoint.proceed()).thenReturn("success-after-expiry");
+        when(idempotent.storeResult()).thenReturn(true);
+
+        // 执行 — 记录过期后应作为首次请求处理
+        Object result = executionManager.execute(joinPoint, idempotent);
+
+        assertEquals("success-after-expiry", result);
+    }
+
+    @Test
     @DisplayName("缓存结果反序列化失败时保留原始异常cause")
     void testCachedResultDeserializationFailurePreservesCause() throws Throwable {
         IdempotentRecord record = createTestRecord("deser-key", IdempotentStatus.SUCCEEDED);

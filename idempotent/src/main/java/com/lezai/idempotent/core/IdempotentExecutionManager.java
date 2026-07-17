@@ -194,8 +194,9 @@ public class IdempotentExecutionManager {
 
             IdempotentRecord record = storage.get(key);
             if (record == null) {
-                // 兜底策略，理论上不会发生
-                return handleConcurrentRequest(joinPoint, idempotent, key);
+                // Record expired during retry, treat as first request
+                log.warn("Record expired during retry for key: {}, treating as first request", key);
+                return handleFirstRequest(joinPoint, idempotent, key);
             }
 
             return handleExistingRecord(joinPoint, key, record, idempotent, ++retryCount);
