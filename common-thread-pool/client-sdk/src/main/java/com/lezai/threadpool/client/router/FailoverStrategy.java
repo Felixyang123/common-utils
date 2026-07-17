@@ -5,10 +5,10 @@ import java.util.List;
 @RoutingAlgorithmType(RoutingAlgorithm.FAILOVER)
 public class FailoverStrategy implements RoutingStrategy {
 
-    private String activeBaseUrl;
+    private volatile String activeBaseUrl;
 
     @Override
-    public ServerNode select(List<ServerNode> candidates) {
+    public synchronized ServerNode select(List<ServerNode> candidates) {
         if (activeBaseUrl != null) {
             for (ServerNode c : candidates) {
                 if (c.getBaseUrl().equals(activeBaseUrl)) {
@@ -16,7 +16,7 @@ public class FailoverStrategy implements RoutingStrategy {
                 }
             }
         }
-        ServerNode chosen = candidates.get(0);
+        ServerNode chosen = candidates.getFirst();
         activeBaseUrl = chosen.getBaseUrl();
         return chosen;
     }

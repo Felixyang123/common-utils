@@ -12,7 +12,6 @@ import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class RoutingStrategyFactory {
 
