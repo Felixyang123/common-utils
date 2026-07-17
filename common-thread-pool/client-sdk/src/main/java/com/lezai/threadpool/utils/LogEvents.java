@@ -13,8 +13,8 @@ public final class LogEvents {
         log.warn("event=circuit_breaker_state_changed node={} oldState={} newState={}", nodeUrl, oldState, newState);
     }
 
-    public static void failover(String fromNode, String toNode, String reason) {
-        log.warn("event=failover from={} to={} reason={}", fromNode, toNode, reason);
+    public static void failover(String nodeUrl, int attempt, int maxAttempts, String reason) {
+        log.warn("event=failover node={} attempt={}/{} reason={}", nodeUrl, attempt, maxAttempts, reason);
     }
 
     public static void configChanged(String appId, String poolName, long version) {
@@ -23,9 +23,5 @@ public final class LogEvents {
 
     public static void nodeHealthChanged(String nodeUrl, String oldStatus, String newStatus) {
         log.info("event=node_health_changed node={} oldStatus={} newStatus={}", nodeUrl, oldStatus, newStatus);
-    }
-
-    public static void nodeRecovered(String nodeUrl) {
-        log.info("event=node_recovered node={}", nodeUrl);
     }
 }

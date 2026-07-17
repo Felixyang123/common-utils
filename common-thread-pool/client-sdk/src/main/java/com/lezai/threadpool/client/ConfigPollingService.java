@@ -5,6 +5,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.core.DynamicThreadPoolWrapper;
 import com.lezai.threadpool.manager.ThreadPoolManager;
+import com.lezai.threadpool.utils.LogEvents;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
@@ -158,6 +159,7 @@ public class ConfigPollingService {
         }
         if (applied > 0 || reverted > 0) {
             configVersion.set(cv);
+            LogEvents.configChanged(appId, "batch", cv);
         }
         log.info("Thread pools updated for appId: {}, version: {}, applied: {}/{}, reverted: {}", appId, cv, applied, serverConfigs.size(), reverted);
     }

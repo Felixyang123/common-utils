@@ -53,7 +53,6 @@ public class FailoverRouter implements ConfigOperations {
 
     private <T> T execute(IoNodeCall<T> call) throws IOException {
         IOException last = null;
-        ServerNode lastNode = null;
         for (int attempt = 0; attempt < nodeManager.nodeCount(); attempt++) {
             List<ServerNode> candidates = nodeManager.getCandidates();
             if (candidates.isEmpty()) {
@@ -64,10 +63,7 @@ public class FailoverRouter implements ConfigOperations {
                 return call.apply(node);
             } catch (IOException e) {
                 last = e;
-                if (lastNode != null && !lastNode.getBaseUrl().equals(node.getBaseUrl())) {
-                    LogEvents.failover(lastNode.getBaseUrl(), node.getBaseUrl(), e.getMessage());
-                }
-                lastNode = node;
+                LogEvents.failover(node.getBaseUrl(), attempt + 1, nodeManager.nodeCount(), e.getMessage());
             }
         }
         throw last != null ? last : new IOException("No available admin-server node");
