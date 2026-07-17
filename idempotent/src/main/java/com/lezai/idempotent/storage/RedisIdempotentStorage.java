@@ -23,19 +23,26 @@ public class RedisIdempotentStorage implements IdempotentStorage {
         this(DEFAULT_KEY_PREFIX, redisTemplate);
     }
 
-
     @Override
     public IdempotentRecord get(String key) {
         String redisKey = keyPrefix + key;
-        String json = redisTemplate.opsForValue().get(redisKey);
-        if (json == null) {
+        try {
+            String json = redisTemplate.opsForValue().get(redisKey);
+            if (json == null) {
+                return null;
+            }
+            return JSON.parseObject(json, IdempotentRecord.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse idempotent record from Redis, key: {}", redisKey, e);
             return null;
         }
-        return JSON.parseObject(json, IdempotentRecord.class);
     }
 
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
+        if (record == null || record.getKey() == null) {
+            throw new IllegalArgumentException("IdempotentRecord and key must not be null");
+        }
         String redisKey = keyPrefix + record.getKey();
         redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(record), expireSeconds, TimeUnit.SECONDS);
         log.debug("Record saved to Redis, key: {}, expire: {}s", redisKey, expireSeconds);
@@ -44,13 +51,27 @@ public class RedisIdempotentStorage implements IdempotentStorage {
     @Override
     public void remove(String key) {
         String redisKey = keyPrefix + key;
-        redisTemplate.delete(redisKey);
-        log.debug("Record removed from Redis, key: {}", redisKey);
+        try {
+            Boolean deleted = redisTemplate.delete(redisKey);
+            if (Boolean.TRUE.equals(deleted)) {
+                log.debug("Record removed from Redis, key: {}", redisKey);
+            } else {
+                log.debug("Record not found in Redis, key: {}", redisKey);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to remove record from Redis, key: {}", redisKey, e);
+        }
     }
 
     @Override
     public boolean exists(String key) {
         String redisKey = keyPrefix + key;
-        return redisTemplate.hasKey(redisKey);
+        try {
+            Boolean exists = redisTemplate.hasKey(redisKey);
+            return Boolean.TRUE.equals(exists);
+        } catch (Exception e) {
+            log.warn("Failed to check key existence: {}", redisKey, e);
+            return false;
+        }
     }
 }
