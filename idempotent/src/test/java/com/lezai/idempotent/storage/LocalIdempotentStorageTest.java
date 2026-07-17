@@ -114,6 +114,18 @@ class LocalIdempotentStorageTest {
         assertDoesNotThrow(() -> storage.remove("non-existent-key"));
     }
 
+    @Test
+    @DisplayName("get方法null key抛IllegalArgumentException")
+    void testGetWithNullKeyThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> storage.get(null));
+    }
+
+    @Test
+    @DisplayName("save方法null record抛IllegalArgumentException")
+    void testSaveWithNullRecordThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> storage.save(null, 3600));
+    }
+
     // ==================== 辅助方法 ====================
 
     private IdempotentRecord createTestRecord(String key, IdempotentStatus status) {
