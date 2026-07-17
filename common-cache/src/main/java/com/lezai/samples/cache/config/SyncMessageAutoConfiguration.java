@@ -2,6 +2,7 @@ package com.lezai.samples.cache.config;
 
 import com.lezai.samples.cache.core.CacheManager;
 import com.lezai.samples.cache.sync.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+@Slf4j
 @Configuration
 @EnableConfigurationProperties({CacheMessageSyncProperties.class})
 public class SyncMessageAutoConfiguration {
@@ -26,8 +28,7 @@ public class SyncMessageAutoConfiguration {
     }
 
     @Bean
-    public CacheMessagePubSub cacheMessagePubSub(@Autowired(required = false) CacheMessagePub cacheMessagePub,
-                                                 @Autowired(required = false) CacheMessageSub cacheMessageSub) {
+    public CacheMessagePubSub cacheMessagePubSub(CacheMessagePub cacheMessagePub, CacheMessageSub cacheMessageSub) {
         return new CacheMessagePubSub(cacheMessagePub, cacheMessageSub);
     }
 
@@ -43,5 +44,4 @@ public class SyncMessageAutoConfiguration {
         executor.initialize();
         return executor;
     }
-
 }

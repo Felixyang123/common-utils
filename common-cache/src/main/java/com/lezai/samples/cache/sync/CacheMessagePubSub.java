@@ -1,21 +1,19 @@
 package com.lezai.samples.cache.sync;
 
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
+/**
+ * Lifecycle-managed pub/sub facade for cache synchronization.
+ * Subscribes on start, unsubscribes on stop.
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class CacheMessagePubSub implements SmartLifecycle {
     private final CacheMessagePub pub;
     private final CacheMessageSub sub;
-
-    @Getter
-    private static CacheMessagePubSub instance;
+    private volatile boolean running = false;
 
     public void register(CacheNodeRegisterInfo registerInfo) {
         pub.registerNodeInfo(registerInfo);
@@ -25,25 +23,26 @@ public class CacheMessagePubSub implements SmartLifecycle {
         pub.publish(message);
     }
 
-    public void subscribe() {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            executor.execute(sub::subscribe);
-        }
-    }
-
     @Override
     public void start() {
-        subscribe();
-        instance = this;
+        Thread.ofVirtual().name("cache-message-subscriber").start(() -> {
+            try {
+                sub.subscribe();
+            } catch (Exception e) {
+                log.error("Cache message subscriber failed", e);
+            }
+        });
+        running = true;
     }
 
     @Override
     public void stop() {
         sub.stop();
+        running = false;
     }
 
     @Override
     public boolean isRunning() {
-        return false;
+        return running;
     }
 }

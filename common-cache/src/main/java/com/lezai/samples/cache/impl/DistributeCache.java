@@ -7,21 +7,24 @@ import com.lezai.samples.cache.sync.CacheMessagePubSub;
 import com.lezai.samples.cache.sync.CacheNodeRegisterInfo;
 import com.lezai.samples.cache.sync.CacheSyncMessageImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.function.Supplier;
 
+@Slf4j
 @RequiredArgsConstructor
 public class DistributeCache<T> implements Cache<T> {
 
     private final Cache<T> delegate;
-
     private final String category;
+    private final CacheMessagePubSub pubSub;
+    private final String nodeAddress;
 
     @Override
     public void set(String key, T value) {
         registerAndExecute(key, () -> {
             delegate.set(key, value);
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, null));
+            pubSub.publish(new CacheSyncMessageImpl(category, key, null));
             return null;
         });
     }
@@ -30,10 +33,9 @@ public class DistributeCache<T> implements Cache<T> {
     public void set(String key, T value, Long ttl) {
         registerAndExecute(key, () -> {
             delegate.set(key, value, ttl);
-            CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, ttl));
+            pubSub.publish(new CacheSyncMessageImpl(category, key, ttl));
             return null;
         });
-
     }
 
     @Override
@@ -44,7 +46,7 @@ public class DistributeCache<T> implements Cache<T> {
     @Override
     public void remove(String key) {
         delegate.remove(key);
-        CacheMessagePubSub.getInstance().publish(new CacheSyncMessageImpl(category, key, null));
+        pubSub.publish(new CacheSyncMessageImpl(category, key, null));
     }
 
     @Override
@@ -67,9 +69,7 @@ public class DistributeCache<T> implements Cache<T> {
 
     private T registerAndExecute(String key, Supplier<T> executor) {
         T result = executor.get();
-
-        //TODO nodeAddress需要动态配置
-        CacheMessagePubSub.getInstance().register(new CacheNodeRegisterInfo(key, "127.0.0.1:8080"));
+        pubSub.register(new CacheNodeRegisterInfo(key, nodeAddress));
         return result;
     }
 }
