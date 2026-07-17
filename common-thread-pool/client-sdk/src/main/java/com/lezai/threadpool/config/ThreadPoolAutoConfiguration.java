@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -76,12 +77,10 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    @ConditionalOnProperty(name = "thread.pool.remote.mode", havingValue = "cluster")
     public HealthChecker healthChecker(NodeManager nodeManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-        if ("single".equalsIgnoreCase(remote.getMode())) {
-            return null;
-        }
-        List<ServerNode> nodes = nodeManager.getCandidates();
+        List<ServerNode> nodes = nodeManager.getAllNodes();
         HealthChecker healthChecker = new DefaultHealthChecker(nodes, nodeManager,
                 remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
         nodes.forEach(n -> n.setBreakerObserver(nodeManager::onBreakerStateChanged));

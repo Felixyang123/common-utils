@@ -22,6 +22,11 @@ public class DefaultNodeManager implements NodeManager {
     }
 
     @Override
+    public List<ServerNode> getAllNodes() {
+        return nodes;
+    }
+
+    @Override
     public List<ServerNode> getCandidates() {
         return cachedCandidates;
     }
