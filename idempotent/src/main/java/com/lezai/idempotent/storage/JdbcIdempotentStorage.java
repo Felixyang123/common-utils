@@ -4,11 +4,13 @@ import com.lezai.idempotent.core.IdempotentRecord;
 import com.lezai.idempotent.enums.IdempotentStatus;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 /**
@@ -39,7 +41,7 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
                     key,
                     LocalDateTime.now()
             );
-        } catch (Exception e) {
+        } catch (EmptyResultDataAccessException e) {
             log.debug("No record found for key: {}", key);
             return null;
         }
@@ -48,12 +50,12 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
         String sql = "INSERT INTO " + tableName + " " +
-                "(idempotent_key, process_status, process_result, result_type, error_message, expire_time, duration) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                "(idempotent_key, process_status, process_result, result_type, error_message, expire_time, create_time, update_time, duration) " +
+                "VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), ?) " +
                 "ON DUPLICATE KEY UPDATE " +
                 "process_status = VALUES(process_status), process_result = VALUES(process_result), " +
                 "result_type = VALUES(result_type), error_message = VALUES(error_message), " +
-                "update_time = VALUES(update_time), duration = VALUES(duration)";
+                "update_time = NOW(), duration = VALUES(duration)";
 
         jdbcTemplate.update(
                 sql,
@@ -84,18 +86,6 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
     }
 
     /**
-     * 序列化结果（简单实现，可根据需要扩展）
-     */
-    private String serializeResult(Object result) {
-        if (result == null) {
-            return null;
-        }
-        // 简单实现：仅支持字符串类型
-        // 实际生产环境可以使用 JSON 序列化或其他方式
-        return result.toString();
-    }
-
-    /**
      * 行映射器
      */
     private static class IdempotentRecordRowMapper implements RowMapper<IdempotentRecord> {
@@ -108,9 +98,19 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
             record.setResultType(rs.getString("result_type"));
             record.setErrorMessage(rs.getString("error_message"));
             record.setDuration(rs.getLong("duration"));
-            record.setCreateTime(rs.getTimestamp("create_time").toLocalDateTime());
-            record.setUpdateTime(rs.getTimestamp("update_time").toLocalDateTime());
-            record.setExpireTime(rs.getTimestamp("expire_time").toLocalDateTime());
+
+            Timestamp createTimeTs = rs.getTimestamp("create_time");
+            if (createTimeTs != null) {
+                record.setCreateTime(createTimeTs.toLocalDateTime());
+            }
+            Timestamp updateTimeTs = rs.getTimestamp("update_time");
+            if (updateTimeTs != null) {
+                record.setUpdateTime(updateTimeTs.toLocalDateTime());
+            }
+            Timestamp expireTimeTs = rs.getTimestamp("expire_time");
+            if (expireTimeTs != null) {
+                record.setExpireTime(expireTimeTs.toLocalDateTime());
+            }
             return record;
         }
     }

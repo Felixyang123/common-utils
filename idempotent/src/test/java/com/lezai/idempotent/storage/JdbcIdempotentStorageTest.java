@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.*;
 
 /**
@@ -70,11 +71,11 @@ class JdbcIdempotentStorageTest {
     @DisplayName("获取不存在的记录返回null")
     void testGetNonExistentRecord() {
         when(jdbcTemplate.queryForObject(
-            anyString(), 
-            any(RowMapper.class), 
-            anyString(), 
+            anyString(),
+            any(RowMapper.class),
+            anyString(),
             any(LocalDateTime.class)
-        )).thenThrow(new RuntimeException("Empty result"));
+        )).thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
 
         IdempotentRecord result = storage.get("non-existent-key");
 
@@ -85,14 +86,14 @@ class JdbcIdempotentStorageTest {
     @DisplayName("保存记录-插入新记录")
     void testSaveNewRecord() {
         IdempotentRecord record = createTestRecord();
-        
-        when(jdbcTemplate.update(
+
+        lenient().when(jdbcTemplate.update(
             anyString(),
-            any(), any(), any(), any(), any(), any(), any()
+            any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(1);
 
         assertDoesNotThrow(() -> storage.save(record, 3600));
-        
+
         verify(jdbcTemplate).update(
             contains("INSERT INTO"),
             eq("test-key"),
@@ -184,12 +185,51 @@ class JdbcIdempotentStorageTest {
         record.setResult(null);
         record.setResultType(null);
 
-        when(jdbcTemplate.update(
+        lenient().when(jdbcTemplate.update(
             anyString(),
-            any(), any(), any(), any(), any(), any(), any()
+            any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(1);
 
         assertDoesNotThrow(() -> storage.save(record, 3600));
+    }
+
+    @Test
+    @DisplayName("保存记录时update_time使用NOW()而非VALUES(NULL)")
+    void testSaveDoesNotSetUpdateTimeToNull() {
+        IdempotentRecord record = createTestRecord();
+
+        lenient().when(jdbcTemplate.update(
+            anyString(),
+            any(), any(), any(), any(), any(), any(), any(), any()
+        )).thenReturn(1);
+
+        assertDoesNotThrow(() -> storage.save(record, 3600));
+
+        // 验证 SQL 包含 NOW() 而非依赖 VALUES(update_time)
+        verify(jdbcTemplate).update(
+            contains("update_time = NOW()"),
+            eq("test-key"),
+            eq(2),
+            eq("result-data"),
+            eq("java.lang.String"),
+            eq(null),
+            any(LocalDateTime.class),
+            eq(100L)
+        );
+    }
+
+    @Test
+    @DisplayName("get方法数据库错误应传播而非吞掉")
+    void testGetWithDatabaseErrorPropagatesException() {
+        when(jdbcTemplate.queryForObject(
+            anyString(),
+            any(RowMapper.class),
+            anyString(),
+            any(LocalDateTime.class)
+        )).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("DB down"));
+
+        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class,
+            () -> storage.get("db-error-key"));
     }
 
     // ==================== 辅助方法 ====================
