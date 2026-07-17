@@ -7,6 +7,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.client.ConfigServerClient;
+import com.lezai.threadpool.client.ConfigServerClient.HttpStatusException;
 import lombok.Getter;
 
 import java.io.IOException;
@@ -117,6 +118,13 @@ public class ServerNode implements ConfigOperations {
             T result = call.apply(client);
             circuitBreaker.recordSuccess();
             return result;
+        } catch (HttpStatusException e) {
+            // ADR-0005: 5xx triggers failover + breaker trip; 4xx fails fast (no retry, no trip)
+            if (e.getStatusCode() >= 500) {
+                circuitBreaker.recordFailure(now);
+                throw e;
+            }
+            throw new HttpClientException(e);
         } catch (IOException e) {
             circuitBreaker.recordFailure(now);
             throw e;

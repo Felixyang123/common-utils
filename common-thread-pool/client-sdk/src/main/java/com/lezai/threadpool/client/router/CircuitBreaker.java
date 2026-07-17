@@ -24,7 +24,7 @@ public class CircuitBreaker {
         observers.add(observer);
     }
 
-    public boolean allowRequest(long nowMs) {
+    public synchronized boolean allowRequest(long nowMs) {
         if (state == CircuitBreakerState.CLOSED) {
             return true;
         }
@@ -34,13 +34,13 @@ public class CircuitBreaker {
         return false;
     }
 
-    public void recordSuccess() {
+    public synchronized void recordSuccess() {
         failureCount.set(0);
         halfOpenProbeInFlight.set(false);
         setState(CircuitBreakerState.CLOSED);
     }
 
-    public void recordFailure(long nowMs) {
+    public synchronized void recordFailure(long nowMs) {
         halfOpenProbeInFlight.set(false);
         if (state == CircuitBreakerState.HALF_OPEN || failureCount.incrementAndGet() >= failureThreshold) {
             setState(CircuitBreakerState.OPEN, nowMs);
@@ -63,11 +63,11 @@ public class CircuitBreaker {
         setState(CircuitBreakerState.HALF_OPEN);
     }
 
-    private void setState(CircuitBreakerState newState) {
+    private synchronized void setState(CircuitBreakerState newState) {
         setState(newState, System.currentTimeMillis());
     }
 
-    private void setState(CircuitBreakerState newState, long nowMs) {
+    private synchronized void setState(CircuitBreakerState newState, long nowMs) {
         CircuitBreakerState old = this.state;
         if (old == newState) {
             return;

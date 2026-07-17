@@ -20,4 +20,14 @@ public final class CircuitBreakerScheduler {
     public static ScheduledFuture<?> schedule(Runnable task, long delay, TimeUnit unit) {
         return EXECUTOR.schedule(task, delay, unit);
     }
+
+    /**
+     * Shuts down the shared scheduler. Called from {@link com.lezai.threadpool.config.ThreadPoolLifecycle}
+     * on context shutdown. Safe to call multiple times.
+     */
+    public static synchronized void shutdown() {
+        if (!EXECUTOR.isShutdown()) {
+            EXECUTOR.shutdown();
+        }
+    }
 }

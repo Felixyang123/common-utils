@@ -6,17 +6,7 @@ import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.client.ConfigPollingService;
 import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.client.ThreadPoolStatsReporter;
-import com.lezai.threadpool.client.router.CircuitBreaker;
-import com.lezai.threadpool.client.router.DefaultHealthChecker;
-import com.lezai.threadpool.client.router.DefaultNodeManager;
-import com.lezai.threadpool.client.router.FailoverRouter;
-import com.lezai.threadpool.client.router.HealthChecker;
-import com.lezai.threadpool.client.router.NodeManager;
-import com.lezai.threadpool.client.router.RoutingAlgorithm;
-import com.lezai.threadpool.client.router.RoutingStrategy;
-import com.lezai.threadpool.client.router.RoundRobinStrategy;
-import com.lezai.threadpool.client.router.ServerNode;
-import com.lezai.threadpool.client.router.ServerNodeParser;
+import com.lezai.threadpool.client.router.*;
 import com.lezai.threadpool.event.DefaultEventPublisher;
 import com.lezai.threadpool.event.LoggingEventListener;
 import com.lezai.threadpool.event.ThreadPoolEventListener;
@@ -34,7 +24,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 @Slf4j
 @Configuration
@@ -81,15 +70,23 @@ public class ThreadPoolAutoConfiguration {
                 })
                 .toList();
 
-        DefaultNodeManager manager = new DefaultNodeManager(nodes);
+        return new DefaultNodeManager(nodes);
+    }
 
-        if (!"single".equalsIgnoreCase(remote.getMode())) {
-            HealthChecker healthChecker = new DefaultHealthChecker(nodes, manager,
-                    remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
-            nodes.forEach(n -> n.setBreakerObserver(manager::onBreakerStateChanged));
-            healthChecker.start();
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    public HealthChecker healthChecker(NodeManager nodeManager) {
+        ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
+        if ("single".equalsIgnoreCase(remote.getMode())) {
+            return null;
         }
-        return manager;
+        List<ServerNode> nodes = nodeManager.getCandidates();
+        HealthChecker healthChecker = new DefaultHealthChecker(nodes, nodeManager,
+                remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
+        nodes.forEach(n -> n.setBreakerObserver(nodeManager::onBreakerStateChanged));
+        healthChecker.start();
+        return healthChecker;
     }
 
     // ==================== ConfigOperations ====================
@@ -206,7 +203,8 @@ public class ThreadPoolAutoConfiguration {
             @Autowired(required = false) ConfigPollingService pollingService,
             @Autowired(required = false) ThreadPoolStatsReporter reporter,
             ThreadPoolInitializer initializer,
-            ThreadPoolManager threadPoolManager) {
-        return new ThreadPoolLifecycle(pollingService, reporter, initializer, threadPoolManager);
+            ThreadPoolManager threadPoolManager,
+            @Autowired(required = false) HealthChecker healthChecker) {
+        return new ThreadPoolLifecycle(pollingService, reporter, initializer, threadPoolManager, healthChecker);
     }
 }
