@@ -218,8 +218,30 @@ class IdempotentExecutionManagerTest {
         when(lockProvider.heldByCurrentThread("exception-key")).thenReturn(true);
         when(joinPoint.proceed()).thenThrow(businessException);
 
-        assertThrows(IdempotentExecutionException.class, 
+        assertThrows(IdempotentExecutionException.class,
             () -> executionManager.execute(joinPoint, idempotent));
+    }
+
+    @Test
+    @DisplayName("缓存结果反序列化失败时保留原始异常cause")
+    void testCachedResultDeserializationFailurePreservesCause() throws Throwable {
+        IdempotentRecord record = createTestRecord("deser-key", IdempotentStatus.SUCCEEDED);
+        record.setResult("{\"data\":\"cached\"}");
+        record.setResultType("com.lezai.nonexistent.Class");  // 不存在的类
+
+        when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("deser-key");
+        when(storage.get("deser-key")).thenReturn(record);
+        when(idempotent.returnResultOnDuplicate()).thenReturn(true);
+
+        // 执行并验证
+        IdempotentExecutionException ex = assertThrows(
+            IdempotentExecutionException.class,
+            () -> executionManager.execute(joinPoint, idempotent)
+        );
+
+        // 验证原始异常作为 cause 被保留
+        assertNotNull(ex.getCause());
+        assertTrue(ex.getMessage().contains("deser-key"));
     }
 
     // ==================== 辅助方法 ====================

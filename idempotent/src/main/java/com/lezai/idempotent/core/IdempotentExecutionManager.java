@@ -218,8 +218,10 @@ public class IdempotentExecutionManager {
                 Class<?> clz = Class.forName(record.getResultType());
                 return JSON.parseObject(record.getResult(), clz);
             } catch (Exception e) {
-                log.error("Failed to load class: {}", record.getResultType());
-                throw new IdempotentExecutionException(e.getMessage());
+                log.error("Failed to deserialize cached result for key: {}, resultType: {}",
+                        key, record.getResultType(), e);
+                throw new IdempotentExecutionException(
+                        "Failed to deserialize cached result for key: " + key, e);
             }
         } else {
             // 抛出异常
