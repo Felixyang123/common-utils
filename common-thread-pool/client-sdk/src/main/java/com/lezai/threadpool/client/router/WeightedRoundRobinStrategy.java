@@ -1,12 +1,9 @@
 package com.lezai.threadpool.client.router;
 
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Component
 @RoutingAlgorithmType(RoutingAlgorithm.WEIGHTED_ROUND_ROBIN)
 public class WeightedRoundRobinStrategy implements RoutingStrategy {
 

@@ -1,10 +1,7 @@
 package com.lezai.threadpool.client.router;
 
-import org.springframework.stereotype.Component;
-
 import java.util.List;
 
-@Component
 @RoutingAlgorithmType(RoutingAlgorithm.FAILOVER)
 public class FailoverStrategy implements RoutingStrategy {
 

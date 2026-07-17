@@ -52,6 +52,33 @@ public class ThreadPoolAutoConfiguration {
         return new DefaultEventPublisher(listeners);
     }
 
+    // ==================== Routing Strategies ====================
+
+    @Bean
+    public RoundRobinStrategy roundRobinStrategy() {
+        return new RoundRobinStrategy();
+    }
+
+    @Bean
+    public WeightedRoundRobinStrategy weightedRoundRobinStrategy() {
+        return new WeightedRoundRobinStrategy();
+    }
+
+    @Bean
+    public RandomStrategy randomStrategy() {
+        return new RandomStrategy();
+    }
+
+    @Bean
+    public FailoverStrategy failoverStrategy() {
+        return new FailoverStrategy();
+    }
+
+    @Bean
+    public RoutingStrategyFactory routingStrategyFactory(List<RoutingStrategy> strategies) {
+        return new RoutingStrategyFactory(properties, strategies);
+    }
+
     // ==================== NodeManager ====================
 
     @Bean
