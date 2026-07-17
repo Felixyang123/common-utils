@@ -55,7 +55,7 @@ public class DefaultHealthChecker implements HealthChecker {
             boolean allDown = true;
             for (ServerNode node : nodes) {
                 NodeHealthStatus newStatus = probeNode(node);
-                if (newStatus != NodeHealthStatus.DOWN) {
+                if (allDown && newStatus != NodeHealthStatus.DOWN) {
                     allDown = false;
                 }
                 if (newStatus != node.getHealthStatus()) {
