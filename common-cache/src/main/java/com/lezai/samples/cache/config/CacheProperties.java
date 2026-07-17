@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CacheProperties {
     private HashMapCacheCfg hashMapCacheCfg = new HashMapCacheCfg();
     private GlobalCfg globalCfg = new GlobalCfg();
+    private NodeCfg node = new NodeCfg();
 
     @Data
     public static class HashMapCacheCfg {
@@ -23,5 +24,13 @@ public class CacheProperties {
         private long localCacheTtl = 60 * 1000;
 
         private long redisCacheTtl = 60 * 60 * 1000;
+    }
+
+    @Data
+    public static class NodeCfg {
+        /**
+         * 当前节点地址，用于分布式缓存同步注册
+         */
+        private String address = "127.0.0.1:8080";
     }
 }
