@@ -14,7 +14,7 @@ public class DefaultNodeManager implements NodeManager {
     public DefaultNodeManager(List<ServerNode> nodes) {
         this.nodes = new ArrayList<>(nodes);
         this.cachedCandidates = nodes.stream().filter(DefaultNodeManager::isAvailable).toList();
-        nodes.forEach(n -> n.setBreakerObserver(this::onBreakerStateChanged));
+        this.nodes.forEach(n -> n.setBreakerObserver(this));
     }
 
     private static boolean isAvailable(ServerNode n) {

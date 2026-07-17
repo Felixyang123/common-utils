@@ -9,6 +9,7 @@ import com.lezai.threadpool.client.ConfigOperations;
 import com.lezai.threadpool.client.ConfigServerClient;
 import com.lezai.threadpool.client.ConfigServerClient.HttpStatusException;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,6 +23,7 @@ public class ServerNode implements ConfigOperations {
     private final ConfigServerClient client;
     private final CircuitBreaker circuitBreaker;
     private volatile NodeHealthStatus healthStatus = NodeHealthStatus.UNKNOWN;
+    @Setter
     private CircuitBreakerObserver breakerObserver;
 
     public ServerNode(String name, String baseUrl, int weight,
@@ -42,10 +44,6 @@ public class ServerNode implements ConfigOperations {
         this(baseUrl, baseUrl, weight,
                 new ConfigServerClient(baseUrl, "default-app", "default-key", 35000),
                 new CircuitBreaker(3, 30000));
-    }
-
-    public void setBreakerObserver(CircuitBreakerObserver observer) {
-        this.breakerObserver = observer;
     }
 
     private void wireBreakerCallback() {
