@@ -45,8 +45,8 @@ public class LockAutoConfiguration {
     }
 
     @Bean
-    public WatchDogExecutor watchDogExecutor(RedisTemplate<String, Object> redisTemplate) {
-        return new WatchDogExecutor(redisTemplate);
+    public WatchDogExecutor watchDogExecutor(StringRedisTemplate lockRedisTemplate) {
+        return new WatchDogExecutor(lockRedisTemplate);
     }
 
 }
