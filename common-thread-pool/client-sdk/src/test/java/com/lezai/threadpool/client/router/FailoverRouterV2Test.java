@@ -39,10 +39,14 @@ class FailoverRouterV2Test {
             RoutingStrategy strategy = mock(RoutingStrategy.class);
             when(strategy.select(List.of(node))).thenReturn(node);
 
-            FailoverRouter router = new FailoverRouter(nodeManager, strategy);
+            RoutingStrategyFactory factory = mock(RoutingStrategyFactory.class);
+            when(factory.getStrategy()).thenReturn(strategy);
+
+            FailoverRouter router = new FailoverRouter(nodeManager, factory);
             ThreadPoolConfigResp resp = router.pullConfigs(1L);
 
             assertThat(resp.getConfigVersion()).isEqualTo(1);
+            verify(factory).getStrategy();
             verify(strategy).select(List.of(node));
             verify(nodeManager).getCandidates();
             router.release();
@@ -71,10 +75,14 @@ class FailoverRouterV2Test {
                     .thenReturn(badNode)
                     .thenReturn(goodNode);
 
-            FailoverRouter router = new FailoverRouter(nodeManager, strategy);
+            RoutingStrategyFactory factory = mock(RoutingStrategyFactory.class);
+            when(factory.getStrategy()).thenReturn(strategy);
+
+            FailoverRouter router = new FailoverRouter(nodeManager, factory);
             ThreadPoolConfigResp resp = router.pullConfigs(null);
 
             assertThat(resp.getConfigVersion()).isEqualTo(5);
+            verify(factory, times(2)).getStrategy();
             verify(strategy, times(2)).select(List.of(badNode, goodNode));
             router.release();
         }
@@ -96,7 +104,10 @@ class FailoverRouterV2Test {
             RoutingStrategy strategy = mock(RoutingStrategy.class);
             when(strategy.select(anyList())).thenReturn(n1);
 
-            FailoverRouter router = new FailoverRouter(nodeManager, strategy);
+            RoutingStrategyFactory factory = mock(RoutingStrategyFactory.class);
+            when(factory.getStrategy()).thenReturn(strategy);
+
+            FailoverRouter router = new FailoverRouter(nodeManager, factory);
             assertThatThrownBy(() -> router.pullConfigs(null)).isInstanceOf(IOException.class);
             router.release();
         }
@@ -110,9 +121,12 @@ class FailoverRouterV2Test {
 
         RoutingStrategy strategy = mock(RoutingStrategy.class);
 
-        FailoverRouter router = new FailoverRouter(nodeManager, strategy);
+        RoutingStrategyFactory factory = mock(RoutingStrategyFactory.class);
+        when(factory.getStrategy()).thenReturn(strategy);
+
+        FailoverRouter router = new FailoverRouter(nodeManager, factory);
         assertThatThrownBy(() -> router.pullConfigs(null)).isInstanceOf(IOException.class);
-        verify(strategy, never()).select(anyList());
+        verify(factory, never()).getStrategy();
         router.release();
     }
 }

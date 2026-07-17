@@ -90,23 +90,18 @@ public class ThreadPoolAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
-    public ConfigOperations configOperations(NodeManager nodeManager) {
-        ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-        if ("single".equalsIgnoreCase(remote.getMode())) {
-            log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode");
-            return nodeManager.getCandidates().getFirst();
-        }
+    @ConditionalOnProperty(name = "thread.pool.remote.mode", havingValue = "single", matchIfMissing = true)
+    public ConfigOperations singleConfigOperations(NodeManager nodeManager) {
+        log.info("thread.pool.remote.mode=single: circuit-breaker/routing-algorithm settings apply only to cluster mode");
+        return nodeManager.getCandidates().getFirst();
+    }
 
-        RoutingStrategy strategy = switch (RoutingAlgorithm.valueOf(
-                remote.getRoutingAlgorithm().toUpperCase().replace('-', '_'))) {
-            case ROUND_ROBIN -> new RoundRobinStrategy();
-            default -> {
-                log.warn("Routing algorithm {} not yet wired, falling back to round-robin",
-                        remote.getRoutingAlgorithm());
-                yield new RoundRobinStrategy();
-            }
-        };
-        return new FailoverRouter(nodeManager, strategy);
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
+    @ConditionalOnProperty(name = "thread.pool.remote.mode", havingValue = "cluster")
+    public ConfigOperations clusterConfigOperations(NodeManager nodeManager, RoutingStrategyFactory strategyFactory) {
+        return new FailoverRouter(nodeManager, strategyFactory);
     }
 
     // ==================== CS 模式组件 ====================
@@ -129,7 +124,7 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ThreadPoolManager remoteConfigSourceThreadPoolManager(ConfigOperations configOperations,
-                                                                  ThreadPoolEventPublisher eventPublisher) {
+                                                                 ThreadPoolEventPublisher eventPublisher) {
         RemoteConfigSourcePoolManager poolManager = new RemoteConfigSourcePoolManager(configOperations, eventPublisher);
         log.info("Initialized RemoteConfigSourcePoolManager");
         return poolManager;
@@ -165,7 +160,10 @@ public class ThreadPoolAutoConfiguration {
                                                            ThreadPoolManager threadPoolManager,
                                                            NodeManager nodeManager) {
         ThreadPoolProperties.RemoteConfig remote = properties.getRemote();
-        if (!remote.isReportEnabled()) { log.info("ThreadPoolStatsReporter is disabled"); return null; }
+        if (!remote.isReportEnabled()) {
+            log.info("ThreadPoolStatsReporter is disabled");
+            return null;
+        }
         ThreadPoolStatsReporter reporter = new ThreadPoolStatsReporter(
                 configOperations, remote.getAppId(),
                 remote.getReportIntervalMs(), remote.getDegraded().getReportIntervalMs(),
@@ -187,7 +185,7 @@ public class ThreadPoolAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBooleanProperty(name = "thread.pool.remote.enabled")
     public ThreadPoolInitializer threadPoolInitializerRemote(ConfigPollingService pollingService,
-                                                              ThreadPoolManager threadPoolManager) {
+                                                             ThreadPoolManager threadPoolManager) {
         return new ThreadPoolInitializer(properties, pollingService, threadPoolManager);
     }
 

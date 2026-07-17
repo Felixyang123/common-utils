@@ -15,11 +15,11 @@ import java.util.List;
 public class FailoverRouter implements ConfigOperations {
 
     private final NodeManager nodeManager;
-    private final RoutingStrategy routingStrategy;
+    private final RoutingStrategyFactory strategyFactory;
 
-    public FailoverRouter(NodeManager nodeManager, RoutingStrategy routingStrategy) {
+    public FailoverRouter(NodeManager nodeManager, RoutingStrategyFactory strategyFactory) {
         this.nodeManager = nodeManager;
-        this.routingStrategy = routingStrategy;
+        this.strategyFactory = strategyFactory;
     }
 
     @Override
@@ -57,7 +57,7 @@ public class FailoverRouter implements ConfigOperations {
             if (candidates.isEmpty()) {
                 break;
             }
-            ServerNode node = routingStrategy.select(candidates);
+            ServerNode node = strategyFactory.getStrategy().select(candidates);
             try {
                 return call.apply(node);
             } catch (IOException e) {
