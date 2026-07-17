@@ -13,11 +13,11 @@ public class CacheTemplate {
     }
 
     public void set(String category, String key, Object value) {
-        cacheManager.getCache(category).set(buildKey(category, key), CacheWrapper.builder().data(value).build());
+        cacheManager.getCache(category).set(buildKey(category, key), value);
     }
 
     public void set(String category, String key, Object value, Long ttl) {
-        cacheManager.getCache(category).set(buildKey(category, key), CacheWrapper.builder().data(value).build(), ttl);
+        cacheManager.getCache(category).set(buildKey(category, key), value, ttl);
     }
 
     public <T> T get(String category, String key, Long ttl, CacheLoader<T> loader) {
