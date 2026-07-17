@@ -83,7 +83,6 @@ public class ThreadPoolAutoConfiguration {
         List<ServerNode> nodes = nodeManager.getAllNodes();
         HealthChecker healthChecker = new DefaultHealthChecker(nodes, nodeManager,
                 remote.getHealthCheckIntervalMs(), remote.getHealthCheckFastIntervalMs());
-        nodes.forEach(n -> n.setBreakerObserver(nodeManager::onBreakerStateChanged));
         healthChecker.start();
         return healthChecker;
     }
