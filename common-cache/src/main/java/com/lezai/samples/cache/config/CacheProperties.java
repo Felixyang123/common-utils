@@ -29,8 +29,28 @@ public class CacheProperties {
     @Data
     public static class NodeCfg {
         /**
-         * 当前节点地址，用于分布式缓存同步注册
+         * 当前节点地址（IP:Port），用于分布式缓存同步注册。
+         * <p>
+         * 留空或 null 时自动探测本机非回环 IPv4 + 端口，探测失败打印日志并返回 null，调用方跳过后续操作。
+         * 显式配置时直接使用（适配 NAT、Service Mesh 等场景）。
          */
-        private String address = "127.0.0.1:8080";
+        private String address;
+
+        /**
+         * 节点端口，自动探测时用于拼接地址。默认 8080。
+         */
+        private int port = 8080;
+
+        /**
+         * 解析最终节点地址：显式配置优先，否则自动探测。
+         *
+         * @return 节点地址，留空且自动探测失败返回 null
+         */
+        public String resolveAddress() {
+            if (address != null && !address.isBlank()) {
+                return address;
+            }
+            return LocalNodeAddressDetector.detectAddress(port);
+        }
     }
 }

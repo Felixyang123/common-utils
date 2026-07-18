@@ -8,6 +8,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @Slf4j
 public class LocalReentrantLock implements Lock {
     private final ReentrantLock delegate = new ReentrantLock();
+    // 本地锁不设过期，tryLock 立即返回，与 RedisDistributeLock 语义一致
     private final long timeout;
 
     public LocalReentrantLock(long timeout) {
@@ -15,7 +16,7 @@ public class LocalReentrantLock implements Lock {
     }
 
     public LocalReentrantLock() {
-        this(30000);
+        this(0);
     }
 
     @Override
