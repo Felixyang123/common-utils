@@ -22,7 +22,7 @@ public class LocalReentrantLock implements Lock {
     @Override
     public boolean tryLock(String key, long leaseTime) {
         try {
-            return delegate.tryLock(leaseTime, TimeUnit.MILLISECONDS);
+            return delegate.tryLock(timeout, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Lock acquisition interrupted for key: {}", key);
