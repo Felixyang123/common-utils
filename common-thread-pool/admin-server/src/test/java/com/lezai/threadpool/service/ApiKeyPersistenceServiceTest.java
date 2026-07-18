@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -34,13 +36,13 @@ class ApiKeyPersistenceServiceTest {
     private ApiKeyConverter apiKeyConverter;
 
     @Mock
-    private OperateLogService logService;
+    private ApplicationEventPublisher eventPublisher;
 
     private ApiKeyPersistenceService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApiKeyPersistenceService(apiKeyConverter, logService);
+        service = new ApiKeyPersistenceService(apiKeyConverter, eventPublisher);
         ReflectionTestUtils.setField(service, "baseMapper", apiKeyMapper);
     }
 
@@ -72,7 +74,7 @@ class ApiKeyPersistenceServiceTest {
         boolean result = service.add(apiKey);
 
         assertThat(result).isTrue();
-        verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
     }
 
     @Test
@@ -87,7 +89,7 @@ class ApiKeyPersistenceServiceTest {
         boolean result = service.add(apiKey);
 
         assertThat(result).isTrue();
-        verify(logService).log(eq(OperateType.CREATE), any(), eq(entity), any(), eq(BizType.APIKEY));
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
     }
 
     @Test
@@ -137,6 +139,17 @@ class ApiKeyPersistenceServiceTest {
         boolean result = service.updateByAppId(apiKey);
 
         assertThat(result).isTrue();
-        verify(logService).log(eq(OperateType.UPDATE), any(), eq(entity), eq("1"), eq(BizType.APIKEY));
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
+    }
+
+    @Test
+    @DisplayName("deleteByAppId removes the key and publishes audit event")
+    void deleteByAppId_publishesAudit() {
+        when(apiKeyMapper.delete(any())).thenReturn(1);
+
+        boolean result = service.deleteByAppId("app1");
+
+        assertThat(result).isTrue();
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
     }
 }

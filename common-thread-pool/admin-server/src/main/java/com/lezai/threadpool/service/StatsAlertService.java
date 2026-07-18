@@ -1,11 +1,13 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.dao.entity.ThreadPoolStatsEntity;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
 import com.lezai.threadpool.pojo.bean.PoolAlert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -24,7 +26,7 @@ public class StatsAlertService {
     static final double QUEUE_USAGE_THRESHOLD = 0.80d;
 
     private final ThreadPoolStatsPersistenceService statsPersistenceService;
-    private final OperateLogService operateLogService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Map<String, LocalDateTime> lastAlertTime = new HashMap<>();
     private final Map<String, PoolAlert> activeAlerts = new HashMap<>();
 
@@ -88,7 +90,8 @@ public class StatsAlertService {
         activeAlerts.put(key, alert);
         LocalDateTime last = lastAlertTime.get(key);
         if (last == null || last.plusMinutes(30).isBefore(now)) {
-            operateLogService.log(OperateType.ALERT, "system", alert, key, BizType.THREAD_POOL_STATS);
+            eventPublisher.publishEvent(new AuditEvent(BizType.THREAD_POOL_STATS.name(), OperateType.ALERT.name(),
+                    "system", alert, key));
             lastAlertTime.put(key, now);
         }
     }
@@ -101,7 +104,8 @@ public class StatsAlertService {
         for (String key : recoveredKeys) {
             PoolAlert recovered = activeAlerts.remove(key);
             if (recovered != null) {
-                operateLogService.log(OperateType.ALERT_RECOVERED, "system", recovered, key, BizType.THREAD_POOL_STATS);
+                eventPublisher.publishEvent(new AuditEvent(BizType.THREAD_POOL_STATS.name(), OperateType.ALERT_RECOVERED.name(),
+                        "system", recovered, key));
                 lastAlertTime.remove(key);
                 log.info("Thread pool alert recovered: {}, time={}", key, now);
             }

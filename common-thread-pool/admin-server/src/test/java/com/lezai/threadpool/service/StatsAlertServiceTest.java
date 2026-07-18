@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.dao.entity.ThreadPoolStatsEntity;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
@@ -10,14 +11,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,17 +29,17 @@ class StatsAlertServiceTest {
     private ThreadPoolStatsPersistenceService statsPersistenceService;
 
     @Mock
-    private OperateLogService operateLogService;
+    private ApplicationEventPublisher eventPublisher;
 
     private StatsAlertService service;
 
     @BeforeEach
     void setUp() {
-        service = new StatsAlertService(statsPersistenceService, operateLogService);
+        service = new StatsAlertService(statsPersistenceService, eventPublisher);
     }
 
     @Test
-    @DisplayName("rejection rate > 5% triggers alert and writes audit log")
+    @DisplayName("rejection rate > 5% triggers alert and publishes AuditEvent")
     void rejectionRateAlert() {
         when(statsPersistenceService.queryRecentStats(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(stats("app1", "pool-a", 100, 6, 10, 100)));
@@ -47,7 +49,7 @@ class StatsAlertServiceTest {
         assertThat(alerts).hasSize(1);
         assertThat(alerts.get(0).getMetric()).isEqualTo("rejectionRate");
         assertThat(alerts.get(0).getValue()).isEqualTo(0.06d);
-        verify(operateLogService).log(eq(OperateType.ALERT), eq("system"), eq(alerts.get(0)), eq("app1:pool-a:rejectionRate"), eq(BizType.THREAD_POOL_STATS));
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
     }
 
     @Test
@@ -72,12 +74,11 @@ class StatsAlertServiceTest {
         service.checkAlerts();
         service.checkAlerts();
 
-        verify(operateLogService, org.mockito.Mockito.times(1))
-                .log(eq(OperateType.ALERT), eq("system"), org.mockito.ArgumentMatchers.any(), eq("app1:pool-a:rejectionRate"), eq(BizType.THREAD_POOL_STATS));
+        verify(eventPublisher, org.mockito.Mockito.times(1)).publishEvent(any(AuditEvent.class));
     }
 
     @Test
-    @DisplayName("alert recovery writes ALERT_RECOVERED log")
+    @DisplayName("alert recovery publishes ALERT_RECOVERED AuditEvent")
     void recoveredAlertWritesLog() {
         when(statsPersistenceService.queryRecentStats(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(stats("app1", "pool-a", 100, 6, 10, 100)))
@@ -87,12 +88,14 @@ class StatsAlertServiceTest {
         var recovered = service.checkAlerts();
 
         assertThat(recovered).isEmpty();
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(operateLogService).log(eq(OperateType.ALERT_RECOVERED), eq("system"), captor.capture(), eq("app1:pool-a:rejectionRate"), eq(BizType.THREAD_POOL_STATS));
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(eventPublisher, times(2)).publishEvent(captor.capture());
+        assertThat(captor.getAllValues().get(0).operateType()).isEqualTo(OperateType.ALERT.name());
+        assertThat(captor.getAllValues().get(1).operateType()).isEqualTo(OperateType.ALERT_RECOVERED.name());
     }
 
     @Test
-    @DisplayName("no abnormal metrics writes no alert log")
+    @DisplayName("no abnormal metrics publishes no audit event")
     void noAlert() {
         when(statsPersistenceService.queryRecentStats(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of(stats("app1", "pool-a", 100, 0, 10, 100)));
@@ -100,7 +103,7 @@ class StatsAlertServiceTest {
         var alerts = service.checkAlerts();
 
         assertThat(alerts).isEmpty();
-        verify(operateLogService, never()).log(eq(OperateType.ALERT), eq("system"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), eq(BizType.THREAD_POOL_STATS));
+        verify(eventPublisher, never()).publishEvent(any(AuditEvent.class));
     }
 
     private ThreadPoolStatsEntity stats(String appId, String poolName, long submitted, long rejected,

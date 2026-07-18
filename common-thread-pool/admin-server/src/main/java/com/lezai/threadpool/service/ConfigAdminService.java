@@ -140,8 +140,6 @@ public class ConfigAdminService {
 
         persistenceService.createAppEntry(request.getAppId());
 
-        eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.CREATE.name(), currentOperator(), apiKey, apiKey.getAppId()));
-
         log.info("App created: {} by {}", request.getAppId(), currentOperator());
         return apiKeyConverter.toResponse(apiKey, plainApiKey);
     }
@@ -150,7 +148,6 @@ public class ConfigAdminService {
     public void deleteApp(String appId) {
         configStorage.deleteConfigs(appId);
         apiKeyStorage.deleteApiKey(appId);
-        eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.DELETE.name(), currentOperator(), null, appId));
         log.info("App deleted: {} by {}", appId, currentOperator());
     }
 

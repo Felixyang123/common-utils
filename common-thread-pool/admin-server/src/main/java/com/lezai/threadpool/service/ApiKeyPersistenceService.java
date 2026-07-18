@@ -3,6 +3,7 @@ package com.lezai.threadpool.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.context.AdminUserContextHolder;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.dao.entity.ApiKeyEntity;
@@ -10,7 +11,10 @@ import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
 import com.lezai.threadpool.pojo.bean.ApiKey;
+import com.lezai.threadpool.pojo.bean.PageResult;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +24,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEntity> {
     private final ApiKeyConverter apiKeyConverter;
-    private final OperateLogService logService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<ApiKey> all() {
         return apiKeyConverter.convertApiKeys(list());
@@ -38,7 +42,8 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
         ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(apiKey);
         boolean saved = save(newApiKey);
         if (saved) {
-            logService.log(OperateType.CREATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
+            eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.CREATE.name(),
+                    currentOperator(), newApiKey, String.valueOf(newApiKey.getId())));
         }
         return saved;
     }
@@ -49,14 +54,20 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
     }
 
     public boolean deleteByAppId(String appId) {
-        return remove(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
+        boolean deleted = remove(Wrappers.<ApiKeyEntity>lambdaQuery().eq(ApiKeyEntity::getAppId, appId));
+        if (deleted) {
+            eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.DELETE.name(),
+                    currentOperator(), null, appId));
+        }
+        return deleted;
     }
 
     public boolean updateByAppId(ApiKey apiKey) {
         ApiKeyEntity newApiKey = apiKeyConverter.convertEntity(apiKey);
         boolean updated = update(newApiKey, Wrappers.<ApiKeyEntity>lambdaUpdate().eq(ApiKeyEntity::getAppId, apiKey.getAppId()));
         if (updated) {
-            logService.log(OperateType.UPDATE, currentOperator(), newApiKey, String.valueOf(newApiKey.getId()), BizType.APIKEY);
+            eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.UPDATE.name(),
+                    currentOperator(), newApiKey, String.valueOf(newApiKey.getId())));
         }
         return updated;
     }
