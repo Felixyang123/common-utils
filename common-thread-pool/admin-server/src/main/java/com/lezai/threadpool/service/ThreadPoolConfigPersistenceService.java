@@ -8,11 +8,13 @@ import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigAppRep;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigRep;
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.enums.BizType;
 import com.lezai.threadpool.enums.OperateType;
 import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +36,7 @@ public class ThreadPoolConfigPersistenceService {
 
     private final ThreadPoolConfigConverter configConverter;
 
-    private final OperateLogService logService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<String> allAppIds() {
         return configAppRep.allAppIds();
@@ -93,18 +95,19 @@ public class ThreadPoolConfigPersistenceService {
 
         configRep.saveOrUpdateBatch(allConfigs, 100);
 
-        log(updatedConfigs, OperateType.UPDATE);
-        log(newConfigs, OperateType.CREATE);
+        publishAuditEvent(updatedConfigs, OperateType.UPDATE);
+        publishAuditEvent(newConfigs, OperateType.CREATE);
 
         List<ThreadPoolConfig> configList = configConverter.convertConfigs(totalConfigs);
 
         return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion()).configs(configList).build();
     }
 
-    private void log(List<ThreadPoolConfigEntity> configs, OperateType operateType) {
+    private void publishAuditEvent(List<ThreadPoolConfigEntity> configs, OperateType operateType) {
         String operator = currentOperator();
         for (ThreadPoolConfigEntity config : configs) {
-            logService.log(operateType, operator, config, String.valueOf(config.getId()), BizType.THREADPOOL_CONFIG);
+            eventPublisher.publishEvent(new AuditEvent(
+                    BizType.THREADPOOL_CONFIG.name(), operateType.name(), operator, config, String.valueOf(config.getId())));
         }
     }
 
@@ -129,7 +132,7 @@ public class ThreadPoolConfigPersistenceService {
         configAppRep.remove(Wrappers.<ThreadPoolConfigAppEntity>lambdaQuery().eq(ThreadPoolConfigAppEntity::getAppId, appId));
         configRep.deleteByAppId(appId);
 
-        log(oldConfigs, OperateType.DELETE);
+        publishAuditEvent(oldConfigs, OperateType.DELETE);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -137,11 +140,13 @@ public class ThreadPoolConfigPersistenceService {
         configAppRep.findByAppId(appId).ifPresent(configApp ->
                 configRep.findByAppIdAndPoolName(appId, poolName).ifPresent(config -> {
                     if (configRep.removeById(config)) {
-                        log(List.of(config), OperateType.DELETE);
+                        publishAuditEvent(List.of(config), OperateType.DELETE);
                     }
                     long leftConfigCount = configRep.countByAppId(appId);
                     if (leftConfigCount <= 0 && configAppRep.removeById(appId)) {
-                        logService.log(OperateType.DELETE, currentOperator(), configApp, String.valueOf(configApp.getId()), BizType.THREADPOOL_CONFIG);
+                        eventPublisher.publishEvent(new AuditEvent(
+                                BizType.THREADPOOL_CONFIG.name(), OperateType.DELETE.name(),
+                                currentOperator(), configApp, String.valueOf(configApp.getId())));
                     }
 
                     if (leftConfigCount > 0) {
@@ -182,7 +187,7 @@ public class ThreadPoolConfigPersistenceService {
         boolean saved = configRep.saveBatch(newConfigs, 100);
 
         if (saved) {
-            log(newConfigs, OperateType.CREATE);
+            publishAuditEvent(newConfigs, OperateType.CREATE);
         }
 
         return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion())

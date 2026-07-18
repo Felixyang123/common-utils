@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @RestController
@@ -48,7 +49,21 @@ public class OpenThreadPoolConfigController {
             @Max(value = 60000, message = "timeout必须在1000-60000之间")
             @RequestParam(defaultValue = "30000")
             Long timeout) {
-        return subscriptionService.subscribe(appId, version, timeout);
+        CompletableFuture<ConfigChangeNotification> future = subscriptionService.subscribe(appId, version, timeout);
+        DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> deferredResult =
+                new DeferredResult<>(timeout);
+        future.whenComplete((notification, ex) -> {
+            if (ex != null) {
+                if (ex instanceof java.util.concurrent.TimeoutException) {
+                    deferredResult.setResult(ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
+                } else {
+                    deferredResult.setErrorResult(ex);
+                }
+            } else {
+                deferredResult.setResult(ResponseEntity.ok(ApiResponse.success(notification)));
+            }
+        });
+        return deferredResult;
     }
 
     @GetMapping("/configs/{appId}/pull")

@@ -5,8 +5,10 @@ import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigAppRep;
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.dao.rep.ThreadPoolConfigRep;
 import com.lezai.threadpool.pojo.bean.ThreadPoolConfigApp;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,13 @@ class ThreadPoolConfigPersistenceServiceTest {
     private ThreadPoolConfigConverter configConverter;
 
     @Mock
-    private OperateLogService logService;
+    private ApplicationEventPublisher eventPublisher;
 
     private ThreadPoolConfigPersistenceService service;
 
     @BeforeEach
     void setUp() {
-        service = new ThreadPoolConfigPersistenceService(configRep, configAppRep, configConverter, logService);
+        service = new ThreadPoolConfigPersistenceService(configRep, configAppRep, configConverter, eventPublisher);
     }
 
     @Test
@@ -136,7 +138,7 @@ class ThreadPoolConfigPersistenceServiceTest {
 
         verify(configAppRep).remove(any());
         verify(configRep).deleteByAppId("app1");
-        verify(logService).log(any(), any(), eq(entity), any(), any());
+        verify(eventPublisher).publishEvent(any(AuditEvent.class));
     }
 
     @Test

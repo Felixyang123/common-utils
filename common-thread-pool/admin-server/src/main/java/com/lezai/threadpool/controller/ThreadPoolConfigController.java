@@ -9,6 +9,7 @@ import com.lezai.threadpool.pojo.request.CreateAppRequest;
 import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
 import com.lezai.threadpool.pojo.response.ThreadPoolConfigItemResponse;
 import com.lezai.threadpool.service.ConfigAdminService;
+import com.lezai.threadpool.service.ConfigApplicationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.List;
 public class ThreadPoolConfigController {
 
     private final ConfigAdminService configAdminService;
+    private final ConfigApplicationService configApplicationService;
 
     @GetMapping("/configs")
     public ApiResponse<List<AppConfigSummary>> listApps() {
@@ -46,7 +48,7 @@ public class ThreadPoolConfigController {
             @PathVariable String appId,
             @PathVariable String poolName,
             @Valid @RequestBody ThreadPoolConfig config) {
-        configAdminService.saveConfig(appId, config);
+        configApplicationService.saveConfig(appId, config);
         return ApiResponse.success();
     }
 
@@ -54,13 +56,13 @@ public class ThreadPoolConfigController {
     public ApiResponse<Void> saveConfigs(
             @PathVariable String appId,
             @Valid @RequestBody List<ThreadPoolConfig> configs) {
-        configAdminService.saveConfigs(appId, configs);
+        configApplicationService.saveConfigs(appId, configs);
         return ApiResponse.success();
     }
 
     @DeleteMapping("/configs/{appId}")
     public ApiResponse<Void> deleteConfigs(@PathVariable String appId) {
-        configAdminService.deleteConfigs(appId);
+        configApplicationService.deleteConfigs(appId);
         return ApiResponse.success();
     }
 
@@ -68,7 +70,7 @@ public class ThreadPoolConfigController {
     public ApiResponse<Void> deleteConfig(
             @PathVariable String appId,
             @PathVariable String poolName) {
-        configAdminService.deleteConfig(appId, poolName);
+        configApplicationService.deleteConfig(appId, poolName);
         return ApiResponse.success();
     }
 
@@ -85,17 +87,17 @@ public class ThreadPoolConfigController {
             @PathVariable String appId,
             @PathVariable String poolName,
             @RequestParam long version) {
-        return ApiResponse.success(configAdminService.rollback(appId, poolName, version));
+        return ApiResponse.success(configApplicationService.rollback(appId, poolName, version));
     }
 
     @PostMapping("/apps")
     public ApiResponse<CreateApiKeyResponse> createApp(@Valid @RequestBody CreateAppRequest request) {
-        return ApiResponse.success(configAdminService.createApp(request));
+        return ApiResponse.success(configApplicationService.createApp(request));
     }
 
     @DeleteMapping("/apps/{appId}")
     public ApiResponse<Void> deleteApp(@PathVariable String appId) {
-        configAdminService.deleteApp(appId);
+        configApplicationService.deleteApp(appId);
         return ApiResponse.success();
     }
 

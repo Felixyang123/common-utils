@@ -7,6 +7,7 @@ import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.service.ConfigAdminService;
+import com.lezai.threadpool.service.ConfigApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ class ThreadPoolConfigControllerTest {
 
     @Mock
     private ConfigAdminService configAdminService;
+
+    @Mock
+    private ConfigApplicationService configApplicationService;
 
     @InjectMocks
     private ThreadPoolConfigController controller;
@@ -83,7 +87,7 @@ class ThreadPoolConfigControllerTest {
         mockMvc.perform(delete("/api/thread-pool/configs/app1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
-        verify(configAdminService).deleteConfigs("app1");
+        verify(configApplicationService).deleteConfigs("app1");
     }
 
     @Test
@@ -92,7 +96,7 @@ class ThreadPoolConfigControllerTest {
         mockMvc.perform(delete("/api/thread-pool/configs/app1/test-pool"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
-        verify(configAdminService).deleteConfig("app1", "test-pool");
+        verify(configApplicationService).deleteConfig("app1", "test-pool");
     }
 }
 

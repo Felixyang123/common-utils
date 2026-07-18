@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -180,11 +181,8 @@ class OpenThreadPoolConfigControllerTest {
                 .version(5L)
                 .build();
 
-        DeferredResult<ResponseEntity<com.lezai.threadpool.bean.ApiResponse<ConfigChangeNotification>>> deferredResult =
-                new DeferredResult<>(30000L);
-        deferredResult.setResult(ResponseEntity.ok(com.lezai.threadpool.bean.ApiResponse.success(notification)));
-
-        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(deferredResult);
+        CompletableFuture<ConfigChangeNotification> future = CompletableFuture.completedFuture(notification);
+        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(future);
 
         MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "3"))
@@ -202,16 +200,17 @@ class OpenThreadPoolConfigControllerTest {
     @Test
     @DisplayName("GET /open/api/thread-pool/configs/{appId}/subscribe returns a real HTTP 304 on timeout, not a 200-wrapped code")
     void subscribe_timeoutReturnsRealHttp304() throws Exception {
-        DeferredResult<ResponseEntity<com.lezai.threadpool.bean.ApiResponse<ConfigChangeNotification>>> deferredResult =
-                new DeferredResult<>(30000L);
-        deferredResult.setResult(ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
-
-        when(subscriptionService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(deferredResult);
+        CompletableFuture<ConfigChangeNotification> future = new CompletableFuture<>();
+        // 模拟超时：异步完成异常
+        when(subscriptionService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(future);
 
         MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "5"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
+
+        // 模拟超时异常
+        future.completeExceptionally(new java.util.concurrent.TimeoutException("timeout"));
 
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isNotModified());
