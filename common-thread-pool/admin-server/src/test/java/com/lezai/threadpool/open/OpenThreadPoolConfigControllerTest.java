@@ -11,7 +11,6 @@ import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.exception.GlobalExceptionHandler;
 import com.lezai.threadpool.exception.ResourceNotModifiedException;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
-import com.lezai.threadpool.service.SubscriptionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,9 +46,6 @@ class OpenThreadPoolConfigControllerTest {
 
     @Mock
     private OpenThreadPoolConfigService openThreadPoolConfigService;
-
-    @Mock
-    private SubscriptionService subscriptionService;
 
     @InjectMocks
     private OpenThreadPoolConfigController controller;
@@ -182,7 +178,7 @@ class OpenThreadPoolConfigControllerTest {
                 .build();
 
         CompletableFuture<ConfigChangeNotification> future = CompletableFuture.completedFuture(notification);
-        when(subscriptionService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(future);
+        when(openThreadPoolConfigService.subscribe(eq("app1"), eq(3L), anyLong())).thenReturn(future);
 
         MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "3"))
@@ -202,7 +198,7 @@ class OpenThreadPoolConfigControllerTest {
     void subscribe_timeoutReturnsRealHttp304() throws Exception {
         CompletableFuture<ConfigChangeNotification> future = new CompletableFuture<>();
         // 模拟超时：异步完成异常
-        when(subscriptionService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(future);
+        when(openThreadPoolConfigService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(future);
 
         MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
                         .param("version", "5"))

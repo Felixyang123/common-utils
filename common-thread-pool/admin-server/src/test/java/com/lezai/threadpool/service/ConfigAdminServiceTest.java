@@ -5,8 +5,10 @@ import com.lezai.threadpool.pojo.bean.ConfigSnapshot;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.storage.ConfigSnapshotStorage;
 import com.lezai.threadpool.storage.ConfigStorage;
@@ -43,11 +45,17 @@ class ConfigAdminServiceTest {
     @Mock
     private ThreadPoolConfigConverter configConverter;
 
+    @Mock
+    private ApiKeyConverter apiKeyConverter;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ConfigAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ConfigAdminService(configStorage, snapshotStorage, apiKeyStorage, persistenceService, configConverter);
+        service = new ConfigAdminService(configStorage, snapshotStorage, apiKeyStorage, persistenceService, configConverter, apiKeyConverter, eventPublisher);
     }
 
     // ==================== getAppConfig ====================

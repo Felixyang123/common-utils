@@ -48,6 +48,8 @@ public class ThreadPoolConfigPersistenceService {
         ThreadPoolConfigAppEntity entity = ThreadPoolConfigAppEntity.builder()
                 .appId(appId).version(0L).build();
         configAppRep.save(entity);
+        eventPublisher.publishEvent(new AuditEvent(BizType.THREADPOOL_CONFIG.name(), OperateType.CREATE.name(),
+                currentOperator(), entity, String.valueOf(entity.getId())));
         log.info("Created app entry: {}", appId);
     }
 
@@ -209,6 +211,8 @@ public class ThreadPoolConfigPersistenceService {
         }
         configRep.getBaseMapper().restore(deleted.getId());
         configAppRep.getBaseMapper().restore(deleted.getAppId());
+        eventPublisher.publishEvent(new AuditEvent(BizType.THREADPOOL_CONFIG.name(), OperateType.RESTORE.name(),
+                currentOperator(), deleted, String.valueOf(deleted.getId())));
         return deleted;
     }
 
@@ -216,5 +220,7 @@ public class ThreadPoolConfigPersistenceService {
     public void restoreConfigsByAppId(String appId) {
         configRep.getBaseMapper().restoreByAppId(appId);
         configAppRep.getBaseMapper().restore(appId);
+        eventPublisher.publishEvent(new AuditEvent(BizType.THREADPOOL_CONFIG.name(), OperateType.RESTORE.name(),
+                currentOperator(), null, appId));
     }
 }

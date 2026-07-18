@@ -17,6 +17,7 @@ class OperateTypeTest {
                 OperateType.REGENERATE,
                 OperateType.UPSERT,
                 OperateType.ROLLBACK,
+                OperateType.RESTORE,
                 OperateType.ALERT,
                 OperateType.ALERT_RECOVERED
         );

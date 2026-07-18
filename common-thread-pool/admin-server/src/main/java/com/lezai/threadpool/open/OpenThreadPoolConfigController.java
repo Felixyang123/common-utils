@@ -7,7 +7,6 @@ import com.lezai.threadpool.bean.ThreadPoolStatsReport;
 import com.lezai.threadpool.bean.AddConfigAppResult;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
-import com.lezai.threadpool.service.SubscriptionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -31,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 public class OpenThreadPoolConfigController {
 
     private final OpenThreadPoolConfigService openThreadPoolConfigService;
-    private final SubscriptionService subscriptionService;
 
     @PostMapping("/configs/{appId}/add")
     public ApiResponse<AddConfigAppResult> addConfigs(
@@ -49,11 +47,15 @@ public class OpenThreadPoolConfigController {
             @Max(value = 60000, message = "timeout必须在1000-60000之间")
             @RequestParam(defaultValue = "30000")
             Long timeout) {
-        CompletableFuture<ConfigChangeNotification> future = subscriptionService.subscribe(appId, version, timeout);
+        CompletableFuture<ConfigChangeNotification> future = openThreadPoolConfigService.subscribe(appId, version, timeout);
         DeferredResult<ResponseEntity<ApiResponse<ConfigChangeNotification>>> deferredResult =
                 new DeferredResult<>(timeout);
         future.whenComplete((notification, ex) -> {
+            if (deferredResult.isSetOrExpired()) {
+                return;
+            }
             if (ex != null) {
+                // 超时返回 304 NOT_MODIFIED（长轮询正常语义）
                 if (ex instanceof java.util.concurrent.TimeoutException) {
                     deferredResult.setResult(ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
                 } else {
@@ -63,6 +65,7 @@ public class OpenThreadPoolConfigController {
                 deferredResult.setResult(ResponseEntity.ok(ApiResponse.success(notification)));
             }
         });
+        deferredResult.onTimeout(() -> future.cancel(true));
         return deferredResult;
     }
 

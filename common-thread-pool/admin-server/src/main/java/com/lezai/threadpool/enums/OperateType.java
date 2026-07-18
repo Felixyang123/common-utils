@@ -7,6 +7,7 @@ public enum OperateType {
     REGENERATE,
     UPSERT,
     ROLLBACK,
+    RESTORE,
     ALERT,
     ALERT_RECOVERED
 }

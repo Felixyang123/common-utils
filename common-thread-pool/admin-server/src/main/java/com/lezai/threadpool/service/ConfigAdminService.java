@@ -1,9 +1,13 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.bean.ThreadPoolConfigResp;
 import com.lezai.threadpool.context.AdminUserContextHolder;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
+import com.lezai.threadpool.enums.BizType;
+import com.lezai.threadpool.enums.OperateType;
 import com.lezai.threadpool.exception.ResourceAlreadyExistsException;
 import com.lezai.threadpool.exception.ResourceNotFoundException;
 import com.lezai.threadpool.pojo.bean.AdminUserContext;
@@ -19,10 +23,9 @@ import com.lezai.threadpool.storage.ConfigStorage;
 import com.lezai.threadpool.utils.ApiKeyUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -35,6 +38,8 @@ public class ConfigAdminService {
     private final ApiKeyStorage apiKeyStorage;
     private final ThreadPoolConfigPersistenceService persistenceService;
     private final ThreadPoolConfigConverter configConverter;
+    private final ApiKeyConverter apiKeyConverter;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<AppConfigSummary> listApps() {
         return configStorage.listAppIds().stream()
@@ -127,15 +132,7 @@ public class ConfigAdminService {
         String plainApiKey = ApiKeyUtils.generateRandomApiKey();
         String apiKeyHash = ApiKeyUtils.hashApiKey(plainApiKey);
 
-        ApiKey apiKey = ApiKey.builder()
-                .appId(request.getAppId())
-                .apiKeyHash(apiKeyHash)
-                .appName(request.getAppName())
-                .enabled(true)
-                .createTime(LocalDateTime.now())
-                .expireTime(null)
-                .description(request.getDescription())
-                .build();
+        ApiKey apiKey = apiKeyConverter.toEntity(request, plainApiKey, apiKeyHash);
 
         if (!apiKeyStorage.putIfAbsent(apiKey)) {
             throw new ResourceAlreadyExistsException("App already exists: " + request.getAppId());
@@ -143,22 +140,17 @@ public class ConfigAdminService {
 
         persistenceService.createAppEntry(request.getAppId());
 
-        CreateApiKeyResponse response = new CreateApiKeyResponse();
-        response.setAppId(apiKey.getAppId());
-        response.setApiKey(plainApiKey);
-        response.setAppName(apiKey.getAppName());
-        response.setEnabled(apiKey.isEnabled());
-        response.setCreateTime(apiKey.getCreateTime());
-        response.setDescription(apiKey.getDescription());
+        eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.CREATE.name(), currentOperator(), apiKey, apiKey.getAppId()));
 
         log.info("App created: {} by {}", request.getAppId(), currentOperator());
-        return response;
+        return apiKeyConverter.toResponse(apiKey, plainApiKey);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public void deleteApp(String appId) {
         configStorage.deleteConfigs(appId);
         apiKeyStorage.deleteApiKey(appId);
+        eventPublisher.publishEvent(new AuditEvent(BizType.APIKEY.name(), OperateType.DELETE.name(), currentOperator(), null, appId));
         log.info("App deleted: {} by {}", appId, currentOperator());
     }
 
