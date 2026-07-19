@@ -93,6 +93,13 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
     }
 
     @Override
+    public List<ThreadPoolAppConfig> listAllAppConfigs() {
+        return configService.listAllAppConfigs().stream()
+                .map(configConverter::dtoConvertAppConfig)
+                .toList();
+    }
+
+    @Override
     public AddConfigAppResult addConfigs(String appId, List<ThreadPoolConfig> configs) {
         return compute(appId, () -> {
             ThreadPoolConfigApp dto = configService.addConfigApp(appId, configs);

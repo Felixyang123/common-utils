@@ -73,6 +73,11 @@ public interface ConfigStorage {
     Optional<ThreadPoolAppConfig> getAppConfig(String appId);
 
     /**
+     * 批量获取所有应用的完整配置（单次查询，避免 N+1）
+     */
+    List<ThreadPoolAppConfig> listAllAppConfigs();
+
+    /**
      * 批量添加配置，不存在则保存
      *
      * @param appId

@@ -12,9 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -27,10 +27,10 @@ public class StatsAlertService {
 
     private final ThreadPoolStatsPersistenceService statsPersistenceService;
     private final ApplicationEventPublisher eventPublisher;
-    private final Map<String, LocalDateTime> lastAlertTime = new HashMap<>();
-    private final Map<String, PoolAlert> activeAlerts = new HashMap<>();
+    private final Map<String, LocalDateTime> lastAlertTime = new ConcurrentHashMap<>();
+    private final Map<String, PoolAlert> activeAlerts = new ConcurrentHashMap<>();
 
-    public synchronized List<PoolAlert> checkAlerts() {
+    public List<PoolAlert> checkAlerts() {
         LocalDateTime now = LocalDateTime.now();
         List<ThreadPoolStatsEntity> recentStats = statsPersistenceService.queryRecentStats(now.minusMinutes(5));
         Map<String, List<ThreadPoolStatsEntity>> grouped = recentStats.stream()

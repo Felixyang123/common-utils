@@ -61,6 +61,23 @@ public class ThreadPoolConfigPersistenceService {
         });
     }
 
+    /**
+     * 批量获取所有应用配置（单次查询，避免 N+1）
+     */
+    public List<ThreadPoolConfigApp> listAllAppConfigs() {
+        List<ThreadPoolConfigAppEntity> appEntities = configAppRep.list();
+        if (appEntities.isEmpty()) {
+            return List.of();
+        }
+        List<String> appIds = appEntities.stream().map(ThreadPoolConfigAppEntity::getAppId).toList();
+        List<ThreadPoolConfigEntity> configEntities = configRep.findByAppIds(appIds);
+        Map<String, List<ThreadPoolConfigEntity>> configsByAppId = configEntities.stream()
+                .collect(Collectors.groupingBy(ThreadPoolConfigEntity::getAppId));
+        return appEntities.stream()
+                .map(e -> configConverter.buildConfigApp(e, configsByAppId.getOrDefault(e.getAppId(), List.of())))
+                .toList();
+    }
+
     public List<ThreadPoolConfig> listByAppId(String appId) {
         return configConverter.convertConfigs(configRep.findByAppId(appId));
     }

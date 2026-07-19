@@ -42,14 +42,12 @@ public class ConfigAdminService {
     private final ApplicationEventPublisher eventPublisher;
 
     public List<AppConfigSummary> listApps() {
-        return configStorage.listAppIds().stream()
-                .map(appId -> configStorage.getAppConfig(appId)
-                        .map(ac -> AppConfigSummary.builder()
-                                .appId(appId)
-                                .configVersion(ac.getConfigVersion())
-                                .poolCount(ac.getConfigs() != null ? ac.getConfigs().size() : 0)
-                                .build())
-                        .orElse(AppConfigSummary.builder().appId(appId).configVersion(0).poolCount(0).build()))
+        return configStorage.listAllAppConfigs().stream()
+                .map(appConfig -> AppConfigSummary.builder()
+                        .appId(appConfig.getAppId())
+                        .configVersion(appConfig.getConfigVersion())
+                        .poolCount(appConfig.getConfigs() != null ? appConfig.getConfigs().size() : 0)
+                        .build())
                 .toList();
     }
 

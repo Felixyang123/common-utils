@@ -89,7 +89,9 @@ CREATE TABLE IF NOT EXISTS thread_pool_stats (
   collect_time               DATETIME,
   deleted                    TINYINT      NOT NULL DEFAULT 0,
   create_time                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  update_time                DATETIME
+  update_time                DATETIME,
+  INDEX idx_collect_time (collect_time),
+  INDEX idx_app_pool_collect (app_id, pool_name, collect_time)
 );
 
 -- 操作审计日志（通用审计，记录"谁在何时做了什么"）

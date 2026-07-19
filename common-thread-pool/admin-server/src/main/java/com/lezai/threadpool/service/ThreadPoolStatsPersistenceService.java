@@ -104,11 +104,21 @@ public class ThreadPoolStatsPersistenceService extends ServiceImpl<ThreadPoolSta
     }
 
     public int cleanRawStatsBefore(LocalDateTime before) {
-        return jdbcTemplate.update("DELETE FROM thread_pool_stats WHERE collect_time < ?", before);
+        return batchDelete("DELETE FROM thread_pool_stats WHERE collect_time < ? LIMIT 5000", before);
     }
 
     public int cleanDailyStatsBefore(LocalDate before) {
-        return jdbcTemplate.update("DELETE FROM thread_pool_stats_daily WHERE stat_date < ?", before);
+        return batchDelete("DELETE FROM thread_pool_stats_daily WHERE stat_date < ? LIMIT 5000", before);
+    }
+
+    private int batchDelete(String sql, Object param) {
+        int totalDeleted = 0;
+        int deleted;
+        do {
+            deleted = jdbcTemplate.update(sql, param);
+            totalDeleted += deleted;
+        } while (deleted > 0);
+        return totalDeleted;
     }
 
     public void saveMockStats(String appId, String poolName, int count) {

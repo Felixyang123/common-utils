@@ -20,6 +20,16 @@ public class ThreadPoolConfigRep extends ServiceImpl<ThreadPoolConfigMapper, Thr
     }
 
     /**
+     * 根据多个 appId 批量查询配置列表
+     */
+    public List<ThreadPoolConfigEntity> findByAppIds(List<String> appIds) {
+        if (appIds == null || appIds.isEmpty()) {
+            return List.of();
+        }
+        return list(Wrappers.<ThreadPoolConfigEntity>lambdaQuery().in(ThreadPoolConfigEntity::getAppId, appIds));
+    }
+
+    /**
      * 根据 appId 和 poolName 查询配置
      */
     public Optional<ThreadPoolConfigEntity> findByAppIdAndPoolName(String appId, String poolName) {
