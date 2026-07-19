@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lezai.threadpool.audit.AuditEvent;
 import com.lezai.threadpool.context.AdminUserContextHolder;
-import com.lezai.threadpool.context.ClientContextHolder;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.dao.mapper.ApiKeyMapper;
@@ -74,8 +73,6 @@ public class ApiKeyPersistenceService extends ServiceImpl<ApiKeyMapper, ApiKeyEn
     }
 
     private String currentOperator() {
-        String client = ClientContextHolder.get();
-        if (client != null) return "client:" + client;
         var ctx = AdminUserContextHolder.get();
         return ctx != null ? ctx.getUsername() : "system";
     }
