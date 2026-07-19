@@ -2,6 +2,7 @@ package com.lezai.threadpool.interceptor;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.threadpool.bean.ApiResponse;
+import com.lezai.threadpool.context.ClientContextHolder;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import com.lezai.threadpool.utils.LogContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -71,6 +72,7 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
             log.debug("API key validation passed - AppId: {}", appId);
         }
 
+        ClientContextHolder.set(appId);
         return true;
     }
 
@@ -78,6 +80,7 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
         LogContext.clear();
+        ClientContextHolder.clear();
     }
 
     /**

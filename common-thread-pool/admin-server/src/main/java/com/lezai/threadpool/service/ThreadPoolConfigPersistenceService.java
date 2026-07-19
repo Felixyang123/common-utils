@@ -3,6 +3,7 @@ package com.lezai.threadpool.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.lezai.threadpool.bean.ThreadPoolConfig;
 import com.lezai.threadpool.context.AdminUserContextHolder;
+import com.lezai.threadpool.context.ClientContextHolder;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigAppEntity;
 import com.lezai.threadpool.dao.entity.ThreadPoolConfigEntity;
@@ -131,6 +132,8 @@ public class ThreadPoolConfigPersistenceService {
     }
 
     private String currentOperator() {
+        String client = ClientContextHolder.get();
+        if (client != null) return "client:" + client;
         var ctx = AdminUserContextHolder.get();
         return ctx != null ? ctx.getUsername() : "system";
     }
