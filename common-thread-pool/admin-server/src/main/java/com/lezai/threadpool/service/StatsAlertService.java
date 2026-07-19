@@ -88,11 +88,13 @@ public class StatsAlertService {
     private void recordAlertIfNeeded(PoolAlert alert, LocalDateTime now) {
         String key = key(alert);
         activeAlerts.put(key, alert);
-        LocalDateTime last = lastAlertTime.get(key);
-        if (last == null || last.plusMinutes(30).isBefore(now)) {
-            eventPublisher.publishEvent(new AuditEvent(BizType.THREAD_POOL_STATS.name(), OperateType.ALERT.name(),
-                    "system", alert, key));
-            lastAlertTime.put(key, now);
+        synchronized (lastAlertTime) {
+            LocalDateTime last = lastAlertTime.get(key);
+            if (last == null || last.plusMinutes(30).isBefore(now)) {
+                eventPublisher.publishEvent(new AuditEvent(BizType.THREAD_POOL_STATS.name(), OperateType.ALERT.name(),
+                        "system", alert, key));
+                lastAlertTime.put(key, now);
+            }
         }
     }
 
