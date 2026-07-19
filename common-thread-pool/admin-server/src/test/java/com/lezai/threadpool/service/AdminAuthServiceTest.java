@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.converter.AdminAuthConverter;
 import com.lezai.threadpool.pojo.bean.AdminUser;
 import com.lezai.threadpool.pojo.request.AdminLoginRequest;
 import com.lezai.threadpool.pojo.response.AdminLoginResponse;
@@ -17,6 +18,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,13 +30,24 @@ class AdminAuthServiceTest {
     @Mock
     private AdminUserStorage adminUserStorage;
 
+    @Mock
+    private AdminAuthConverter adminAuthConverter;
+
     private AdminAuthService authService;
 
     private AdminUser adminUser;
 
     @BeforeEach
     void setUp() {
-        authService = new AdminAuthService(adminUserStorage, SECRET, 30L);
+        lenient().when(adminAuthConverter.toLoginResponse(any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    AdminLoginResponse resp = new AdminLoginResponse();
+                    resp.setToken(invocation.getArgument(0));
+                    resp.setUsername(invocation.getArgument(1));
+                    resp.setExpiresInSeconds(((java.time.Duration) invocation.getArgument(2)).getSeconds());
+                    return resp;
+                });
+        authService = new AdminAuthService(adminUserStorage, adminAuthConverter, SECRET, 30L);
         adminUser = AdminUser.builder()
                 .username("admin")
                 .passwordHash(PasswordUtils.hash("secret123"))
@@ -94,7 +108,7 @@ class AdminAuthServiceTest {
         when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
         String token = authService.login(loginRequest("admin", "secret123")).getToken();
 
-        AdminAuthService otherService = new AdminAuthService(adminUserStorage, "a-completely-different-secret-32-bytes!!", 30L);
+        AdminAuthService otherService = new AdminAuthService(adminUserStorage, adminAuthConverter, "a-completely-different-secret-32-bytes!!", 30L);
 
         assertThatThrownBy(() -> otherService.validateToken(token))
                 .isInstanceOf(AuthenticationException.class);
@@ -104,7 +118,7 @@ class AdminAuthServiceTest {
     @DisplayName("validateToken rejects an expired token")
     void validateToken_expiredToken_throws() throws InterruptedException {
         when(adminUserStorage.getByUsername("admin")).thenReturn(Optional.of(adminUser));
-        AdminAuthService shortLivedService = new AdminAuthService(adminUserStorage, SECRET, 0L);
+        AdminAuthService shortLivedService = new AdminAuthService(adminUserStorage, adminAuthConverter, SECRET, 0L);
 
         String token = shortLivedService.login(loginRequest("admin", "secret123")).getToken();
 

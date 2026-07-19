@@ -1,5 +1,6 @@
 package com.lezai.threadpool.config;
 
+import com.lezai.threadpool.converter.AdminAuthConverter;
 import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.converter.ThreadPoolConfigConverter;
 import com.lezai.threadpool.converter.ThreadPoolStatsConverter;
@@ -128,10 +129,10 @@ public class AdminServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage, AdminAuthProperty authProperty) {
+    public AdminAuthService adminAuthService(AdminUserStorage adminUserStorage, AdminAuthConverter adminAuthConverter, AdminAuthProperty authProperty) {
         log.info("Initializing AdminAuthService, auth-enabled: {}, token-expire-minutes: {}",
                 authProperty.getEnabled(), authProperty.getTokenExpireMinutes());
-        return new AdminAuthService(adminUserStorage, authProperty.getSecret(), authProperty.getTokenExpireMinutes());
+        return new AdminAuthService(adminUserStorage, adminAuthConverter, authProperty.getSecret(), authProperty.getTokenExpireMinutes());
     }
 
     @Bean

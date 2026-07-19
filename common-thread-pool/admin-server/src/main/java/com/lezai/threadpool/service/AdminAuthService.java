@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.converter.AdminAuthConverter;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.pojo.bean.AdminUser;
 import com.lezai.threadpool.pojo.bean.AdminUserContext;
@@ -30,11 +31,14 @@ public class AdminAuthService {
     private static final String CLAIM_NICKNAME = "nickname";
 
     private final AdminUserStorage adminUserStorage;
+    private final AdminAuthConverter adminAuthConverter;
     private final SecretKey signingKey;
     private final long tokenExpireMinutes;
 
-    public AdminAuthService(AdminUserStorage adminUserStorage, String secret, long tokenExpireMinutes) {
+    public AdminAuthService(AdminUserStorage adminUserStorage, AdminAuthConverter adminAuthConverter,
+                            String secret, long tokenExpireMinutes) {
         this.adminUserStorage = adminUserStorage;
+        this.adminAuthConverter = adminAuthConverter;
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.tokenExpireMinutes = tokenExpireMinutes;
     }
@@ -64,13 +68,8 @@ public class AdminAuthService {
                 .signWith(signingKey)
                 .compact();
 
-        AdminLoginResponse response = new AdminLoginResponse();
-        response.setToken(token);
-        response.setUsername(request.getUsername());
-        response.setExpiresInSeconds(expiry.toSeconds());
-
         log.info("Admin login successful: {} ({})", request.getUsername(), adminUser.getRole());
-        return response;
+        return adminAuthConverter.toLoginResponse(token, request.getUsername(), expiry);
     }
 
     public AdminUserContext validateToken(String token) {

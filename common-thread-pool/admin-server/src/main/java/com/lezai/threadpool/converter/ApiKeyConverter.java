@@ -3,7 +3,9 @@ package com.lezai.threadpool.converter;
 import com.lezai.threadpool.dao.entity.ApiKeyEntity;
 import com.lezai.threadpool.pojo.bean.ApiKey;
 import com.lezai.threadpool.pojo.request.CreateAppRequest;
+import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
+import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
@@ -35,4 +37,12 @@ public interface ApiKeyConverter {
     @Mapping(target = "createTime", source = "apiKey.createTime")
     @Mapping(target = "description", source = "apiKey.description")
     CreateApiKeyResponse toResponse(ApiKey apiKey, String plainApiKey);
+
+    @Mapping(target = "expired", expression = "java(apiKey.isExpired())")
+    @Mapping(target = "valid", expression = "java(apiKey.isValid())")
+    ApiKeyInfoResponse toInfo(ApiKey apiKey);
+
+    @Mapping(target = "appId", source = "appId")
+    @Mapping(target = "apiKey", source = "plainApiKey")
+    RegenerateApiKeyResponse toRegenerateResponse(String appId, String plainApiKey);
 }

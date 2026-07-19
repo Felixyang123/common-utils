@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.pojo.bean.ApiKey;
 import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
 import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
@@ -26,8 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,11 +36,50 @@ class ApiKeyAdminServiceTest {
     @Mock
     private ApiKeyStorage apiKeyStorage;
 
+    @Mock
+    private ApiKeyConverter apiKeyConverter;
+
     private ApiKeyAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApiKeyAdminService(apiKeyStorage);
+        lenient().when(apiKeyConverter.toResponse(any(ApiKey.class), anyString()))
+                .thenAnswer(invocation -> {
+                    ApiKey apiKey = invocation.getArgument(0);
+                    String plainApiKey = invocation.getArgument(1);
+                    CreateApiKeyResponse resp = new CreateApiKeyResponse();
+                    resp.setAppId(apiKey.getAppId());
+                    resp.setApiKey(plainApiKey);
+                    resp.setAppName(apiKey.getAppName());
+                    resp.setEnabled(apiKey.isEnabled());
+                    resp.setCreateTime(apiKey.getCreateTime());
+                    resp.setExpireTime(apiKey.getExpireTime());
+                    resp.setDescription(apiKey.getDescription());
+                    return resp;
+                });
+        lenient().when(apiKeyConverter.toInfo(any(ApiKey.class)))
+                .thenAnswer(invocation -> {
+                    ApiKey apiKey = invocation.getArgument(0);
+                    ApiKeyInfoResponse resp = new ApiKeyInfoResponse();
+                    resp.setAppId(apiKey.getAppId());
+                    resp.setAppName(apiKey.getAppName());
+                    resp.setEnabled(apiKey.isEnabled());
+                    resp.setExpired(apiKey.isExpired());
+                    resp.setValid(apiKey.isValid());
+                    resp.setCreateTime(apiKey.getCreateTime());
+                    resp.setExpireTime(apiKey.getExpireTime());
+                    resp.setUpdateTime(apiKey.getUpdateTime());
+                    resp.setDescription(apiKey.getDescription());
+                    return resp;
+                });
+        lenient().when(apiKeyConverter.toRegenerateResponse(anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    RegenerateApiKeyResponse resp = new RegenerateApiKeyResponse();
+                    resp.setAppId(invocation.getArgument(0));
+                    resp.setApiKey(invocation.getArgument(1));
+                    return resp;
+                });
+        service = new ApiKeyAdminService(apiKeyStorage, apiKeyConverter);
     }
 
     // ==================== createApiKey ====================

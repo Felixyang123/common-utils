@@ -67,18 +67,34 @@ class JdbcIdempotentStorageTest {
     }
 
     @Test
-    @DisplayName("获取不存在的记录返回null")
+    @DisplayName("获取不存在的记录返回 null(EmptyResultDataAccessException 转换为 null 语义)")
     void testGetNonExistentRecord() {
         when(jdbcTemplate.queryForObject(
-            anyString(), 
-            any(RowMapper.class), 
-            anyString(), 
+            anyString(),
+            any(RowMapper.class),
+            anyString(),
             any(LocalDateTime.class)
-        )).thenThrow(new RuntimeException("Empty result"));
+        )).thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
 
         IdempotentRecord result = storage.get("non-existent-key");
 
+        // Spring 标准"无记录"信号(EmptyResult)被转换为 null,符合"null ⟹ 无记录"契约
         assertNull(result);
+    }
+
+    @Test
+    @DisplayName("SQL 执行异常上抛而不是包装为 null(异常 ≠ 无记录)")
+    void testGetWithSqlExceptionPropagates() {
+        when(jdbcTemplate.queryForObject(
+            anyString(),
+            any(RowMapper.class),
+            eq("sql-error-key"),
+            any(LocalDateTime.class)
+        )).thenThrow(new org.springframework.dao.DataAccessException("DB connection lost") {});
+
+        // DataAccessException 不是"无记录",不允许包装成 null
+        assertThrows(org.springframework.dao.DataAccessException.class,
+                () -> storage.get("sql-error-key"));
     }
 
     @Test

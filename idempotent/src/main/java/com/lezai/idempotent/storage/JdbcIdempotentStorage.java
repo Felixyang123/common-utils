@@ -1,9 +1,10 @@
 package com.lezai.idempotent.storage;
 
 import com.lezai.idempotent.core.IdempotentRecord;
-import com.lezai.idempotent.enums.IdempotentStatus;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -12,8 +13,13 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 
 /**
- * JDBC 存储实现
- * 遵循 MySQL 范式，不使用 JSON 存储
+ * JDBC 存储实现。
+ *
+ * <p>遵循 IdempotentStorage 接口契约 (ADR-0002):get/remove/exists 在 SQL 执行
+ * 失败或反序列化失败时上抛异常(让 Spring 的 DataAccessException 自然传播),
+ * 由调用方决定是否 fail-fast。返回 {@code null} 唯一语义 = "幂等键不存在"。
+ * 唯一合法的"无记录"信号是 queryForObject 未命中返回 null,但不应当在 catch
+ * 中捕获异常并返回 null —— 那表示"我们不知道",与真正的无记录语义混淆。</p>
  */
 @Slf4j
 @AllArgsConstructor
@@ -28,21 +34,23 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
     }
 
 
+    /**
+     * 查询幂等记录。未命中时 queryForObject 返回 null(已约定为"无记录"语义),
+     * 其他异常(SQL 失败 / 反序列化失败)上抛 {@link DataAccessException} 或
+     * RuntimeException,不允许吞掉返回 null。
+     */
     @Override
     public IdempotentRecord get(String key) {
         String sql = "SELECT * FROM " + tableName + " WHERE idempotent_key = ? AND expire_time > ?";
-
         try {
-            return jdbcTemplate.queryForObject(
-                    sql,
-                    new IdempotentRecordRowMapper(),
-                    key,
-                    LocalDateTime.now()
-            );
-        } catch (Exception e) {
-            log.debug("No record found for key: {}", key);
+            // 未命中时 queryForObject 抛 EmptyResultDataAccessException(这是 Spring
+            // 标准的"无记录"信号),我们转换为 null 以符合"null ⟹ 无记录"契约
+            return jdbcTemplate.queryForObject(sql, new IdempotentRecordRowMapper(), key, LocalDateTime.now());
+        } catch (EmptyResultDataAccessException e) {
+            // 未命中 = 幂等键不存在(合法的 null 语义),与"存储不可用"严格区分
             return null;
         }
+        // 其他 DataAccessException(SQL 失败等)自然上抛,不允许在这里吞掉
     }
 
     @Override
@@ -81,18 +89,6 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
         String sql = "SELECT COUNT(*) FROM " + tableName + " WHERE idempotent_key = ? AND expire_time > ?";
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, key, LocalDateTime.now());
         return count != null && count > 0;
-    }
-
-    /**
-     * 序列化结果（简单实现，可根据需要扩展）
-     */
-    private String serializeResult(Object result) {
-        if (result == null) {
-            return null;
-        }
-        // 简单实现：仅支持字符串类型
-        // 实际生产环境可以使用 JSON 序列化或其他方式
-        return result.toString();
     }
 
     /**

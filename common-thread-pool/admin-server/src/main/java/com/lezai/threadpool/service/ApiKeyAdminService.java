@@ -6,6 +6,7 @@ import com.lezai.threadpool.pojo.bean.ApiKey;
 import com.lezai.threadpool.pojo.bean.PageResult;
 import com.lezai.threadpool.pojo.request.CreateApiKeyRequest;
 import com.lezai.threadpool.pojo.request.UpdateApiKeyRequest;
+import com.lezai.threadpool.converter.ApiKeyConverter;
 import com.lezai.threadpool.pojo.response.ApiKeyInfoResponse;
 import com.lezai.threadpool.pojo.response.CreateApiKeyResponse;
 import com.lezai.threadpool.pojo.response.RegenerateApiKeyResponse;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class ApiKeyAdminService {
 
     private final ApiKeyStorage apiKeyStorage;
+    private final ApiKeyConverter apiKeyConverter;
 
     public CreateApiKeyResponse createApiKey(CreateApiKeyRequest request) {
         log.info("Creating API key for appId: {}", request.getAppId());
@@ -47,17 +49,7 @@ public class ApiKeyAdminService {
         }
 
         log.info("API key created successfully for appId: {}", request.getAppId());
-
-        CreateApiKeyResponse response = new CreateApiKeyResponse();
-        response.setAppId(apiKey.getAppId());
-        response.setApiKey(plainApiKey);
-        response.setAppName(apiKey.getAppName());
-        response.setEnabled(apiKey.isEnabled());
-        response.setCreateTime(apiKey.getCreateTime());
-        response.setExpireTime(apiKey.getExpireTime());
-        response.setDescription(apiKey.getDescription());
-
-        return response;
+        return apiKeyConverter.toResponse(apiKey, plainApiKey);
     }
 
     public void deleteApiKey(String appId) {
@@ -112,25 +104,11 @@ public class ApiKeyAdminService {
 
         String newApiKey = apiKeyStorage.regenerateApiKey(appId);
 
-        RegenerateApiKeyResponse response = new RegenerateApiKeyResponse();
-        response.setAppId(appId);
-        response.setApiKey(newApiKey);
-
-        return response;
+        return apiKeyConverter.toRegenerateResponse(appId, newApiKey);
     }
 
     private ApiKeyInfoResponse toApiKeyInfo(ApiKey apiKey) {
-        ApiKeyInfoResponse info = new ApiKeyInfoResponse();
-        info.setAppId(apiKey.getAppId());
-        info.setAppName(apiKey.getAppName());
-        info.setEnabled(apiKey.isEnabled());
-        info.setExpired(apiKey.isExpired());
-        info.setValid(apiKey.isValid());
-        info.setCreateTime(apiKey.getCreateTime());
-        info.setExpireTime(apiKey.getExpireTime());
-        info.setUpdateTime(apiKey.getUpdateTime());
-        info.setDescription(apiKey.getDescription());
-        return info;
+        return apiKeyConverter.toInfo(apiKey);
     }
 }
 
