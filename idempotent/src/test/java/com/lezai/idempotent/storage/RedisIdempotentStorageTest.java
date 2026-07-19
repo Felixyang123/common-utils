@@ -18,6 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Redis 幂等存储测试 (ADR-0002 接口契约验证):
+ * get/remove/exists 在 Redis 异常/反序列化异常时上抛 —— 不允许把异常伪装成 null/false
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Redis幂等存储测试")
 class RedisIdempotentStorageTest {
@@ -36,43 +40,43 @@ class RedisIdempotentStorageTest {
     }
 
     @Test
-    @DisplayName("get方法JSON解析失败返回null不抛异常")
-    void testGetWithCorruptedJsonReturnsNull() {
+    @DisplayName("get 方法 JSON 解析失败时不吞异常 —— 装饰损坏应当上抛")
+    void testGetWithCorruptedJsonThrowsException() {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get("idempotent:corrupt-key"))
                 .thenReturn("{invalid json!!!");
 
-        IdempotentRecord result = storage.get("corrupt-key");
-
-        assertNull(result);
+        // 不再伪装成 null,直接上抛 (fast-fail 触发调用方 503+Retry-After)
+        assertThrows(Exception.class, () -> storage.get("corrupt-key"));
     }
 
     @Test
-    @DisplayName("exists方法Redis异常返回false不抛NPE")
-    void testExistsWithRedisExceptionReturnsFalse() {
+    @DisplayName("get 方法 Redis 连接异常上抛而不是返回 null")
+    void testGetWithRedisConnectionExceptionThrowsException() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("idempotent:any-key"))
+                .thenThrow(new RuntimeException("Redis connection lost"));
+
+        assertThrows(RuntimeException.class, () -> storage.get("any-key"));
+    }
+
+    @Test
+    @DisplayName("exists 方法 Redis 异常上抛不返回 false")
+    void testExistsWithRedisExceptionThrowsException() {
         when(redisTemplate.hasKey("idempotent:any-key"))
                 .thenThrow(new RuntimeException("Redis connection lost"));
 
-        boolean result = storage.exists("any-key");
-
-        assertFalse(result);
+        // 不存在"无记录"语义 —— 存疑时上抛异常而不是装死
+        assertThrows(RuntimeException.class, () -> storage.exists("any-key"));
     }
 
     @Test
-    @DisplayName("save方法空key抛IllegalArgumentException")
-    void testSaveWithNullKeyThrowsException() {
-        IdempotentRecord record = new IdempotentRecord();
-        record.setKey(null);
+    @DisplayName("get 未命中返回 null(这是唯一合法的 '无记录' 语义)")
+    void testGetWithMissingKeyReturnsNull() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("idempotent:missing-key")).thenReturn(null);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> storage.save(record, 3600));
-    }
-
-    @Test
-    @DisplayName("save方法空record抛IllegalArgumentException")
-    void testSaveWithNullRecordThrowsException() {
-        assertThrows(IllegalArgumentException.class,
-                () -> storage.save(null, 3600));
+        assertNull(storage.get("missing-key"));
     }
 
     @Test
@@ -99,7 +103,16 @@ class RedisIdempotentStorageTest {
     }
 
     @Test
-    @DisplayName("remove方法删除成功返回true日志")
+    @DisplayName("remove 方法不吞异常 —— Redis 异常上抛")
+    void testRemoveWithRedisExceptionThrowsException() {
+        when(redisTemplate.delete("idempotent:remove-key"))
+                .thenThrow(new RuntimeException("Redis connection lost"));
+
+        assertThrows(RuntimeException.class, () -> storage.remove("remove-key"));
+    }
+
+    @Test
+    @DisplayName("remove 方法正常删除")
     void testRemoveSuccess() {
         when(redisTemplate.delete("idempotent:remove-key")).thenReturn(true);
 
@@ -109,10 +122,18 @@ class RedisIdempotentStorageTest {
     }
 
     @Test
-    @DisplayName("exists方法正常返回true")
+    @DisplayName("exists 方法命中返回 true")
     void testExistsReturnsTrue() {
         when(redisTemplate.hasKey("idempotent:exists-key")).thenReturn(true);
 
         assertTrue(storage.exists("exists-key"));
+    }
+
+    @Test
+    @DisplayName("exists 方法未命中返回 false")
+    void testExistsReturnsFalse() {
+        when(redisTemplate.hasKey("idempotent:missing-key")).thenReturn(false);
+
+        assertFalse(storage.exists("missing-key"));
     }
 }

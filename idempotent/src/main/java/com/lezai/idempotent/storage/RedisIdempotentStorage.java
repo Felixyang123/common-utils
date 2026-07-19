@@ -9,7 +9,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Redis 存储实现
+ * Redis 存储实现。
+ *
+ * <p>遵循 IdempotentStorage 接口契约 (ADR-0002):get/remove/exists 在访问
+ * Redis 失败或反序列化失败时上抛异常,由调用方决定是否 fail-fast。返回
+ * {@code null} 唯一语义 = "幂等键不存在"。</p>
  */
 @Slf4j
 @AllArgsConstructor
@@ -23,26 +27,19 @@ public class RedisIdempotentStorage implements IdempotentStorage {
         this(DEFAULT_KEY_PREFIX, redisTemplate);
     }
 
+
     @Override
     public IdempotentRecord get(String key) {
-        String redisKey = keyPrefix + key;
-        try {
-            String json = redisTemplate.opsForValue().get(redisKey);
-            if (json == null) {
-                return null;
-            }
-            return JSON.parseObject(json, IdempotentRecord.class);
-        } catch (Exception e) {
-            log.warn("Failed to parse idempotent record from Redis, key: {}", redisKey, e);
+        // 不吞异常:Redis 连接失败 / JSON 异常上抛,由调用方 fail-fast + retry
+        String json = redisTemplate.opsForValue().get(keyPrefix + key);
+        if (json == null) {
             return null;
         }
+        return JSON.parseObject(json, IdempotentRecord.class);
     }
 
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
-        if (record == null || record.getKey() == null) {
-            throw new IllegalArgumentException("IdempotentRecord and key must not be null");
-        }
         String redisKey = keyPrefix + record.getKey();
         redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(record), expireSeconds, TimeUnit.SECONDS);
         log.debug("Record saved to Redis, key: {}, expire: {}s", redisKey, expireSeconds);
@@ -51,27 +48,13 @@ public class RedisIdempotentStorage implements IdempotentStorage {
     @Override
     public void remove(String key) {
         String redisKey = keyPrefix + key;
-        try {
-            Boolean deleted = redisTemplate.delete(redisKey);
-            if (Boolean.TRUE.equals(deleted)) {
-                log.debug("Record removed from Redis, key: {}", redisKey);
-            } else {
-                log.debug("Record not found in Redis, key: {}", redisKey);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to remove record from Redis, key: {}", redisKey, e);
-        }
+        redisTemplate.delete(redisKey);
+        log.debug("Record removed from Redis, key: {}", redisKey);
     }
 
     @Override
     public boolean exists(String key) {
-        String redisKey = keyPrefix + key;
-        try {
-            Boolean exists = redisTemplate.hasKey(redisKey);
-            return Boolean.TRUE.equals(exists);
-        } catch (Exception e) {
-            log.warn("Failed to check key existence: {}", redisKey, e);
-            return false;
-        }
+        // 不吞异常:Redis 连接失败上抛,由调用方 fail-fast
+        return Boolean.TRUE.equals(redisTemplate.hasKey(keyPrefix + key));
     }
 }

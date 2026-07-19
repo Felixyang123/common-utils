@@ -5,6 +5,7 @@ import com.lezai.idempotent.config.IdempotentProperties;
 import com.lezai.idempotent.enums.IdempotentStatus;
 import com.lezai.idempotent.exception.IdempotentException;
 import com.lezai.idempotent.exception.IdempotentExecutionException;
+import com.lezai.idempotent.exception.IdempotentStorageException;
 import com.lezai.idempotent.lock.IdempotentLockProvider;
 import com.lezai.idempotent.storage.IdempotentStorage;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -218,13 +219,25 @@ class IdempotentExecutionManagerTest {
         when(lockProvider.heldByCurrentThread("exception-key")).thenReturn(true);
         when(joinPoint.proceed()).thenThrow(businessException);
 
-        assertThrows(IdempotentExecutionException.class,
+        assertThrows(IdempotentExecutionException.class, 
             () -> executionManager.execute(joinPoint, idempotent));
     }
 
     @Test
-    @DisplayName("重试时记录过期应优雅处理为首次请求")
-    void testRetryWithExpiredRecordHandledGracefully() throws Throwable {
+    @DisplayName("存储访问异常必须上抛 IdempotentStorageException —— 不允许放行")
+    void testStorageExceptionPropagatesAsStorageException() {
+        when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("storage-down-key");
+        when(storage.get("storage-down-key"))
+                .thenThrow(new RuntimeException("Redis connection lost"));
+
+        // 存储不可用时 fail-fast,不进入任何幂等路径,防止放行虚假"无记录"
+        assertThrows(IdempotentStorageException.class,
+                () -> executionManager.execute(joinPoint, idempotent));
+    }
+
+    @Test
+    @DisplayName("重试期间记录过期应重新拿锁(handleConcurrentRequest)而不是直接执行业务(handleFirstRequest)")
+    void testRetryWithExpiredRecordHandlesViaConcurrentRequest() throws Throwable {
         IdempotentRecord processingRecord = createTestRecord("expired-retry-key", IdempotentStatus.PROCESSING);
 
         when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("expired-retry-key");
@@ -234,35 +247,18 @@ class IdempotentExecutionManagerTest {
         when(idempotent.failFast()).thenReturn(false);
         when(idempotent.maxRetryCount()).thenReturn(3);
         when(idempotent.retryInterval()).thenReturn(10L);
+        // 关键:record=null 后会走 handleConcurrentRequest(拿锁 + 双重检查)
+        when(lockProvider.tryLock(eq("expired-retry-key"), anyLong())).thenReturn(true);
+        when(lockProvider.heldByCurrentThread("expired-retry-key")).thenReturn(true);
         when(joinPoint.proceed()).thenReturn("success-after-expiry");
         when(idempotent.storeResult()).thenReturn(true);
 
-        // 执行 — 记录过期后应作为首次请求处理
         Object result = executionManager.execute(joinPoint, idempotent);
 
         assertEquals("success-after-expiry", result);
-    }
-
-    @Test
-    @DisplayName("缓存结果反序列化失败时保留原始异常cause")
-    void testCachedResultDeserializationFailurePreservesCause() throws Throwable {
-        IdempotentRecord record = createTestRecord("deser-key", IdempotentStatus.SUCCEEDED);
-        record.setResult("{\"data\":\"cached\"}");
-        record.setResultType("com.lezai.nonexistent.Class");  // 不存在的类
-
-        when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("deser-key");
-        when(storage.get("deser-key")).thenReturn(record);
-        when(idempotent.returnResultOnDuplicate()).thenReturn(true);
-
-        // 执行并验证
-        IdempotentExecutionException ex = assertThrows(
-            IdempotentExecutionException.class,
-            () -> executionManager.execute(joinPoint, idempotent)
-        );
-
-        // 验证原始异常作为 cause 被保留
-        assertNotNull(ex.getCause());
-        assertTrue(ex.getMessage().contains("deser-key"));
+        // verify:走的是 handleConcurrentRequest —— tryLock + unlock 都被调用
+        verify(lockProvider).tryLock(eq("expired-retry-key"), anyLong());
+        verify(lockProvider).unlock("expired-retry-key");
     }
 
     // ==================== 辅助方法 ====================

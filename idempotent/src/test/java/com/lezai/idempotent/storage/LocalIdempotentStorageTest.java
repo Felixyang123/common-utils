@@ -114,17 +114,8 @@ class LocalIdempotentStorageTest {
         assertDoesNotThrow(() -> storage.remove("non-existent-key"));
     }
 
-    @Test
-    @DisplayName("get方法null key抛IllegalArgumentException")
-    void testGetWithNullKeyThrowsException() {
-        assertThrows(IllegalArgumentException.class, () -> storage.get(null));
-    }
-
-    @Test
-    @DisplayName("save方法null record抛IllegalArgumentException")
-    void testSaveWithNullRecordThrowsException() {
-        assertThrows(IllegalArgumentException.class, () -> storage.save(null, 3600));
-    }
+    // 注意:LocalIdempotentStorage 不再做防御性 null 校验 —— 参数由调用方保证(参见 ADR-0002)
+    // 删除 testGetWithNullKeyThrowsException / testSaveWithNullRecordThrowsException
 
     // ==================== 辅助方法 ====================
 

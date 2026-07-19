@@ -7,6 +7,7 @@ import com.lezai.idempotent.enums.IdempotentStatus;
 import com.lezai.idempotent.exception.IdempotentException;
 import com.lezai.idempotent.exception.IdempotentExecutionException;
 import com.lezai.idempotent.exception.IdempotentLockException;
+import com.lezai.idempotent.exception.IdempotentStorageException;
 import com.lezai.idempotent.lock.IdempotentLockProvider;
 import com.lezai.idempotent.storage.IdempotentStorage;
 import lombok.RequiredArgsConstructor;
@@ -34,18 +35,28 @@ public class IdempotentExecutionManager {
     private final IdempotentProperties properties;
 
     /**
-     * 执行幂等方法
+     * 执行幂等方法。
+     *
+     * <p>锁调用合约 (caller-of-lock invariant):进入 handleFirstRequest / invoke 之前,
+     * 必须已经持有 key 的互斥锁。通过 assert(heldByCurrentThread) 强化此合约,
+     * 开启断言时任何违规调用都会立刻暴露。</p>
      */
     public Object execute(ProceedingJoinPoint joinPoint, Idempotent idempotent) {
         // 1. 解析幂等键
         String key = keyResolver.resolve(joinPoint, idempotent);
         log.debug("Idempotent key resolved: {}", key);
 
-        // 2. 查询幂等记录
-        IdempotentRecord record = storage.get(key);
+        // 2. 查询幂等记录 (异常 = 存储不可用,fail-fast → 503 + Retry-After)
+        final IdempotentRecord record;
+        try {
+            record = storage.get(key);
+        } catch (Exception e) {
+            throw new IdempotentStorageException(
+                    "Idempotent storage unavailable, key=" + key + ", cannot determine idempotency", e);
+        }
 
         if (record != null) {
-            // 记录已存在，处理重复请求
+            // 记录已存在,处理重复请求
             return handleExistingRecord(joinPoint, key, record, idempotent, 0);
         }
 
@@ -147,7 +158,17 @@ public class IdempotentExecutionManager {
         log.info("Idempotent method executed successfully, key: {}, duration: {}ms", key, duration);
     }
 
+    /**
+     * 首次请求处理。
+     *
+     * <p>锁调用合约:调用者必须持有 key 的互斥锁。直接绕过锁调用本方法会
+     * 导致并发请求进入执行业务,打破幂等保护。</p>
+     */
     private Object handleFirstRequest(ProceedingJoinPoint joinPoint, Idempotent idempotent, String key) {
+        // ★ 调用方必须持有锁 —— 强化"caller-of-lock"合约
+        assert lockProvider.heldByCurrentThread(key)
+                : "Caller must hold lock before invoking handleFirstRequest, key=" + key;
+
         // 5. 保存 PROCESSING 状态
         IdempotentRecord record = createProcessingRecord(key, properties.getExpireTime());
         storage.save(record, properties.getExpireTime());
@@ -194,9 +215,11 @@ public class IdempotentExecutionManager {
 
             IdempotentRecord record = storage.get(key);
             if (record == null) {
-                // Record expired during retry, treat as first request
-                log.warn("Record expired during retry for key: {}, treating as first request", key);
-                return handleFirstRequest(joinPoint, idempotent, key);
+                // 记录在重试等待期间过期,重新走 handleConcurrentRequest 拿锁
+                // 注意:不能直接调用 handleFirstRequest,后者是 private helper,
+                // 必须在持有锁的上下文调用,否则并发请求会绕过互斥直接执行业务
+                log.warn("Record expired during retry for key: {}, re-acquiring lock", key);
+                return handleConcurrentRequest(joinPoint, idempotent, key);
             }
 
             return handleExistingRecord(joinPoint, key, record, idempotent, ++retryCount);
@@ -219,10 +242,8 @@ public class IdempotentExecutionManager {
                 Class<?> clz = Class.forName(record.getResultType());
                 return JSON.parseObject(record.getResult(), clz);
             } catch (Exception e) {
-                log.error("Failed to deserialize cached result for key: {}, resultType: {}",
-                        key, record.getResultType(), e);
-                throw new IdempotentExecutionException(
-                        "Failed to deserialize cached result for key: " + key, e);
+                log.error("Failed to load class: {}", record.getResultType());
+                throw new IdempotentExecutionException(e.getMessage());
             }
         } else {
             // 抛出异常
