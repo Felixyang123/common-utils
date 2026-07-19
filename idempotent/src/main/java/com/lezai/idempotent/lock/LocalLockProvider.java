@@ -25,8 +25,6 @@ public class LocalLockProvider implements IdempotentLockProvider {
      * 永远作为原子单元对外可见。
      */
     private static final class Entry {
-        static final long NONE = -1L;
-
         final long ownerThreadId;
         final int lockCount;
 
@@ -36,6 +34,12 @@ public class LocalLockProvider implements IdempotentLockProvider {
         }
     }
 
+    // TODO: 当前无自动过期,存在两类风险:
+    //       1. 内存泄漏 —— unlock 因代码路径异常未执行时 entry 永久残留。
+    //       2. 死锁 —— unlock 内部 compute lambda 抛异常时,CHM entry 未被清除,
+    //          同 key 后续请求在该 JVM 内将永远拿不到锁(即便业务线程已退出),
+    //          且无超时机制打破僵局。
+    //       后续可引入定期清理(基于最后访问时间)或切回 Caffeine expireAfterAccess。
     private final ConcurrentHashMap<String, Entry> lockMap = new ConcurrentHashMap<>();
 
     /**
@@ -47,6 +51,8 @@ public class LocalLockProvider implements IdempotentLockProvider {
      *
      * @param key                 锁键
      * @param waitTimeoutSeconds  本实现忽略此参数,等效 tryLock = 立即返回
+     *                            (注意:与旧版 Caffeine+ReentrantLock 的阻塞 tryLock(timeout)
+     *                            语义不同,可能增加并发下同一幂等键的锁获取失败率)
      * @return 是否成功获取锁(包括重入)
      */
     @Override
@@ -64,11 +70,6 @@ public class LocalLockProvider implements IdempotentLockProvider {
             if (existing.lockCount > 0 && existing.ownerThreadId == tid) {
                 acquired[0] = true;
                 return new Entry(tid, existing.lockCount + 1);
-            }
-            // 空闲(owner 已释放但未清理) —— 再次占用
-            if (existing.lockCount == 0 && existing.ownerThreadId == Entry.NONE) {
-                acquired[0] = true;
-                return new Entry(tid, 1);
             }
             // 被他人持有 —— 不修改,caller 视作 false
             return existing;

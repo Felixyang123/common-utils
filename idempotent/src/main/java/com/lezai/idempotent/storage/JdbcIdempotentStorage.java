@@ -62,7 +62,7 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
                 "ON DUPLICATE KEY UPDATE " +
                 "process_status = VALUES(process_status), process_result = VALUES(process_result), " +
                 "result_type = VALUES(result_type), error_message = VALUES(error_message), " +
-                "update_time = VALUES(update_time), duration = VALUES(duration)";
+                "update_time = CURRENT_TIMESTAMP, duration = VALUES(duration)";
 
         jdbcTemplate.update(
                 sql,
