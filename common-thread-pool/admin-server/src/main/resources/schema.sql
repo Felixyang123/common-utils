@@ -104,7 +104,9 @@ CREATE TABLE IF NOT EXISTS operate_log (
   operator      VARCHAR(64),
   deleted       TINYINT      NOT NULL DEFAULT 0,
   create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  update_time   DATETIME
+  update_time   DATETIME,
+  INDEX idx_create_time (create_time),
+  INDEX idx_biz (biz_type, biz_id)
 );
 
 -- 配置历史快照表（版本快照链，不含操作类型——操作类型归审计日志 operate_log）

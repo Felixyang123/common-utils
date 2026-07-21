@@ -42,8 +42,9 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
     public void saveConfig(String appId, ThreadPoolConfig config) {
         compute(appId, () -> {
             ThreadPoolConfigApp dto = configService.upsertConfigApp(appId, List.of(config));
-            cache.put(appId, dto);
-            listenerManager.triggerListeners(appId, dto.getVersion());
+            // cache 写入与监听器通知移到事务提交后，避免回滚时缓存留脏数据或误通知订阅者（ADR-0009）
+            putAfterCommit(appId, dto);
+            afterCommit(() -> listenerManager.triggerListeners(appId, dto.getVersion()));
         });
     }
 
@@ -60,13 +61,11 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
     @Override
     public void deleteConfigs(String appId) {
         compute(appId, () -> {
-            long version = configService.getConfigAppByAppId(appId)
-                    .map(ThreadPoolConfigApp::getVersion)
-                    .orElse(Long.MAX_VALUE);
             configService.deleteByAppId(appId);
-            cache.remove(appId);
-            listenerManager.triggerListeners(appId, version);
-            listenerManager.unregister(appId);
+            // cache 清理与监听器通知移到事务提交后（ADR-0009）
+            removeAfterCommit(appId);
+            // 整 app 退管：传 Long.MAX_VALUE 确保客户端侧 newVersion > version 必然成立（triggerListeners 已整表 remove 监听器）
+            afterCommit(() -> listenerManager.triggerListeners(appId, Long.MAX_VALUE));
         });
     }
 
@@ -75,8 +74,9 @@ public class MyBatisConfigStorage extends CachedStorageSupport<ThreadPoolConfigA
         compute(appId, () -> {
             configService.deleteByAppIdAndPoolName(appId, poolName);
             ThreadPoolConfigApp configAppDto = configService.getConfigAppByAppId(appId).orElse(null);
-            cache.put(appId, configAppDto);
-            listenerManager.triggerListeners(appId, configAppDto != null ? configAppDto.getVersion() : Long.MAX_VALUE);
+            // cache 写入与监听器通知移到事务提交后（ADR-0009）
+            putAfterCommit(appId, configAppDto);
+            afterCommit(() -> listenerManager.triggerListeners(appId, configAppDto != null ? configAppDto.getVersion() : Long.MAX_VALUE));
         });
     }
 

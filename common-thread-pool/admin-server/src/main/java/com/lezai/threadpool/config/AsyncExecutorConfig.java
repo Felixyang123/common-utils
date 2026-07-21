@@ -51,6 +51,13 @@ public class AsyncExecutorConfig {
      * 监听器通知线程池
      * 用于异步通知配置变更监听器
      */
+    // TODO(未来优化): 当前 max=4/queue=1000/CallerRunsPolicy 适用「订阅数 <1000、配置变更低频」。
+    // 触发优化的信号: 订阅规模 >1000，或配置变更频率上升(自动化调参/批量推送)。
+    // 优化方向:
+    //   1. 提高 max pool size —— 多 appId 同时变更时, max=4 是通知并行度瓶颈。
+    //   2. 评估 CallerRunsPolicy —— queue 满时反压到 saveConfig 调用线程(拖慢配置写入);
+    //      若未来不可接受, 可改为有界拒绝 + 依赖客户端长轮询超时重连兜底。
+    //   3. listenerMap 内存 O(订阅数) —— 超大规模时考虑 listener 上限或更积极的过期回收。
     @Bean(name = "listenerNotifyExecutor")
     public ThreadPoolTaskExecutor listenerNotifyExecutor() {
         return createAsyncExecutor(listenerCoreSize, listenerMaxSize, listenerQueueCapacity, "config-listener-notify");

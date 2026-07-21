@@ -20,6 +20,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -80,14 +81,6 @@ public class OpenThreadPoolConfigService {
             throw new ResourceNotFoundException("Config not found for appId: " + appId);
         }
 
-        ThreadPoolAppConfig appConfig = appConfigOptional.get();
-        long currentVersion = appConfig.getConfigVersion();
-        if (currentVersion > version) {
-            future.complete(notification(appId, currentVersion));
-            log.info("Immediate response for subscription: appId={}, newVersion={}", appId, currentVersion);
-            return future;
-        }
-
         AtomicReference<ScheduledFuture<?>> compensationFutureRef = new AtomicReference<>();
 
         ConfigChangeListener listener = new ConfigChangeListener() {
@@ -105,21 +98,36 @@ public class OpenThreadPoolConfigService {
             }
         };
 
+        // 先注册监听器，再比较当前版本，消除 TOCTOU 窗口（register 与 version 检查之间发生变更不会丢通知）
         listenerManager.register(appId, listener);
-        log.info("Registered config change listener for subscription: appId={}, version: {}", appId, version);
+        log.debug("Registered config change listener for subscription: appId={}, version: {}", appId, version);
 
-        ScheduledFuture<?> compensationFuture = subscriptionExecutor.schedule(() -> {
-            if (!future.isDone()) {
-                configStorage.getAppConfig(appId).ifPresent(poolAppConfig -> {
-                    if (poolAppConfig.getConfigVersion() > version) {
-                        log.info("Config change detected backend for subscription: appId={}, newVersion={}", appId,
-                                poolAppConfig.getConfigVersion());
-                        future.complete(notification(appId, poolAppConfig.getConfigVersion()));
-                    }
-                });
-            }
-        }, Math.min(1000, timeoutMs), TimeUnit.MILLISECONDS);
-        compensationFutureRef.set(compensationFuture);
+        long currentVersion = appConfigOptional.get().getConfigVersion();
+        if (currentVersion > version) {
+            future.complete(notification(appId, currentVersion));
+            log.info("Immediate response for subscription: appId={}, newVersion={}", appId, currentVersion);
+            // 立即返回：注销监听器（幂等，可能已被 triggerListeners 的 removeIf 摘除）
+            listenerManager.unregister(appId, listener);
+            return future;
+        }
+
+        try {
+            ScheduledFuture<?> compensationFuture = subscriptionExecutor.schedule(() -> {
+                if (!future.isDone()) {
+                    configStorage.getAppConfig(appId).ifPresent(poolAppConfig -> {
+                        if (poolAppConfig.getConfigVersion() > version) {
+                            log.debug("Config change detected backend for subscription: appId={}, newVersion={}", appId,
+                                    poolAppConfig.getConfigVersion());
+                            future.complete(notification(appId, poolAppConfig.getConfigVersion()));
+                        }
+                    });
+                }
+            }, Math.max(timeoutMs - 500, 1000), TimeUnit.MILLISECONDS);
+            compensationFutureRef.set(compensationFuture);
+        } catch (RejectedExecutionException e) {
+            // 调度失败（executor 饱和）：转为 completeExceptionally，让 whenComplete 接管清理，避免异常在 whenComplete 注册前逃逸
+            future.completeExceptionally(e);
+        }
 
         future.whenComplete((result, ex) -> {
             log.debug("Subscription completed, unregister listener: appId={}", appId);
@@ -127,7 +135,7 @@ public class OpenThreadPoolConfigService {
             cancelCompensation(compensationFutureRef);
         });
 
-        log.info("Subscription registered: appId={}, version={}, timeout={}ms", appId, version, timeoutMs);
+        log.debug("Subscription registered: appId={}, version={}, timeout={}ms", appId, version, timeoutMs);
         return future;
     }
 

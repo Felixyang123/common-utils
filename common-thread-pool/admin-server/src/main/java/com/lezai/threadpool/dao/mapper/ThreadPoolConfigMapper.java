@@ -13,6 +13,9 @@ public interface ThreadPoolConfigMapper extends BaseMapper<ThreadPoolConfigEntit
     @Select("SELECT * FROM thread_pool_config WHERE deleted = 1 ORDER BY update_time DESC")
     List<ThreadPoolConfigEntity> selectDeleted();
 
+    @Select("SELECT * FROM thread_pool_config WHERE deleted = 1 AND app_id = #{appId}")
+    List<ThreadPoolConfigEntity> selectDeletedByAppId(@Param("appId") String appId);
+
     @Select("SELECT * FROM thread_pool_config WHERE deleted = 1 AND app_id = #{appId} AND pool_name = #{poolName} LIMIT 1")
     ThreadPoolConfigEntity selectDeletedByAppIdAndPoolName(@Param("appId") String appId, @Param("poolName") String poolName);
 

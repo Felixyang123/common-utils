@@ -49,7 +49,8 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
         compute(apiKey.getAppId(), () -> {
             boolean updated = apiKeyService.updateByAppId(apiKey);
             if (updated) {
-                cache.put(apiKey.getAppId(), apiKey);
+                // cache 写入移到事务提交后，避免回滚时缓存留脏数据（ADR-0009）
+                putAfterCommit(apiKey.getAppId(), apiKey);
                 log.info("Saved API key for appId: {}", apiKey.getAppId());
             } else {
                 log.info("Failed to update API key for appId: {}", apiKey.getAppId());
@@ -103,7 +104,8 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
 
             boolean success = apiKeyService.add(apiKey);
             if (success) {
-                cache.put(apiKey.getAppId(), apiKey);
+                // cache 写入移到事务提交后，避免回滚时缓存留脏数据（ADR-0009）
+                putAfterCommit(apiKey.getAppId(), apiKey);
                 log.info("Inserted new API key for appId: {}", apiKey.getAppId());
                 return true;
             }
@@ -132,7 +134,8 @@ public class MyBatisApiKeyStorage extends CachedStorageSupport<ApiKey> implement
                     .description(apiKey.getDescription())
                     .build();
             if (apiKeyService.updateByAppId(updated)) {
-                cache.put(appId, updated);
+                // cache 写入移到事务提交后，避免回滚时缓存留脏数据（ADR-0009）
+                putAfterCommit(appId, updated);
             }
             log.info("Regenerated API key for appId: {}", appId);
             return newApiKey;

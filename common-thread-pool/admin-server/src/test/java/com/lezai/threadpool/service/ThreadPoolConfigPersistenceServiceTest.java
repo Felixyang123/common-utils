@@ -217,6 +217,46 @@ class ThreadPoolConfigPersistenceServiceTest {
         assertThat(result.getAppId()).isEqualTo("app1");
     }
 
+    @Test
+    @DisplayName("addConfigApp: re-pushing all existing pools does NOT bump version (empty newConfigs, saveBatch=true)")
+    void addConfigApp_rePushAllExisting_doesNotBumpVersion() {
+        // app entry exists at version 1
+        ThreadPoolConfigAppEntity appEntity = ThreadPoolConfigAppEntity.builder()
+                .appId("app1").version(1L).build();
+        when(configAppRep.findByAppId("app1")).thenReturn(Optional.of(appEntity));
+
+        // both pools already active -> all become existConfigs, newConfigs is empty
+        ThreadPoolConfigEntity activeA = ThreadPoolConfigEntity.builder()
+                .id(10L).appId("app1").poolName("pool-a").deleted(false).build();
+        ThreadPoolConfigEntity activeB = ThreadPoolConfigEntity.builder()
+                .id(11L).appId("app1").poolName("pool-b").deleted(false).build();
+        when(configRep.findAllByAppIdAndPoolNamesIn(eq("app1"), anyList()))
+                .thenReturn(List.of(activeA, activeB));
+
+        // MyBatis-Plus saveBatch(emptyList) returns true (no SQL executed)
+        when(configRep.saveBatch(anyList(), anyInt())).thenReturn(true);
+
+        ThreadPoolConfig configA = ThreadPoolConfig.builder().poolName("pool-a").build();
+        ThreadPoolConfig configB = ThreadPoolConfig.builder().poolName("pool-b").build();
+        when(configConverter.convertConfigs(argThat(list -> list != null && !list.isEmpty() && "pool-a".equals(list.get(0).getPoolName()))))
+                .thenReturn(List.of(configA, configB));
+
+        ThreadPoolConfigApp result = service.addConfigApp("app1",
+                List.of(ThreadPoolConfig.builder().poolName("pool-a").build(),
+                        ThreadPoolConfig.builder().poolName("pool-b").build()));
+
+        // version must NOT bump: re-pushing existing pools is not a real change
+        assertThat(result.getVersion()).isEqualTo(1L);
+        assertThat(result.getExistConfigs()).extracting(ThreadPoolConfig::getPoolName)
+                .containsExactlyInAnyOrder("pool-a", "pool-b");
+        assertThat(result.getAddedConfigs()).isEmpty();
+        assertThat(result.getRetiredConfigs()).isEmpty();
+
+        // version bump path must not execute saveOrUpdate on the app entity
+        verify(configAppRep).findByAppId("app1");
+        verify(configAppRep, org.mockito.Mockito.never()).saveOrUpdate(any());
+    }
+
     private static ThreadPoolConfig createConfig(String poolName) {
         return ThreadPoolConfig.builder().poolName(poolName).build();
     }

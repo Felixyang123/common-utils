@@ -256,6 +256,8 @@ public class ResizableCapacityLinkedBlockingQueue<E> extends AbstractQueue<E>
         } finally {
             takeLock.unlock();
         }
+        // capacity 为 take 时刻的 volatile 快照，setCapacity 缩容后此处可能多 signal 一次（虚假唤醒），
+        // 被唤醒的 put 会重新检查 count.get() == capacity 条件，无正确性影响。
         if (c == capacity) {
             signalNotFull();
         }

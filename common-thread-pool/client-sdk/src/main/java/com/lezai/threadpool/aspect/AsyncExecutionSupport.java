@@ -28,17 +28,21 @@ final class AsyncExecutionSupport {
      */
     static Object execute(ProceedingJoinPoint joinPoint, Method method, DynamicThreadPoolWrapper pool,
                            boolean awaitResult) throws Throwable {
-        CompletableFuture<Object> future = CompletableFuture.supplyAsync(() -> {
+        // 自建 CompletableFuture + pool.execute(wrap(...))，让 error 由 wrap 统一计（与 submit 路径一致）。
+        // 不能用 supplyAsync：其 AsyncSupply.run() 内部吞异常（completeExceptionally）不 rethrow，外层 wrap 的 catch 触发不了。
+        CompletableFuture<Object> future = new CompletableFuture<>();
+        pool.execute(() -> {
             try {
-                return joinPoint.proceed();
+                future.complete(joinPoint.proceed());
             } catch (Throwable e) {
+                future.completeExceptionally(e);
+                // 重新抛出，让外层 wrap 捕捉并计入 error（error ⊂ completed）
                 throw new CompletionException(e);
             }
-        }, pool);
+        });
 
         CompletableFuture<Object> tracked = future.whenComplete((result, ex) -> {
             if (ex != null) {
-                pool.incrementErrorCount();
                 log.error("Async task {} failed in pool {}", methodName(method), pool.getPoolName(), ex);
             }
         });

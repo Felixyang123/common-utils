@@ -81,7 +81,11 @@ public class ConfigChangeListenerManager {
     }
 
     /**
-     * 触发监听器，触发后删除监听器
+     * 触发监听器，触发后删除监听器。
+     * <p>
+     * 调用方必须保证 version 单调递增（配置变更后 ensureConfigApp 涨版本），
+     * 或语义为整 app 退管（传 {@link Long#MAX_VALUE}）。
+     * 整表 remove 后回调 listener，listener 内部判 {@code newVersion > version} 决定是否 complete。
      */
     @Async("listenerNotifyExecutor")
     public void triggerListeners(String appId, long version) {

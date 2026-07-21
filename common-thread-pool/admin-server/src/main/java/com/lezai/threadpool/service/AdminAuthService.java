@@ -1,5 +1,6 @@
 package com.lezai.threadpool.service;
 
+import com.lezai.threadpool.interceptor.AdminLoginRateLimiter;
 import com.lezai.threadpool.converter.AdminAuthConverter;
 import com.lezai.threadpool.exception.AuthenticationException;
 import com.lezai.threadpool.pojo.bean.AdminUser;
@@ -14,6 +15,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -30,10 +32,21 @@ public class AdminAuthService {
     private static final String CLAIM_ROLE = "role";
     private static final String CLAIM_NICKNAME = "nickname";
 
+    /**
+     * 统一错误消息，避免用户名枚举攻击：用户不存在与密码错误返回相同消息。
+     */
+    private static final String INVALID_CREDENTIALS_MESSAGE = "用户名或密码错误";
+
     private final AdminUserStorage adminUserStorage;
     private final AdminAuthConverter adminAuthConverter;
     private final SecretKey signingKey;
     private final long tokenExpireMinutes;
+
+    /**
+     * 登录暴力破解防护（依赖 Redisson，local profile 下为 null）。
+     */
+    @Autowired(required = false)
+    private AdminLoginRateLimiter loginRateLimiter;
 
     public AdminAuthService(AdminUserStorage adminUserStorage, AdminAuthConverter adminAuthConverter,
                             String secret, long tokenExpireMinutes) {
@@ -44,15 +57,31 @@ public class AdminAuthService {
     }
 
     public AdminLoginResponse login(AdminLoginRequest request) {
-        AdminUser adminUser = adminUserStorage.getByUsername(request.getUsername())
-                .orElseThrow(() -> new AuthenticationException("User not found: " + request.getUsername()));
+        String username = request.getUsername();
+
+        // 暴力破解防护：连续失败 5 次锁定 15min（决议第 5 题方向 Y）
+        if (loginRateLimiter != null && loginRateLimiter.isLocked(username)) {
+            throw new AuthenticationException("登录尝试次数过多，账号已锁定 15 分钟");
+        }
+
+        AdminUser adminUser = adminUserStorage.getByUsername(username)
+                .orElseThrow(() -> {
+                    recordLoginFailure(username);
+                    return new AuthenticationException(INVALID_CREDENTIALS_MESSAGE);
+                });
 
         if (!adminUser.isEnabled()) {
-            throw new AuthenticationException("User has been disabled: " + request.getUsername());
+            throw new AuthenticationException("User has been disabled: " + username);
         }
 
         if (!PasswordUtils.matches(request.getPassword(), adminUser.getPasswordHash())) {
-            throw new AuthenticationException("Invalid password");
+            recordLoginFailure(username);
+            throw new AuthenticationException(INVALID_CREDENTIALS_MESSAGE);
+        }
+
+        // 成功登录清零失败计数
+        if (loginRateLimiter != null) {
+            loginRateLimiter.clear(username);
         }
 
         Duration expiry = Duration.ofMinutes(tokenExpireMinutes);
@@ -126,6 +155,12 @@ public class AdminAuthService {
                 .expiration(new Date(now.getTime() + expiry.toMillis()))
                 .signWith(signingKey)
                 .compact();
+    }
+
+    private void recordLoginFailure(String username) {
+        if (loginRateLimiter != null) {
+            loginRateLimiter.recordFailure(username);
+        }
     }
 
     private Claims parseClaims(String token) {

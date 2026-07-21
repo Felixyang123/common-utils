@@ -60,6 +60,14 @@
         <label>业务ID</label>
         <input class="form-control" id="f-bizid" placeholder="appId / poolName" style="width:160px;">
       </div>
+      <div>
+        <label>开始时间</label>
+        <input class="form-control" id="f-start" type="datetime-local" style="width:180px;">
+      </div>
+      <div>
+        <label>结束时间</label>
+        <input class="form-control" id="f-end" type="datetime-local" style="width:180px;">
+      </div>
       <button class="btn btn-primary btn-sm" onclick="search()">查询</button>
       <button class="btn btn-ghost btn-sm" onclick="resetFilter()">重置</button>
     </div>
@@ -142,11 +150,15 @@ async function render() {
   const op = document.getElementById('f-op').value;
   const user = document.getElementById('f-user').value.trim();
   const bizId = document.getElementById('f-bizid').value.trim();
+  const start = document.getElementById('f-start').value;
+  const end = document.getElementById('f-end').value;
   let url = `/api/operate-logs/list?page=${page}&pageSize=${PAGE_SIZE}`;
   if (biz) url += `&bizType=${biz}`;
   if (op) url += `&operateType=${op}`;
   if (user) url += `&operator=${encodeURIComponent(user)}`;
   if (bizId) url += `&bizId=${encodeURIComponent(bizId)}`;
+  if (start) url += `&startTime=${encodeURIComponent(new Date(start).toISOString())}`;
+  if (end) url += `&endTime=${encodeURIComponent(new Date(end).toISOString())}`;
 
   const data = await apiGet(url);
   if (!data || data.code !== 0) return;
@@ -188,7 +200,7 @@ async function render() {
 function goPage(p) { page = p; render(); }
 
 function resetFilter() {
-  ['f-biz','f-op','f-user','f-bizid'].forEach(id => document.getElementById(id).value = '');
+  ['f-biz','f-op','f-user','f-bizid','f-start','f-end'].forEach(id => document.getElementById(id).value = '');
   search();
 }
 

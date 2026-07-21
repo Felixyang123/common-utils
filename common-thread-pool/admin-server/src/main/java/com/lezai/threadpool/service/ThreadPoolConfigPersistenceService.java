@@ -190,7 +190,12 @@ public class ThreadPoolConfigPersistenceService {
      */
     @Transactional(rollbackFor = Exception.class)
     public ThreadPoolConfigApp addConfigApp(String appId, List<ThreadPoolConfig> configs) {
-        ThreadPoolConfigAppEntity configApp = ensureConfigApp(appId);
+        // 确保 app entry 存在但不涨版本（仅真正新增配置时才涨，避免重推已存在池触发无意义变更通知）
+        ThreadPoolConfigAppEntity configApp = configAppRep.findByAppId(appId).orElse(null);
+        if (configApp == null) {
+            configApp = ThreadPoolConfigAppEntity.builder().appId(appId).version(0L).build();
+            configAppRep.save(configApp);
+        }
         List<String> poolNames = configs.stream().map(ThreadPoolConfig::getPoolName).toList();
 
         // 单次查询拉取 appId + poolNames 的全部记录（含 deleted=0/1），内存中按 deleted 分流
@@ -208,14 +213,17 @@ public class ThreadPoolConfigPersistenceService {
 
         boolean saved = configRep.saveBatch(newConfigs, 100);
 
-        if (saved) {
+        if (!newConfigs.isEmpty()) {
             publishAuditEvent(newConfigs, OperateType.CREATE);
+            // 真正新增配置才涨版本，触发订阅者感知变更（重推已存在池不涨）
+            configApp.setVersion(configApp.getVersion() + 1);
+            configAppRep.saveOrUpdate(configApp);
         }
 
         return ThreadPoolConfigApp.builder().appId(appId).version(configApp.getVersion())
                 .existConfigs(configConverter.convertConfigs(activeConfigs))
                 .retiredConfigs(configConverter.convertConfigs(deletedConfigs))
-                .addedConfigs(saved ? configConverter.convertConfigs(newConfigs) : List.of())
+                .addedConfigs(!newConfigs.isEmpty() ? configConverter.convertConfigs(newConfigs) : List.of())
                 .build();
     }
 
@@ -238,9 +246,10 @@ public class ThreadPoolConfigPersistenceService {
 
     @Transactional(rollbackFor = Exception.class)
     public void restoreConfigsByAppId(String appId) {
+        // 恢复前先拉取待恢复的配置列表，便于审计记录每条配置的详情
+        List<ThreadPoolConfigEntity> deletedConfigs = configRep.getBaseMapper().selectDeletedByAppId(appId);
         configRep.getBaseMapper().restoreByAppId(appId);
         configAppRep.getBaseMapper().restore(appId);
-        eventPublisher.publishEvent(new AuditEvent(BizType.THREADPOOL_CONFIG.name(), OperateType.RESTORE.name(),
-                currentOperator(), null, appId));
+        publishAuditEvent(deletedConfigs, OperateType.RESTORE);
     }
 }

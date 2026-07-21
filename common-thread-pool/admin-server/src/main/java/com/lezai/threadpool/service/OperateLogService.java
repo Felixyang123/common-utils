@@ -16,6 +16,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -32,7 +33,8 @@ public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogE
 
     public PageResult<OperateLogResponse> queryLogs(int page, int pageSize,
                                                      String bizType, String operateType,
-                                                     String operator, String bizId) {
+                                                     String operator, String bizId,
+                                                     LocalDateTime startTime, LocalDateTime endTime) {
         LambdaQueryWrapper<OperateLogEntity> wrapper = Wrappers.<OperateLogEntity>lambdaQuery();
         if (StringUtils.isNotBlank(bizType)) {
             wrapper.eq(OperateLogEntity::getBizType, bizType);
@@ -46,6 +48,10 @@ public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogE
         if (StringUtils.isNotBlank(bizId)) {
             wrapper.eq(OperateLogEntity::getBizId, bizId);
         }
+        // 强制时间范围：默认最近 7 天，避免全表扫描
+        LocalDateTime end = endTime != null ? endTime : LocalDateTime.now();
+        LocalDateTime start = startTime != null ? startTime : end.minusDays(7);
+        wrapper.between(OperateLogEntity::getCreateTime, start, end);
         wrapper.orderByDesc(OperateLogEntity::getCreateTime);
 
         Page<OperateLogEntity> pageResult = page(new Page<>(page, pageSize), wrapper);
@@ -54,15 +60,20 @@ public class OperateLogService extends ServiceImpl<OperateLogMapper, OperateLogE
     }
 
     public List<OperateLogResponse> getRecentLogs(int limit) {
-        return getRecentLogs(limit, 0);
+        return getRecentLogs(limit, null, null);
     }
 
-    public List<OperateLogResponse> getRecentLogs(int limit, int offset) {
+    /**
+     * 游标分页查询最近日志，消除字符串拼接 LIMIT/OFFSET。
+     *
+     * @param limit          每页条数（上限 100）
+     * @param lastCreateTime 上一页最后一条的 create_time，首页传 null
+     * @param lastId         上一页最后一条的 id，首页传 null
+     * @return 当前页日志列表
+     */
+    public List<OperateLogResponse> getRecentLogs(int limit, LocalDateTime lastCreateTime, Long lastId) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        int safeOffset = Math.max(0, offset);
-        List<OperateLogEntity> entities = list(Wrappers.<OperateLogEntity>lambdaQuery()
-                .orderByDesc(OperateLogEntity::getCreateTime)
-                .last("LIMIT " + safeLimit + " OFFSET " + safeOffset));
+        List<OperateLogEntity> entities = getBaseMapper().selectByCursor(lastCreateTime, lastId, safeLimit);
         return operateLogConverter.convert(entities);
     }
 }

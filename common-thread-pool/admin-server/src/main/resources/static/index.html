@@ -132,6 +132,10 @@
         <div style="max-height:280px;overflow-y:auto;" id="activity-list">
           <p class="text-sm text-muted text-center" style="padding:16px 0;">加载中...</p>
         </div>
+        <div class="card-body" style="padding:var(--space-3) var(--space-4);border-top:1px solid var(--color-border);text-align:center;">
+          <button class="btn btn-ghost btn-sm" id="activity-load-more" style="display:none;" onclick="loadMoreActivity()">加载更多</button>
+          <span class="text-xs text-muted" id="activity-no-more" style="display:none;">没有更多了</span>
+        </div>
       </div>
 
     </div>
@@ -182,6 +186,10 @@ function selectApp(appId) {
   }
 }
 
+// ── Activity stream cursor state ──
+var activityCursor = { lastCreateTime: null, lastId: null, hasMore: false };
+var activityPageSize = 20;
+
 // ── Load data ──
 (async function loadAll() {
   try {
@@ -191,7 +199,7 @@ function selectApp(appId) {
 
     // Step 1: dashboard summary + app summaries in parallel
     var results = await Promise.all([
-      apiGet('/api/dashboard/summary'),
+      apiGet('/api/dashboard/summary?limit=' + activityPageSize),
       apiGet('/api/thread-pool/configs')
     ]);
 
@@ -213,8 +221,11 @@ function selectApp(appId) {
       } else {
         document.getElementById('summary-line').textContent = (d.appCount||0) + ' 个应用 · ' + (d.configCount||0) + ' 个线程池 · ' + (d.apiKeyCount||0) + ' 个 API Key';
       }
-      renderActivity((d.recentLogs || []).slice(0, 6));
+      // 初始化游标：记录当前页最后一条的 createTime/id 供"加载更多"使用
+      activityCursor = { lastCreateTime: null, lastId: null, hasMore: d.hasMore || false };
+      renderActivity((d.recentLogs || []).slice(0, 6), false);
       renderAlerts(d.alerts || []);
+      updateLoadMoreButton();
     }
 
     // Step 2: App summaries (appId / poolCount / configVersion) — store, render later
@@ -378,14 +389,19 @@ function renderAlerts(alerts) {
 }
 
 // ── Activity stream ──
-function renderActivity(logs) {
+function renderActivity(logs, append) {
   var el = document.getElementById('activity-list');
-  if (!logs.length) {
-    el.innerHTML = '<p class="text-sm text-muted text-center" style="padding:16px 0;">暂无活动记录</p>';
+  if (!append) {
+    if (!logs.length) {
+      el.innerHTML = '<p class="text-sm text-muted text-center" style="padding:16px 0;">暂无活动记录</p>';
+      return;
+    }
+    el.innerHTML = '';
+  } else if (!logs.length) {
     return;
   }
   var typeClass = { CREATE:'create', UPDATE:'update', DELETE:'delete', REGENERATE:'update', ROLLBACK:'update' };
-  el.innerHTML = logs.map(function(r) {
+  var html = logs.map(function(r) {
     var cls = typeClass[r.operateType] || 'update';
     return '<div class="activity-item">' +
       '<span class="activity-item__type activity-item__type--' + cls + '">' + (r.operateType||'OP') + '</span>' +
@@ -393,6 +409,48 @@ function renderActivity(logs) {
       '<span class="activity-item__time">' + relativeTime(r.createTime||r.gmtCreate) + '</span>' +
     '</div>';
   }).join('');
+  el.insertAdjacentHTML('beforeend', html);
+}
+
+function updateLoadMoreButton() {
+  var btn = document.getElementById('activity-load-more');
+  var noMore = document.getElementById('activity-no-more');
+  if (activityCursor.hasMore) {
+    btn.style.display = '';
+    noMore.style.display = 'none';
+  } else {
+    btn.style.display = 'none';
+    noMore.style.display = '';
+  }
+}
+
+// ── Load more (cursor-based) ──
+async function loadMoreActivity() {
+  var btn = document.getElementById('activity-load-more');
+  btn.disabled = true;
+  btn.textContent = '加载中...';
+  try {
+    var url = '/api/dashboard/summary?limit=' + activityPageSize +
+              '&lastCreateTime=' + encodeURIComponent(activityCursor.lastCreateTime || '') +
+              '&lastId=' + (activityCursor.lastId != null ? activityCursor.lastId : '');
+    var res = await apiGet(url);
+    if (res && res.code === 0) {
+      var d = res.data || {};
+      var logs = d.recentLogs || [];
+      renderActivity(logs.slice(0, 6), true);
+      activityCursor = {
+        lastCreateTime: logs.length ? (logs[logs.length - 1].createTime || logs[logs.length - 1].gmtCreate) : activityCursor.lastCreateTime,
+        lastId: logs.length ? logs[logs.length - 1].id : activityCursor.lastId,
+        hasMore: d.hasMore || false
+      };
+      updateLoadMoreButton();
+    }
+  } catch(e) {
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '加载更多';
+  }
 }
 
 function relativeTime(ts) {

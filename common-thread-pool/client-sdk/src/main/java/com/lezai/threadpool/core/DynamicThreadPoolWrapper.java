@@ -72,6 +72,10 @@ public class DynamicThreadPoolWrapper implements Executor {
         return () -> {
             try {
                 command.run();
+            } catch (Throwable e) {
+                // error ⊂ completed：错误任务同时计入 error 与 completed（CONTEXT.md 口径）
+                errorTaskCount.incrementAndGet();
+                throw e;
             } finally {
                 completedTaskCount.incrementAndGet();
             }
@@ -81,16 +85,18 @@ public class DynamicThreadPoolWrapper implements Executor {
     // ────────── submit + error counting ──────────
 
     public <T> CompletableFuture<T> submit(Callable<T> task) {
-        return CompletableFuture.supplyAsync(() -> {
-            try { return task.call(); }
-            catch (Exception e) { throw new CompletionException(e); }
-        }, this).whenComplete((r, ex) -> {
-            if (ex != null) incrementErrorCount();
+        // 自建 CompletableFuture + execute(wrap(...))，让 submit 也走 wrap 的统一计数（error 由 wrap 计）
+        CompletableFuture<T> future = new CompletableFuture<>();
+        this.execute(() -> {
+            try {
+                future.complete(task.call());
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
+                // 包装为非受检异常重新抛出，让外层 wrap 捕捉并计入 error（error ⊂ completed）
+                throw new CompletionException(e);
+            }
         });
-    }
-
-    public void incrementErrorCount() {
-        errorTaskCount.incrementAndGet();
+        return future;
     }
 
     // ────────── lifecycle ──────────
@@ -217,6 +223,11 @@ public class DynamicThreadPoolWrapper implements Executor {
 
     // ────────── stats ──────────
 
+    /**
+     * 采集线程池统计快照。
+     * <p>
+     * 指标为非一致快照，updateConfig 并发时可能出现瞬时矛盾值（如 core&gt;max），下一采集周期自愈。
+     */
     public ThreadPoolStats getStats() {
         ThreadPoolConfig config = configRef.get();
         return ThreadPoolStats.builder()

@@ -19,6 +19,7 @@
 - **先声明，后使用（Declared-before-use）**：访问一个未经声明的池名（通常是拼写错误）必须**显式失败**（抛 `PoolNotFoundException`），而非静默兜底创建。
   - `getRequiredPool(name)`：命中不到即抛错——这是 `@AsyncThreadPool` 的取数语义。
   - **取数（访问）不再产生池**：`getPool` 此前"按需自动建池"、以及 CS 模式下"访问即向服务端自动注册新池"的副作用，均被视为缺陷而移除。池只能来自上述声明渠道。
+  - **服务端下发不产生池（CS 模式）**：服务端 config 列表是"该 appId 下被声明过的池的集合（含服务端调优值）"，**不是**"每个客户端实例都应当拥有的池列表"。客户端 pull 后只用服务端值**更新自己已声明的池**，对服务端有、本地未声明的池**不创建**（忽略并记录 warn）。一个客户端 add 的新池对其他客户端无意义（它们不会创建未声明的池），故 `addConfigApp` 不广播变更通知。池的创建权始终在本地声明渠道，服务端是"调优值权威 + 声明池的集合"，不是"池的创建指令源"。
 
 ## 配置来源与优先级（CS 模式）
 
@@ -43,7 +44,6 @@
 > 这些词此前在代码里被混用，统一定义如下，作为可观测指标的口径。
 
 - **submitted（已提交）**：任务被交给线程池的次数（在 `DynamicThreadPoolWrapper.execute()` 入口自增 `submittedTaskCount`）。
-- **started（已开始）**：任务真正开始执行（进入工作线程）。
 - **completed（已完成）**：任务执行结束（无论成功失败）。
 - **error（出错）**：任务异常完成。在 CompletableFuture 异常完成层捕获。
 - **rejected（被拒绝）**：任务因池/队列饱和被拒绝策略处理的次数（通过 `withRejectedCounting` 包装 reject handler 计数，已实现并上报）。
@@ -73,5 +73,5 @@
 
 - **事件语义边界**：只覆盖低频、单次有意义的信号——`POOL_CREATED`、`POOL_DESTROYED`、`CONFIG_CHANGED`、`CONFIG_SYNCED`。
 - **明确排除**：任务拒绝（`TASK_REJECTED`）、长轮询退避重试（`BACKOFF`）不建模为事件——两者都是风暴式高频场景，逐次派发会轰炸下游通知渠道。这类信号应通过指标速率告警（如 `threadpool.tasks.rejected` 的 rate()、"超过 N 分钟未成功同步"），而非事件机制。
-- **发布规则**：只由 Spring 管理的组件发布（如 `ThreadPoolManager`），线程池运行时的纯 POJO 包装类永不持有 publisher 引用、也不发布事件——避免在原子操作（如 `ConcurrentHashMap.compute`）内部触发可能读取同一注册表的回调造成死锁。
+- **发布规则**：只由 Spring 管理的组件发布（如 `ThreadPoolManager`），线程池运行时的纯 POJO 包装类永不持有 publisher 引用、也不发布事件——避免在原子操作（如 `ConcurrentHashMap.compute`）内部触发回调：mapping function 内结构性修改 map 会抛 `IllegalStateException`（JDK 9+），读 `values()` 虽不抛但并发修改时有死锁风险。
 - **扩展方式**：用户实现 `ThreadPoolEventListener` 并注册为 Spring Bean 即可接入自定义告警通道；默认已有 `LoggingEventListener` 做结构化日志，与用户监听器并存。

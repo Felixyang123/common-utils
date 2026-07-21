@@ -28,6 +28,7 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -210,6 +212,25 @@ class OpenThreadPoolConfigControllerTest {
 
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isNotModified());
+    }
+
+    @Test
+    @DisplayName("GET /open/api/thread-pool/configs/{appId}/subscribe returns 503 with Retry-After when executor is saturated")
+    void subscribe_executorSaturated_returns503() throws Exception {
+        CompletableFuture<ConfigChangeNotification> future = new CompletableFuture<>();
+        when(openThreadPoolConfigService.subscribe(eq("app1"), eq(5L), anyLong())).thenReturn(future);
+
+        MvcResult result = mockMvc.perform(get("/open/api/thread-pool/configs/app1/subscribe")
+                        .param("version", "5"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        // 模拟 executor 饱和：subscribe 返回的 future 以 RejectedExecutionException 完成
+        future.completeExceptionally(new RejectedExecutionException("executor saturated"));
+
+        mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "5"));
     }
 }
 

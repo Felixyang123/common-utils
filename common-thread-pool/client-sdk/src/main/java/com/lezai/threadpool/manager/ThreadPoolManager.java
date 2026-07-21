@@ -67,10 +67,10 @@ public class ThreadPoolManager {
             created.set(true);
             return createPool(config);
         });
-        // 事件/监听器通知必须在 compute lambda 之外执行：lambda 内触发回调（回调内可能读 poolRegistry）会死锁
-        // TODO 后期实验性验证：在 computeIfAbsent 的 mapping function 内调用 notifyPoolCreated
-        //      （触发读 poolRegistry.values() / 递归 computeIfAbsent 其他 key），实测是否真死锁/抛
-        //      IllegalStateException（JDK 9+ 禁止 mapping function 修改 map）。据此决定保留或修正本注释。
+        // 事件/监听器通知必须在 compute lambda 之外执行：
+        //   - mapping function 内结构性修改 map (put/remove 同一 map) 会抛 IllegalStateException (JDK 9+)
+        //   - 读 values() 不抛异常，但并发修改时有死锁风险
+        // 见 CONTEXT.md §运行时事件 + ThreadPoolManagerReentrancyTest。
         if (created.get()) {
             notifyPoolCreated(pool, config);
         }

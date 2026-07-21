@@ -29,14 +29,16 @@ public class LocalStripedLock implements SyncLock {
     @Override
     public boolean tryLock(String lockName, String key, long waitTime, long leaseTime, TimeUnit timeUnit) throws InterruptedException {
         ReentrantLock lock = locks[stripeIndex(lockName, key)];
-        if (lock.isHeldByCurrentThread()) {
-            return false;
-        }
+        // 与 ReentrantLock 原生重入语义对齐：同线程可重入，不再前置拒绝
         return lock.tryLock(waitTime, timeUnit);
     }
 
     @Override
     public void unlock(String lockName, String key) {
-        locks[stripeIndex(lockName, key)].unlock();
+        ReentrantLock lock = locks[stripeIndex(lockName, key)];
+        // 与 RedissonSyncLock.unlock 行为对齐：仅当前线程持锁时才解锁，避免非法解锁抛异常
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
     }
 }

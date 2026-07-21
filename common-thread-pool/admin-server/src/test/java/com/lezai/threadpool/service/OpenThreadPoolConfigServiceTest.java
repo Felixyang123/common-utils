@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class OpenThreadPoolConfigServiceTest {
@@ -171,11 +172,12 @@ class OpenThreadPoolConfigServiceTest {
         assertThat(future).isNotNull();
         assertThat(future.isDone()).isFalse();
         verify(listenerManager).register(eq("app1"), any(ConfigChangeListener.class));
-        verify(subscriptionExecutor).schedule(any(Runnable.class), eq(1000L), eq(java.util.concurrent.TimeUnit.MILLISECONDS));
+        // 补偿定时器移到超时临近：delay = max(timeoutMs - 500, 1000) = 29500
+        verify(subscriptionExecutor).schedule(any(Runnable.class), eq(29500L), eq(java.util.concurrent.TimeUnit.MILLISECONDS));
     }
 
     @Test
-    @DisplayName("subscribe returns immediately when client version is behind")
+    @DisplayName("subscribe returns immediately when client version is behind (register-first-then-compare)")
     void subscribe_immediateReturn_whenNewerVersionExists() {
         ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
                 .appId("app1").configVersion(10L)
@@ -188,8 +190,38 @@ class OpenThreadPoolConfigServiceTest {
         ConfigChangeNotification notification = future.join();
         assertThat(notification.getAppId()).isEqualTo("app1");
         assertThat(notification.getVersion()).isEqualTo(10L);
-        verify(listenerManager, never()).register(anyString(), any());
+        // 先注册后比较：register 会被调用，检测到新版本后立即 unregister
+        verify(listenerManager).register(eq("app1"), any(ConfigChangeListener.class));
+        verify(listenerManager).unregister(eq("app1"), any(ConfigChangeListener.class));
+        // 立即返回路径不调度补偿定时器
         verify(subscriptionExecutor, never()).schedule(any(Runnable.class), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("subscribe does not lose notification when config changes after registration (TOCTOU regression)")
+    void subscribe_noLostNotification_whenChangeArrivesAfterRegister() {
+        // version == currentVersion：不会立即返回，依赖监听器捕获后续变更
+        ThreadPoolAppConfig appConfig = ThreadPoolAppConfig.builder()
+                .appId("app1").configVersion(5L)
+                .configs(TestDataFactory.buildConfigList("pool-a")).build();
+        when(configStorage.getAppConfig("app1")).thenReturn(Optional.of(appConfig));
+
+        ArgumentCaptor<ConfigChangeListener> listenerCaptor = ArgumentCaptor.forClass(ConfigChangeListener.class);
+
+        CompletableFuture<ConfigChangeNotification> future = service.subscribe("app1", 5L, 30000L);
+
+        // 未立即返回，进入监听等待
+        assertThat(future.isDone()).isFalse();
+        verify(listenerManager).register(eq("app1"), listenerCaptor.capture());
+
+        // 模拟 register 与 version 检查之后发生 config change（触发 listener）
+        ConfigChangeListener listener = listenerCaptor.getValue();
+        listener.onConfigChanged("app1", 10L);
+
+        // 监听器已注册，通知不应丢失
+        assertThat(future.isDone()).isTrue();
+        assertThat(future.join().getAppId()).isEqualTo("app1");
+        assertThat(future.join().getVersion()).isEqualTo(10L);
     }
 
     @Test

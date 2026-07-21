@@ -1,10 +1,6 @@
 package com.lezai.threadpool.open;
 
-import com.lezai.threadpool.bean.ApiResponse;
-import com.lezai.threadpool.bean.ConfigChangeNotification;
-import com.lezai.threadpool.bean.ThreadPoolConfig;
-import com.lezai.threadpool.bean.ThreadPoolStatsReport;
-import com.lezai.threadpool.bean.AddConfigAppResult;
+import com.lezai.threadpool.bean.*;
 import com.lezai.threadpool.pojo.bean.ThreadPoolAppConfig;
 import com.lezai.threadpool.service.OpenThreadPoolConfigService;
 import jakarta.validation.Valid;
@@ -21,6 +17,8 @@ import org.springframework.web.context.request.async.DeferredResult;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @RestController
@@ -56,8 +54,12 @@ public class OpenThreadPoolConfigController {
             }
             if (ex != null) {
                 // 超时返回 304 NOT_MODIFIED（长轮询正常语义）
-                if (ex instanceof java.util.concurrent.TimeoutException) {
+                if (ex instanceof TimeoutException) {
                     deferredResult.setResult(ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
+                } else if (ex instanceof RejectedExecutionException) {
+                    // executor 饱和无法调度订阅任务，返回 503 提示客户端退避重试
+                    deferredResult.setResult(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                            .header("Retry-After", "5").build());
                 } else {
                     deferredResult.setErrorResult(ex);
                 }

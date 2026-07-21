@@ -1,6 +1,5 @@
 package com.lezai.threadpool.interceptor;
 
-import com.lezai.threadpool.pojo.bean.ApiKey;
 import com.lezai.threadpool.storage.ApiKeyStorage;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,15 +8,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RedissonClient;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,6 +26,12 @@ class ApiKeyAuthInterceptorTest {
 
     @Mock
     private ApiKeyStorage apiKeyStorage;
+
+    @Mock
+    private RedissonClient redissonClient;
+
+    @Mock
+    private RAtomicLong atomicLong;
 
     private ApiKeyAuthInterceptor interceptor;
 
@@ -95,6 +102,39 @@ class ApiKeyAuthInterceptorTest {
 
         boolean result = interceptor.preHandle(request, response, null);
         assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("preHandle returns 429 after 10 consecutive invalid-key failures (11th blocked)")
+    void preHandle_thenFailures_11thBlocked() throws Exception {
+        AtomicLong counter = new AtomicLong(0);
+        when(redissonClient.getAtomicLong(anyString())).thenReturn(atomicLong);
+        when(atomicLong.expireIfNotSet(any(java.time.Duration.class))).thenReturn(true);
+        when(atomicLong.incrementAndGet()).thenAnswer(inv -> counter.incrementAndGet());
+        when(atomicLong.get()).thenAnswer(inv -> counter.get());
+
+        ApiKeyFailureRateLimiter limiter = new ApiKeyFailureRateLimiter(redissonClient);
+        ReflectionTestUtils.setField(interceptor, "failureRateLimiter", limiter);
+
+        when(apiKeyStorage.validateApiKey("my-app", "wrong-key")).thenReturn(false);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-App-Id", "my-app");
+        request.addHeader("X-API-Key", "wrong-key");
+
+        // 前 10 次：验证失败返回 401，尚未触发限流
+        for (int i = 0; i < 10; i++) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            boolean result = interceptor.preHandle(request, response, null);
+            assertThat(result).isFalse();
+            assertThat(response.getStatus()).isEqualTo(401);
+        }
+
+        // 第 11 次：失败计数达到阈值，触发限流返回 429
+        MockHttpServletResponse blocked = new MockHttpServletResponse();
+        boolean result = interceptor.preHandle(request, blocked, null);
+        assertThat(result).isFalse();
+        assertThat(blocked.getStatus()).isEqualTo(429);
     }
 
     @Test

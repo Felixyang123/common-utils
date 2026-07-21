@@ -49,12 +49,12 @@ class DashboardControllerTest {
         when(apiKeyAdminService.allApiKeys()).thenReturn(List.of(new ApiKeyInfoResponse()));
         OperateLogResponse log1 = new OperateLogResponse();
         OperateLogResponse log2 = new OperateLogResponse();
-        when(operateLogService.getRecentLogs(2, 0)).thenReturn(List.of(log1, log2));
+        when(operateLogService.getRecentLogs(2, null, null)).thenReturn(List.of(log1, log2));
         when(statsAlertService.checkAlerts()).thenReturn(List.of(PoolAlert.builder()
                 .appId("app1").poolName("pool-a").metric("rejectionRate")
                 .value(0.06d).threshold(0.05d).detectedAt(LocalDateTime.now()).build()));
 
-        mockMvc.perform(get("/api/dashboard/summary").param("limit", "1").param("offset", "0"))
+        mockMvc.perform(get("/api/dashboard/summary").param("limit", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.appCount").value(1))
@@ -65,6 +65,6 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.data.recentLogs.length()").value(1))
                 .andExpect(jsonPath("$.data.alerts[0].poolName").value("pool-a"));
 
-        verify(operateLogService).getRecentLogs(2, 0);
+        verify(operateLogService).getRecentLogs(2, null, null);
     }
 }

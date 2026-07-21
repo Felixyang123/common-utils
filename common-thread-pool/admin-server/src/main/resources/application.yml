@@ -27,6 +27,9 @@ threadpool:
       secret: threadpool-admin-jwt-default-secret-please-change-in-production
       token-expire-minutes: 480        # 闲置超时 8 小时
       renew-threshold-minutes: 30      # 剩余 < 30 分钟时滑动续期
+    apikey:
+      # API Key HMAC-SHA256 服务端密钥（ADR-0007）。db profile 下不得为默认值（启动校验见 AdminServerAutoConfiguration）。
+      hmac-secret: threadpool-admin-apikey-hmac-default-secret-please-change
   cache:
     default-config:
       ttl: 10m

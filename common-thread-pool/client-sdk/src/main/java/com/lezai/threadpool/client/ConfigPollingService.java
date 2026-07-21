@@ -170,7 +170,12 @@ public class ConfigPollingService {
         for (ThreadPoolConfig config : configs) {
             if (StringUtils.isBlank(config.getPoolName())) { log.warn("Skipping config with blank poolName for appId: {}", appId); continue; }
             try {
-                threadPoolManager.upsertPool(config);
+                // 服务端下发不产生池：仅更新本地已声明的池，未声明的池跳过（ADR-0008）
+                if (threadPoolManager.getPool(config.getPoolName()) == null) {
+                    log.warn("skip undeclared pool {} for appId {}, not in local declaration", config.getPoolName(), appId);
+                    continue;
+                }
+                threadPoolManager.updatePool(config);
                 applied++;
                 log.info("applied config for pool: {}, appId: {}", config.getPoolName(), appId);
             } catch (Exception e) {

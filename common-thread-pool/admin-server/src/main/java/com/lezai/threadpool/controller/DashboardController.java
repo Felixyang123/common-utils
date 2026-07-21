@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -33,12 +34,12 @@ public class DashboardController {
     @GetMapping("/summary")
     public ApiResponse<DashboardSummaryResponse> summary(
             @RequestParam(defaultValue = "20") int limit,
-            @RequestParam(defaultValue = "0") int offset) {
+            @RequestParam(required = false) LocalDateTime lastCreateTime,
+            @RequestParam(required = false) Long lastId) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
-        int safeOffset = Math.max(0, offset);
         List<AppConfigSummary> apps = configAdminService.listApps();
         List<ApiKeyInfoResponse> apiKeys = apiKeyAdminService.allApiKeys();
-        List<OperateLogResponse> recentLogs = operateLogService.getRecentLogs(safeLimit + 1, safeOffset);
+        List<OperateLogResponse> recentLogs = operateLogService.getRecentLogs(safeLimit + 1, lastCreateTime, lastId);
         List<PoolAlert> alerts = statsAlertService.checkAlerts();
 
         int configCount = apps.stream().mapToInt(AppConfigSummary::getPoolCount).sum();

@@ -36,14 +36,34 @@ class RateLimitInterceptorTest {
     }
 
     @Test
-    @DisplayName("preHandle passes when X-App-Id header is absent")
-    void preHandle_noAppId_passes() throws Exception {
+    @DisplayName("preHandle rate-limits by IP when X-App-Id header is absent, passes when allowed")
+    void preHandle_noAppId_rateLimitedByIp_passes() throws Exception {
+        when(redissonClient.getRateLimiter(anyString())).thenReturn(rateLimiter);
+        when(rateLimiter.trySetRate(any(RateType.class), anyLong(), anyLong(), any(RateIntervalUnit.class))).thenReturn(true);
+        when(rateLimiter.tryAcquire(1)).thenReturn(true);
+
         MockHttpServletRequest request = new MockHttpServletRequest();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean result = interceptor.preHandle(request, response, null);
 
         assertThat(result).isTrue();
+    }
+
+    @Test
+    @DisplayName("preHandle returns 429 by IP when X-App-Id header is absent and IP rate limit exceeded")
+    void preHandle_noAppId_rateLimitedByIp_returns429() throws Exception {
+        when(redissonClient.getRateLimiter(anyString())).thenReturn(rateLimiter);
+        when(rateLimiter.trySetRate(any(RateType.class), anyLong(), anyLong(), any(RateIntervalUnit.class))).thenReturn(true);
+        when(rateLimiter.tryAcquire(1)).thenReturn(false);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(request, response, null);
+
+        assertThat(result).isFalse();
+        assertThat(response.getStatus()).isEqualTo(429);
     }
 
     @Test
