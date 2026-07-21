@@ -37,19 +37,6 @@ class ThreadPoolErrorCountingTest {
     }
 
     @Test
-    @DisplayName("incrementErrorCount increments error counter")
-    void incrementErrorCountWorks() {
-        pool = new DynamicThreadPoolWrapper(ThreadPoolConfig.builder()
-                .poolName("err-pool").corePoolSize(1).maximumPoolSize(1)
-                .keepAliveTime(1).timeUnit(TimeUnit.SECONDS).queueCapacity(10).build());
-
-        assertEquals(0, pool.getErrorTaskCount());
-        pool.incrementErrorCount();
-        pool.incrementErrorCount();
-        assertEquals(2, pool.getErrorTaskCount());
-    }
-
-    @Test
     @DisplayName("rejected tasks increment rejectedTaskCount")
     void rejectedCounted() throws Exception {
         pool = new DynamicThreadPoolWrapper(ThreadPoolConfig.builder()

@@ -101,6 +101,11 @@ class AsyncExecutionSupportTest {
                 AsyncExecutionSupport.execute(joinPoint, methodOf("stringMethod"), pool, true));
 
         assertSame(boom, thrown, "should unwrap CompletionException to the original cause");
+        // error 在 worker 线程的 wrap catch 中计数，awaitResult=true 同步返回异常后需等待计数落地
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (pool.getErrorTaskCount() < 1 && System.nanoTime() < deadline) {
+            Thread.sleep(1);
+        }
         assertEquals(1, pool.getErrorTaskCount());
     }
 
@@ -122,8 +127,11 @@ class AsyncExecutionSupportTest {
 
         assertNull(result);
         assertTrue(done.await(2, TimeUnit.SECONDS));
-        // whenComplete runs asynchronously right after the task; give it a moment to land
-        Thread.sleep(100);
+        // error 在 worker 线程的 wrap catch 中计数（future 完成 → whenComplete 日志与计数几乎同步但仍在 worker 侧），等待其落地
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (pool.getErrorTaskCount() < 1 && System.nanoTime() < deadline) {
+            Thread.sleep(1);
+        }
         assertEquals(1, pool.getErrorTaskCount());
     }
 
@@ -139,6 +147,11 @@ class AsyncExecutionSupportTest {
         assertInstanceOf(CompletableFuture.class, result);
         CompletableFuture<?> future = (CompletableFuture<?>) result;
         assertThrows(Exception.class, () -> future.get(2, TimeUnit.SECONDS));
+        // error 在 worker 线程的 wrap catch 中计数，future 完成后需等待其落地
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (pool.getErrorTaskCount() < 1 && System.nanoTime() < deadline) {
+            Thread.sleep(1);
+        }
         assertEquals(1, pool.getErrorTaskCount());
     }
 }

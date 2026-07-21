@@ -8,6 +8,7 @@ import com.lezai.threadpool.enumeration.RejectPolicyType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -235,6 +236,54 @@ class DynamicThreadPoolWrapperTest {
         assertEquals(1, pool.getLocalDeclaredConfig().getCorePoolSize());
         assertSame(declared, pool.getLocalDeclaredConfig(),
                 "localDeclaredConfig should be the exact config instance passed at construction");
+    }
+
+    @Test
+    @DisplayName("execute 异常路径：error ⊂ completed（wrap 统一计数）")
+    void execute_errorCountedInWrap() throws Exception {
+        DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(defaultConfig());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // 抛出异常的任务：同时计入 error 与 completed
+        pool.execute(() -> {
+            latch.countDown();
+            throw new RuntimeException("boom");
+        });
+        latch.await(5, TimeUnit.SECONDS);
+        Thread.sleep(100);
+
+        assertEquals(1, pool.getSubmittedTaskCount(), "submitted 计入");
+        assertEquals(1, pool.getCompletedTaskCount(), "异常任务也计入 completed");
+        assertEquals(1, pool.getErrorTaskCount(), "异常任务计入 error（error ⊂ completed）");
+
+        pool.shutdownNow();
+    }
+
+    @Test
+    @DisplayName("submit(Callable) 路径也走 wrap 统一计数，异常计入 error")
+    void submit_countedErrorViaWrap() throws Exception {
+        DynamicThreadPoolWrapper pool = new DynamicThreadPoolWrapper(defaultConfig());
+
+        CompletableFuture<Object> future = pool.submit(() -> {
+            throw new IllegalStateException("task failure");
+        });
+
+        try {
+            future.get(5, TimeUnit.SECONDS);
+        } catch (Exception expected) {
+            // 预期异常
+        }
+        // future 在 completeExceptionally 后即返回，但 completed/error 计数在 worker 线程的 finally/catch 中才写入，需等待其完成
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (pool.getCompletedTaskCount() < 1 && System.nanoTime() < deadline) {
+            Thread.sleep(1);
+        }
+
+        assertEquals(1, pool.getSubmittedTaskCount(), "submit 经 execute，submitted 计入");
+        assertEquals(1, pool.getCompletedTaskCount(), "submit 异常完成计入 completed");
+        assertEquals(1, pool.getErrorTaskCount(), "submit 异常计入 error（经 wrap 统一计，不重复）");
+
+        pool.shutdownNow();
     }
 
     @Test
