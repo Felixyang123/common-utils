@@ -1,6 +1,7 @@
 package com.lezai.idempotent.storage;
 
 import com.lezai.idempotent.core.IdempotentRecord;
+import com.lezai.idempotent.enums.IdempotentStatus;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
