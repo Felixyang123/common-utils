@@ -24,7 +24,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 @EnableAspectJAutoProxy
-@EnableConfigurationProperties({CacheProperties.class})
+@EnableConfigurationProperties({CacheProperties.class, DegradationProperties.class})
 @EnableLock
 public class CacheAutoConfiguration {
     @Autowired
@@ -88,5 +88,17 @@ public class CacheAutoConfiguration {
     @ConditionalOnMissingBean(CacheTemplate.class)
     public CacheTemplate cacheTemplate(CacheManager cacheManager) {
         return new CacheTemplate(cacheManager);
+    }
+
+    @Bean
+    public DegradationGuard degradationGuard(DegradationProperties degradationProperties) {
+        DegradationGuard guard = degradationProperties.isEnabled()
+                ? DegradationGuard.of(
+                        degradationProperties.getPermitsPerSecond(),
+                        degradationProperties.getBulkheadPermits(),
+                        degradationProperties.getBulkheadWaitMs())
+                : DegradationGuard.disabled();
+        CacheDegradationSupport.init(guard, degradationProperties.getSingleFlightWaitMs());
+        return guard;
     }
 }
