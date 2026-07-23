@@ -15,7 +15,11 @@ public interface Cache<T> {
     }
 
     default T get(String key) {
-        return Optional.ofNullable(innerGet(key)).map(CacheWrapper::getData).orElse(null);
+        CacheWrapper<T> wrapper = innerGet(key);
+        if (wrapper == null || wrapper.expired()) {
+            return null;
+        }
+        return wrapper.getData();
     }
 
     void remove(String key);
