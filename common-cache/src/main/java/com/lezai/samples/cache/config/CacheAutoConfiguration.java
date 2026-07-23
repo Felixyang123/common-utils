@@ -3,6 +3,7 @@ package com.lezai.samples.cache.config;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.core.*;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.lezai.samples.cache.impl.CaffeineCache;
 import com.lezai.samples.cache.impl.CaffeineCacheManager;
 import com.lezai.samples.cache.impl.HashMapCache;
@@ -114,5 +115,15 @@ public class CacheAutoConfiguration {
                 : DegradationGuard.disabled();
         CacheDegradationSupport.init(guard, degradationProperties.getSingleFlightWaitMs());
         return guard;
+    }
+
+    @Bean
+    @ConditionalOnClass(MeterRegistry.class)
+    @ConditionalOnBean(MeterRegistry.class)
+    @ConditionalOnMissingBean(CacheMetrics.class)
+    public CacheMetrics micrometerCacheMetrics(MeterRegistry meterRegistry) {
+        CacheMetrics metrics = new MicrometerCacheMetrics(meterRegistry);
+        CacheMetricsHolder.init(metrics);
+        return metrics;
     }
 }

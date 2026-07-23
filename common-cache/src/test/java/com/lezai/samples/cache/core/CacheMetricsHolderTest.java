@@ -33,7 +33,7 @@ class CacheMetricsHolderTest {
             }
 
             @Override
-            public void recordLoad() {
+            public void recordLoad(long nanos) {
             }
 
             @Override
@@ -67,7 +67,7 @@ class CacheMetricsHolderTest {
         noop.hit();
         noop.miss();
         noop.staleServed();
-        noop.recordLoad();
+        noop.recordLoad(1_000_000L);
         noop.guardRejected("rate-limit");
         noop.singleFlightTimeout();
         noop.syncPublished();

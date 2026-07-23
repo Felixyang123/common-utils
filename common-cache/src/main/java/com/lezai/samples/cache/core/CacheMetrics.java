@@ -17,8 +17,8 @@ public interface CacheMetrics {
     /** 降级场景下服务了过期旧值（serve-stale）。 */
     void staleServed();
 
-    /** 执行了一次回源加载。 */
-    void recordLoad();
+    /** 执行了一次回源加载。nanos 为加载耗时（纳秒）。 */
+    void recordLoad(long nanos);
 
     /** 护栏拒绝回源。reason 为低基数枚举态，如 "rate-limit" / "bulkhead"。 */
     void guardRejected(String reason);

@@ -24,7 +24,7 @@ public final class NoopCacheMetrics implements CacheMetrics {
     }
 
     @Override
-    public void recordLoad() {
+    public void recordLoad(long nanos) {
     }
 
     @Override
