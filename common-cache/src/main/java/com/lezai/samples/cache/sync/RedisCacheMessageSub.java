@@ -2,6 +2,7 @@ package com.lezai.samples.cache.sync;
 
 import com.lezai.samples.cache.core.Cache;
 import com.lezai.samples.cache.core.CacheManager;
+import com.lezai.samples.cache.core.CacheMetricsHolder;
 import com.lezai.samples.cache.core.CacheWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -31,10 +32,12 @@ public class RedisCacheMessageSub implements MessageListener {
             Object messageObj = valueSerializer.deserialize(message.getBody());
             if (messageObj instanceof CacheSyncMessageImpl m) {
                 process(m);
+                CacheMetricsHolder.metrics().syncReceived();
             } else {
                 log.warn("unexpected cache sync message type: {}", messageObj == null ? "null" : messageObj.getClass());
             }
         } catch (Exception e) {
+            CacheMetricsHolder.metrics().syncError();
             // 错误隔离：单条坏消息不杀死监听循环
             log.error("failed to handle cache sync message", e);
         }

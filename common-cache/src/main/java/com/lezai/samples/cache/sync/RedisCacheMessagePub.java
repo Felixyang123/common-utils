@@ -2,6 +2,7 @@ package com.lezai.samples.cache.sync;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import com.lezai.samples.cache.core.CacheMetricsHolder;
 
 @Slf4j
 public class RedisCacheMessagePub implements CacheMessagePub {
@@ -18,8 +19,10 @@ public class RedisCacheMessagePub implements CacheMessagePub {
     public void publish(CacheSyncMessageImpl message) {
         try {
             redisTemplate.convertAndSend(channel, message);
+            CacheMetricsHolder.metrics().syncPublished();
             log.debug("Published cache sync message: {}", message);
         } catch (Exception e) {
+            CacheMetricsHolder.metrics().syncError();
             log.error("Failed to publish cache sync message: {}", message, e);
         }
     }
