@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CacheProperties {
     private HashMapCacheCfg hashMapCacheCfg = new HashMapCacheCfg();
     private GlobalCfg globalCfg = new GlobalCfg();
+    private CaffeineCfg caffeineCfg = new CaffeineCfg();
     private NodeCfg node = new NodeCfg();
 
     @Data
@@ -52,5 +53,14 @@ public class CacheProperties {
             }
             return LocalNodeAddressDetector.detectAddress(port);
         }
+    }
+
+    @Data
+    public static class CaffeineCfg {
+        /** 每个 Caffeine 缓存的最大条目数（真正的容量上限，修复 HashMapCache 无界）。 */
+        private int cacheSize = 1000;
+
+        /** 逻辑过期后物理保留的毫秒数，供 serve-stale；随后 Caffeine 驱逐释放内存。 */
+        private long staleGraceMs = 30_000;
     }
 }

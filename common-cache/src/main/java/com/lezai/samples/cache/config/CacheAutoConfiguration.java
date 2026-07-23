@@ -3,10 +3,14 @@ package com.lezai.samples.cache.config;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.core.*;
+import com.lezai.samples.cache.impl.CaffeineCache;
+import com.lezai.samples.cache.impl.CaffeineCacheManager;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
+import com.lezai.samples.cache.impl.MultiCaffeineCache;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
 import com.lezai.samples.cache.impl.MultiRemoteRedisCache;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,15 +37,31 @@ public class CacheAutoConfiguration {
     private CacheProperties cacheProperties;
 
     @Bean
+    @ConditionalOnClass(Caffeine.class)
     @ConditionalOnMissingBean(Cache.class)
     public Cache<Object> globalCache() {
+        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
+        return new CaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(Cache.class)
+    public Cache<Object> globalCacheFallback() {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
         return new HashMapCache<>(globalCfg.getLocalCacheSize());
     }
 
     @Bean
+    @ConditionalOnClass(Caffeine.class)
     @ConditionalOnMissingBean(CacheManager.class)
     public CacheManager cacheManager(Cache<Object> globalCache) {
+        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
+        return new CaffeineCacheManager(globalCache, cfg.getCacheSize(), cfg.getStaleGraceMs());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CacheManager.class)
+    public CacheManager cacheManagerFallback(Cache<Object> globalCache) {
         CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
         return new HashMapCacheManager(globalCache, cfg.getCacheSize());
     }
@@ -73,9 +93,10 @@ public class CacheAutoConfiguration {
 
     @Bean(name = "l1Cache")
     @ConditionalOnBean(name = "l2Cache")
-    public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
-        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache);
+    @ConditionalOnClass(Caffeine.class)
+    public MultiCache<Object> multiCaffeineCache(@Qualifier(value = "l2Cache") MultiCache<Object> l2) {
+        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
+        return new MultiCaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs(), l2);
     }
 
     @Primary
