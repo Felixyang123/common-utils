@@ -31,4 +31,15 @@ class CaffeineCacheTest {
         assertThatThrownBy(() -> cache.loadAndCache("missing", 60_000L, key -> "v"))
                 .isInstanceOf(CacheDegradedException.class);
     }
+
+    @Test
+    void guardReject_withStale_servesStale() {
+        CacheDegradationSupport.init(DegradationGuard.of(1_000_000, 0, 10), 1000);
+        CaffeineCache<Object> cache = new CaffeineCache<>(100, 60_000);
+        cache.innerSet("k", com.lezai.samples.cache.core.CacheWrapper.of("stale", -1L)); // expired stale value
+        Object v = cache.loadAndCache("k", 60_000L, key -> {
+            throw new AssertionError("should not hit DB when guard rejects");
+        });
+        org.assertj.core.api.Assertions.assertThat(v).isEqualTo("stale");
+    }
 }
