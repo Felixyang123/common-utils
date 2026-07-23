@@ -2,8 +2,11 @@ package com.lezai.samples.cache.impl;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.lezai.samples.cache.core.CacheDegradationSupport;
+import com.lezai.samples.cache.core.CacheDegradedException;
 import com.lezai.samples.cache.core.CacheLoader;
 import com.lezai.samples.cache.core.CacheWrapper;
+import com.lezai.samples.cache.core.DegradationGuard;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -38,7 +41,21 @@ public class CaffeineCache<T> implements com.lezai.samples.cache.core.Cache<T> {
 
     @Override
     public T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
-        CacheWrapper<T> cacheWrapper = cache.get(key, k -> CacheWrapper.of(loader.load(k), ttl));
-        return Optional.ofNullable(cacheWrapper).map(CacheWrapper::getData).orElse(null);
+        CacheWrapper<T> present = cache.getIfPresent(key);
+        boolean hasStale = present != null;
+        T stale = hasStale ? present.getData() : null;
+        try {
+            CacheWrapper<T> cacheWrapper = cache.get(key, k -> {
+                try (DegradationGuard.Permit permit = CacheDegradationSupport.guard().acquire(k)) {
+                    return CacheWrapper.of(loader.load(k), ttl);
+                }
+            });
+            return Optional.ofNullable(cacheWrapper).map(CacheWrapper::getData).orElse(null);
+        } catch (CacheDegradedException e) {
+            if (hasStale) {
+                return stale;
+            }
+            throw e;
+        }
     }
 }
