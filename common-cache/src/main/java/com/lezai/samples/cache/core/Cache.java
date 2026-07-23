@@ -49,7 +49,7 @@ public interface Cache<T> {
                         try (DegradationGuard.Permit permit =
                                      CacheDegradationSupport.guard().acquire(key)) {
                             T data = loader.load(key);
-                            set(key, data, ttl);
+                            innerSet(key, CacheWrapper.of(data, ttl));
                             return data;
                         }
                     });
