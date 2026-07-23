@@ -1,8 +1,5 @@
 package com.lezai.samples.cache.config;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.core.*;
@@ -13,6 +10,7 @@ import com.lezai.samples.cache.impl.HashMapCacheManager;
 import com.lezai.samples.cache.impl.MultiCaffeineCache;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
 import com.lezai.samples.cache.impl.MultiRemoteRedisCache;
+import com.lezai.samples.cache.serializer.CachePayloadRedisSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -25,12 +23,11 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 @EnableAspectJAutoProxy
-@EnableConfigurationProperties({CacheProperties.class, DegradationProperties.class})
+@EnableConfigurationProperties({CacheProperties.class, DegradationProperties.class, CacheSerializerProperties.class})
 @EnableLock
 public class CacheAutoConfiguration {
     @Autowired
@@ -70,22 +67,11 @@ public class CacheAutoConfiguration {
     @ConditionalOnMissingBean(name = "cacheRedisTemplate")
     @ConditionalOnClass(RedisConnectionFactory.class)
     @ConditionalOnBean(RedisConnectionFactory.class)
-    public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
+    public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory,
+                                                        CacheSerializerProperties serializerProperties) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
-
-        // 使用Jackson2JsonRedisSerializer来序列化和反序列化redis的value值
-        ObjectMapper mapper = new ObjectMapper();
-        // 取消Javabean转换
-//        mapper.deactivateDefaultTyping();
-        // 打开Javabean转换
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(mapper, Object.class);
-
-        // 设置value的序列化规则和key的序列化规则
-        template.setValueSerializer(serializer);
+        template.setValueSerializer(new CachePayloadRedisSerializer(serializerProperties));
         template.setKeySerializer(new StringRedisSerializer());
         template.afterPropertiesSet();
         return template;
