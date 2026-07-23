@@ -11,6 +11,8 @@ import com.lezai.samples.cache.impl.MultiHashMapCache;
 import com.lezai.samples.cache.impl.MultiRemoteRedisCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -46,6 +48,8 @@ public class CacheAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "cacheRedisTemplate")
+    @ConditionalOnClass(RedisConnectionFactory.class)
+    @ConditionalOnBean(RedisConnectionFactory.class)
     public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
@@ -68,6 +72,7 @@ public class CacheAutoConfiguration {
     }
 
     @Bean(name = "l1Cache")
+    @ConditionalOnBean(name = "l2Cache")
     public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
         CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
         return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache);
@@ -75,6 +80,8 @@ public class CacheAutoConfiguration {
 
     @Primary
     @Bean(name = "l2Cache")
+    @ConditionalOnClass(RedisConnectionFactory.class)
+    @ConditionalOnBean(name = "cacheRedisTemplate")
     public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> cacheRedisTemplate) {
         return new MultiRemoteRedisCache<>(cacheRedisTemplate);
     }
