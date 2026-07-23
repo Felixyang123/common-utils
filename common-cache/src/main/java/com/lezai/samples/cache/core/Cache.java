@@ -29,12 +29,14 @@ public interface Cache<T> {
 
         // 新鲜命中（含缓存空值的穿透保护）
         if (wrapper != null && !wrapper.expired()) {
+            CacheMetricsHolder.metrics().hit();
             return wrapper.getData();
         }
 
         // 需要回源：记录过期旧值用于 serve-stale
         boolean hasStale = wrapper != null;
         T stale = hasStale ? wrapper.getData() : null;
+        CacheMetricsHolder.metrics().miss();
 
         try {
             return CacheDegradationSupport.singleFlight().execute(
@@ -48,13 +50,16 @@ public interface Cache<T> {
                         }
                         try (DegradationGuard.Permit permit =
                                      CacheDegradationSupport.guard().acquire(key)) {
+                            long s = System.nanoTime();
                             T data = loader.load(key);
+                            CacheMetricsHolder.metrics().recordLoad(System.nanoTime() - s);
                             innerSet(key, CacheWrapper.of(data, ttl));
                             return data;
                         }
                     });
         } catch (CacheDegradedException e) {
             if (hasStale) {
+                CacheMetricsHolder.metrics().staleServed();
                 return stale; // serve-stale：降级/限流时返回过期旧值
             }
             throw e;

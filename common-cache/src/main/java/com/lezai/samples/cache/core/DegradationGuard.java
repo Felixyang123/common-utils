@@ -45,11 +45,13 @@ public class DegradationGuard {
             return Permit.NOOP;
         }
         if (tokenBucket != null && !tokenBucket.tryAcquire()) {
+            CacheMetricsHolder.metrics().guardRejected("token");
             throw new CacheDegradedException("rate limit exceeded for key=" + key);
         }
         if (bulkhead != null) {
             try {
                 if (!bulkhead.tryAcquire(bulkheadWaitMs, TimeUnit.MILLISECONDS)) {
+                    CacheMetricsHolder.metrics().guardRejected("bulkhead");
                     throw new CacheDegradedException("bulkhead full for key=" + key);
                 }
             } catch (InterruptedException e) {

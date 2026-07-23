@@ -47,6 +47,7 @@ public class SingleFlight {
         try {
             return (T) existing.future.get(waitMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
+            CacheMetricsHolder.metrics().singleFlightTimeout();
             throw new CacheDegradedException("timed out waiting in-flight load, key=" + key);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

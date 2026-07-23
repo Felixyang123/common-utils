@@ -13,7 +13,7 @@ public final class CacheMetricsHolder {
 
     /** 注入指标实现（通常由自动配置在启动时调用一次）。 */
     public static void init(CacheMetrics m) {
-        metrics = m;
+        metrics = m != null ? m : NoopCacheMetrics.INSTANCE;
     }
 
     /** 获取当前指标实现。 */
