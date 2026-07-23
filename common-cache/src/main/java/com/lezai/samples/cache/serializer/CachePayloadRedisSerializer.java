@@ -38,6 +38,14 @@ public class CachePayloadRedisSerializer implements RedisSerializer<Object> {
         // 显式禁用默认多态：仅靠白名单/别名还原类型，杜绝 RCE
     }
 
+    /** 便捷构造：直接指定白名单包列表（主要用于测试）。 */
+    public CachePayloadRedisSerializer(List<String> allowedPackages) {
+        CacheSerializerProperties props = new CacheSerializerProperties();
+        props.setAllowedPackages(allowedPackages);
+        this.properties = props;
+        this.mapper = new ObjectMapper();
+    }
+
     /** 注册允许还原的类型别名（线程安全）。 */
     public void registerAlias(Class<?> type) {
         if (type != null) {

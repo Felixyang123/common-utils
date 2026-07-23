@@ -29,7 +29,7 @@ public class SyncMessageAutoConfiguration {
     @Bean
     @ConditionalOnBean(name = "cacheRedisTemplate")
     public RedisCacheMessageSub redisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager cacheManager) {
-        return new RedisCacheMessageSub(redisTemplate, cacheManager, cacheMessageSyncProperties.getRedisPubSub().getChannel());
+        return new RedisCacheMessageSub(redisTemplate, cacheManager);
     }
 
     @Bean
