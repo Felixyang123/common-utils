@@ -1,5 +1,6 @@
 package com.lezai.threadpool.utils;
 
+import com.lezai.threadpool.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -92,17 +93,17 @@ public class ApiKeyUtils {
             return ENCODER.encodeToString(bytes);
         } catch (NoSuchAlgorithmException e) {
             // HmacSHA256 为 JRE 必实现算法，不会到达此处
-            throw new IllegalStateException("HmacSHA256 algorithm not available", e);
+            throw new BusinessException(500, "HmacSHA256 algorithm not available", e);
         } catch (InvalidKeyException e) {
             // 密钥长度不合法（如为空）时到达此处，属于配置错误
-            throw new IllegalStateException("Invalid HMAC secret key", e);
+            throw new BusinessException(500, "Invalid HMAC secret key", e);
         }
     }
 
     private static byte[] getSecretBytes() {
         String secret = HMAC_SECRET;
         if (secret == null || secret.isEmpty()) {
-            throw new IllegalStateException("ApiKeyUtils HMAC secret not initialized. " +
+            throw new BusinessException(500, "ApiKeyUtils HMAC secret not initialized. " +
                     "Please configure 'threadpool.admin.apikey.hmac-secret'.");
         }
         return secret.getBytes(StandardCharsets.UTF_8);

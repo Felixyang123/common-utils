@@ -14,6 +14,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.lezai.threadpool.exception.BusinessException;
+
 /**
  * 默认凭据启动校验（决议 6c + 17）单元测试。
  * 直接构造 {@link AdminServerAutoConfiguration} 并调用 {@code validateDefaultCredentials()}，
@@ -38,7 +40,7 @@ class DefaultCredentialStartupTest {
     }
 
     @Test
-    @DisplayName("db profile + default credentials → startup fails with IllegalStateException")
+    @DisplayName("db profile + default credentials → startup fails with BusinessException")
     void dbProfile_defaultCredentials_fails() {
         when(environment.matchesProfiles("db")).thenReturn(true);
         when(environment.getProperty("spring.datasource.password")).thenReturn(DEFAULT_DB_PASSWORD);
@@ -49,7 +51,7 @@ class DefaultCredentialStartupTest {
         AdminServerAutoConfiguration config = new AdminServerAutoConfiguration(authProperty, environment);
 
         assertThatThrownBy(config::validateDefaultCredentials)
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("default credentials");
     }
 

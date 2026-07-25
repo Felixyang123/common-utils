@@ -95,19 +95,29 @@ public abstract class CachedStorageSupport<T> {
     }
 
     /**
-     * 在 key 粒度锁内执行 computer。
-     * <p>
-     * TODO(已知窗口，暂不修): compute 锁在方法 return 时释放，早于外层 @Transactional 提交。并发场景下，
-     * 线程 T1 释放锁后事务提交前，T2 拿锁 getOrLoad 可能读到旧值并写缓存——靠事务隔离(RR)保证最终一致，
-     * 但存在短暂不一致。彻底修法是将 syncLock 提升到 @Transactional 方法外层（锁覆盖整个事务），
-     * 需重构 CachedStorageSupport 与事务边界的分层，侵入性大。当前窗口业务可接受（见 ADR-0009）。
+     * 在 key 粒度锁内执行 computer，锁释放时机视事务状态而定：
+     * <ul>
+     *   <li>有事务激活：锁推迟到事务提交/回滚后释放（通过 {@link TransactionSynchronization#afterCompletion}），
+     *       防止 T1 释放锁后事务提交前 T2 读到旧值并写缓存（见 ADR-0009 修复）。</li>
+     *   <li>无事务（如 local 边界场景）：锁在方法 return 时立即释放。</li>
+     *   <li>computer 抛异常：立即释放锁，避免死锁。</li>
+     * </ul>
      */
     public <R> R compute(String key, Supplier<R> computer) {
         syncLock.lock(cacheName, key);
         try {
             return computer.get();
         } finally {
-            syncLock.unlock(cacheName, key);
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        syncLock.unlock(cacheName, key);
+                    }
+                });
+            } else {
+                syncLock.unlock(cacheName, key);
+            }
         }
     }
 
@@ -116,7 +126,16 @@ public abstract class CachedStorageSupport<T> {
         try {
             computer.run();
         } finally {
-            syncLock.unlock(cacheName, key);
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        syncLock.unlock(cacheName, key);
+                    }
+                });
+            } else {
+                syncLock.unlock(cacheName, key);
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import com.lezai.threadpool.interceptor.ApiKeyFailureRateLimiter;
 import com.lezai.threadpool.interceptor.RateLimitInterceptor;
 import com.lezai.threadpool.service.*;
 import com.lezai.threadpool.storage.*;
+import com.lezai.threadpool.exception.BusinessException;
 import com.lezai.threadpool.storage.cache.CacheConfig;
 import com.lezai.threadpool.storage.cache.CacheService;
 import com.lezai.threadpool.storage.cache.CaffeineCacheService;
@@ -92,7 +93,7 @@ public class AdminServerAutoConfiguration {
             String message = "Refusing to start with default credentials in 'db' profile for security reasons."
                     + " Please customize the following configuration items:" + violations;
             log.error(message);
-            throw new IllegalStateException(message);
+            throw new BusinessException(503, message);
         }
 
         log.info("Default credential startup validation passed");
