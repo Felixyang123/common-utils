@@ -1,0 +1,88 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: dynamic-tp
+nodes_managed: true
+exported_at: "2026-07-22T14:36:53Z"
+modules:
+    anti_duplicate:
+        dir_name: 防重复提交组件（Anti-Duplicate）
+        title: 防重复提交组件（Anti-Duplicate）
+        scope:
+            - anti-duplicate/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_cache:
+        dir_name: 通用缓存抽象与多级缓存组件
+        title: 通用缓存抽象与多级缓存组件
+        scope:
+            - common-cache/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_lock:
+        dir_name: 分布式锁与本地锁组件
+        title: 分布式锁与本地锁组件
+        scope:
+            - common-lock/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_task_flow:
+        dir_name: common_task_flow
+        title: common_task_flow
+        scope:
+            - common-task-flow/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_thread_pool:
+        dir_name: 动态线程池管理组件（Admin Server + Client SDK + Core）
+        title: 动态线程池管理组件（Admin Server + Client SDK + Core）
+        scope:
+            - common-thread-pool/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_token_generator:
+        dir_name: common_token_generator
+        title: common_token_generator
+        scope:
+            - common-token-generator/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    common_utils_samples:
+        dir_name: common_utils_samples
+        title: common_utils_samples
+        scope:
+            - common-utils-samples/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    idempotent:
+        dir_name: idempotent
+        title: idempotent
+        scope:
+            - idempotent/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    ratelimit:
+        dir_name: ratelimit
+        title: ratelimit
+        scope:
+            - ratelimit/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

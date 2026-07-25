@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: common_token_generator
+title: common_token_generator
+scope:
+    - common-token-generator/
+source_files: []
+depends_on: []
+related_to: []

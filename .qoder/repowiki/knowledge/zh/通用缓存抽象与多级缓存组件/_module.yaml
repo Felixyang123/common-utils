@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: common_cache
+title: 通用缓存抽象与多级缓存组件
+scope:
+    - common-cache/
+source_files: []
+depends_on: []
+related_to: []
