@@ -2,6 +2,7 @@ package com.lezai.samples.cache.serializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezai.samples.cache.config.CacheSerializerProperties;
+import com.lezai.samples.cache.core.CacheWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.SerializationException;
@@ -12,10 +13,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 安全的缓存载荷序列化器——使用信封 {t,e,dt,d} 格式：
+ * 安全的缓存载荷序列化器——使用信封 {t,dt,d} 格式：
  *   t  : 数据原始类型全名（String）
- *   e  : 逻辑过期时间（Long，毫秒时间戳，null 表示永不过期）
- *   dt : 数据类型标识（String，由写入方标记；用于区分 CacheWrapper 等信封语义）
+ *   dt : 数据类型标识（String）；对 CacheWrapper 为内层 data 类型，否则同 t
  *   d  : 数据本体（JSON）
  *
  * 安全约束：
@@ -55,13 +55,23 @@ public class CachePayloadRedisSerializer implements RedisSerializer<Object> {
 
     @Override
     public byte[] serialize(Object o) throws SerializationException {
+        if (o == null) {
+            return new byte[0];
+        }
         try {
-            String typeName = (o == null) ? Void.class.getName() : o.getClass().getName();
-            String json = (o == null) ? "null" : mapper.writeValueAsString(o);
-            // 信封 {t,e,dt,d}：序列化场景下 e/dt 由调用方本体携带（如 CacheWrapper 自身字段），
-            // 此处 t=外层类型，dt=同，d=JSON 化后的对象。
-            String envelope = "{\"t\":\"" + escapeJson(typeName)
-                    + "\",\"e\":null,\"dt\":\"" + escapeJson(typeName)
+            String outerType = o.getClass().getName();
+            String dt = outerType; // 默认 dt = 外层类型
+
+            if (o instanceof CacheWrapper<?> w) {
+                Object data = w.getData();
+                if (data != null) {
+                    dt = data.getClass().getName(); // 内层类型
+                }
+            }
+
+            String json = mapper.writeValueAsString(o);
+            String envelope = "{\"t\":\"" + escapeJson(outerType)
+                    + "\",\"dt\":\"" + escapeJson(dt)
                     + "\",\"d\":" + json + "}";
             return envelope.getBytes(StandardCharsets.UTF_8);
         } catch (Exception e) {
@@ -81,27 +91,52 @@ public class CachePayloadRedisSerializer implements RedisSerializer<Object> {
                 return null;
             }
             String type = (String) map.get("t");
+            String dt = (String) map.get("dt");
             Object data = map.get("d");
+
             if (type == null || data == null) {
-                // 非信封格式：整体作为 Map 降级返回
+                return map; // 非信封格式降级为 Map
+            }
+
+            // CacheWrapper 特殊处理：提取内层 data 节点，按 dt（内层类型）还原
+            if (TYPE_CACHE_WRAPPER.equals(type) || type.endsWith(".CacheWrapper")) {
+                if (data instanceof Map<?, ?> dataMap) {
+                    Object rawData = dataMap.get("data");
+                    Object rawExpireTime = dataMap.get("expireTime");
+                    Long expireTime = rawExpireTime instanceof Number n ? n.longValue() : null;
+
+                    Object typedData = rawData;
+                    if (rawData != null && dt != null) {
+                        Class<?> dataClass = resolveType(dt);
+                        if (dataClass != null && !dataClass.equals(Object.class)) {
+                            com.fasterxml.jackson.databind.JsonNode dataNode = mapper.valueToTree(rawData);
+                            typedData = mapper.treeToValue(dataNode, dataClass);
+                        }
+                    }
+                    return CacheWrapper.builder().data(typedData).expireTime(expireTime).build();
+                }
                 return map;
             }
+
+            // 通用处理：用 t 还原外层类型
             Class<?> targetType = resolveType(type);
-            if (targetType == null || targetType == Object.class) {
-                // 白名单未命中：降级为 Map，隔离坏消息
+            if (targetType == null || targetType.equals(Object.class)) {
+                // 标量类型（String 等）直接返回 d 值，无需白名单
+                if (data instanceof String s) {
+                    return s;
+                }
                 if (log.isDebugEnabled()) {
                     log.debug("Type [{}] not in whitelist, degrading to Map", type);
                 }
                 return map;
             }
-            // 将数据节点转为目标类型
-            String dataJson = data instanceof String s ? mapper.writeValueAsString(map.get("d")) : mapper.writeValueAsString(data);
+            String dataJson = mapper.writeValueAsString(data);
             return mapper.readValue(dataJson, targetType);
         } catch (SerializationException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("CachePayloadRedisSerializer deserialize failed, degrading to String. reason: {}", e.getMessage());
-            // 反序列化失败：错误隔离，返回原始字符串而非抛异常杀死订阅线程
+            log.warn("CachePayloadRedisSerializer deserialize failed, degrading to String. reason: {}",
+                    e.getMessage());
             return new String(bytes, StandardCharsets.UTF_8);
         }
     }

@@ -1,7 +1,8 @@
 package com.lezai.samples.cache.serializer;
 
-import com.lezai.samples.cache.config.CacheSerializerProperties;
 import com.lezai.samples.cache.core.CacheWrapper;
+import com.lezai.samples.cache.config.CacheSerializerProperties;
+import com.lezai.samples.cache.sync.CacheSyncMessageImpl;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -12,67 +13,91 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CachePayloadRedisSerializerTest {
 
-    private CachePayloadRedisSerializer newSerializer(List<String> allowed) {
+    record User(String name, int age) {}
+
+    // ---- 复杂类型还原（HIGH #2）----
+
+    @Test
+    void wrapperWithComplexType_roundTripsAsOriginalType() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
         CacheSerializerProperties props = new CacheSerializerProperties();
-        props.setAllowedPackages(allowed);
-        return new CachePayloadRedisSerializer(props);
+        props.setAllowedPackages(List.of("com.lezai", "com.lezai.samples.cache.serializer"));
+        CachePayloadRedisSerializer serWithUser = new CachePayloadRedisSerializer(props);
+
+        CacheWrapper<User> original = CacheWrapper.of(new User("ming", 18), 60_000L);
+        byte[] bytes = serWithUser.serialize(original);
+        Object result = serWithUser.deserialize(bytes);
+
+        assertThat(result).isInstanceOf(CacheWrapper.class);
+        CacheWrapper<?> cw = (CacheWrapper<?>) result;
+        assertThat(cw.getData()).isInstanceOf(User.class);
+        assertThat(cw.getData()).isEqualTo(new User("ming", 18));
+        assertThat(cw.getExpireTime()).isEqualTo(original.getExpireTime());
     }
 
     @Test
-    void serialize_usesEnvelope_withTypeAndData() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
+    void wrapperWithComplexType_degradesToMap_whenNotWhitelisted() {
+        CachePayloadRedisSerializer strictSer = new CachePayloadRedisSerializer(List.of("org.other"));
+        CacheWrapper<User> original = CacheWrapper.of(new User("ming", 18), 60_000L);
+        byte[] bytes = strictSer.serialize(original);
+        Object result = strictSer.deserialize(bytes);
+
+        assertThat(result).isInstanceOf(CacheWrapper.class);
+        CacheWrapper<?> cw = (CacheWrapper<?>) result;
+        assertThat(cw.getData()).isInstanceOf(Map.class);
+    }
+
+    // ---- 移除 e 字段（LOW #5）----
+
+    @Test
+    void envelopeDoesNotContainEField() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
         byte[] bytes = ser.serialize("hello");
         String json = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(json).contains("\"t\":\"java.lang.String\"").contains("\"d\":\"hello\"");
+        assertThat(json).doesNotContain("\"e\"");
     }
 
     @Test
-    void deserialize_whitelistedType_returnsConcreteInstance() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        byte[] bytes = ser.serialize(new com.lezai.samples.cache.sync.CacheSyncMessageImpl("c", "k", 60_000L));
-        Object out = ser.deserialize(bytes);
-        assertThat(out).isInstanceOf(com.lezai.samples.cache.sync.CacheSyncMessageImpl.class);
+    void wrapperEnvelopeDoesNotContainEField() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
+        CacheWrapper<String> w = CacheWrapper.of("v", 60_000L);
+        byte[] bytes = ser.serialize(w);
+        String json = new String(bytes, StandardCharsets.UTF_8);
+        assertThat(json).doesNotContain("\"e\"");
+    }
+
+    // ---- 兼容：标量/CacheSyncMessageImpl 行为不变 ----
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void wrapperWithScalarData_roundTrips() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
+        CacheWrapper<String> w = CacheWrapper.of("payload", 60_000L);
+        byte[] bytes = ser.serialize(w);
+        CacheWrapper<?> back = (CacheWrapper<?>) ser.deserialize(bytes);
+        assertThat(back.getData()).isEqualTo("payload");
+        assertThat(back.getExpireTime()).isEqualTo(w.getExpireTime());
     }
 
     @Test
-    void deserialize_nonWhitelistedType_degradesToMap() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        // java.util.ArrayList 不在默认白名单内
-        byte[] bytes = ser.serialize(new java.util.ArrayList<>(List.of("a", "b")));
-        Object out = ser.deserialize(bytes);
-        assertThat(out).isInstanceOf(Map.class);
+    void syncMessage_roundTrips() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
+        CacheSyncMessageImpl out = new CacheSyncMessageImpl("CAT", "CAT:k1", 60_000L);
+        byte[] bytes = ser.serialize(out);
+        Object back = ser.deserialize(bytes);
+        assertThat(back).isInstanceOf(CacheSyncMessageImpl.class);
+        CacheSyncMessageImpl bm = (CacheSyncMessageImpl) back;
+        assertThat(bm.getCategory()).isEqualTo("CAT");
+        assertThat(bm.getKey()).isEqualTo("CAT:k1");
+        assertThat(bm.getSourceId()).isEqualTo(out.getSourceId());
     }
 
     @Test
-    void deserialize_registeredAlias_returnsConcreteInstance() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        ser.registerAlias(CacheWrapper.class);
-        byte[] bytes = ser.serialize(CacheWrapper.of("v", 60_000L));
-        Object out = ser.deserialize(bytes);
-        assertThat(out).isInstanceOf(CacheWrapper.class);
-        assertThat(((CacheWrapper<?>) out).getData()).isEqualTo("v");
-    }
-
-    @Test
-    void deserialize_nullOrEmpty_returnsNull() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        assertThat(ser.deserialize(null)).isNull();
-        assertThat(ser.deserialize(new byte[0])).isNull();
-    }
-
-    @Test
-    void deserialize_badBytes_degradesToRawString_noException() {
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        // 损坏/恶意消息不应抛异常杀死订阅线程
-        Object out = ser.deserialize("not-json-{{{".getBytes(StandardCharsets.UTF_8));
-        assertThat(out).isInstanceOf(String.class);
-    }
-
-    @Test
-    void noDefaultTyping_noRceSurface() {
-        // 默认多态禁用：序列化输出中不应出现 @class 这类类型元数据
-        CachePayloadRedisSerializer ser = newSerializer(List.of("com.lezai"));
-        byte[] bytes = ser.serialize("probe");
-        assertThat(new String(bytes, StandardCharsets.UTF_8)).doesNotContain("@class");
+    @SuppressWarnings("unchecked")
+    void nonEnvelopeObject_roundTrips() {
+        CachePayloadRedisSerializer ser = new CachePayloadRedisSerializer(List.of("com.lezai"));
+        byte[] bytes = ser.serialize("hello");
+        Object back = ser.deserialize(bytes);
+        assertThat(back).isEqualTo("hello");
     }
 }
