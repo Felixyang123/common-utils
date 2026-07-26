@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,34 +35,40 @@ public class CacheAutoConfiguration {
     @Autowired
     private CacheProperties cacheProperties;
 
-    @Bean
+    // ---- 默认 Cache/CacheManager: Caffeine 优先，无 Caffeine 时 HashMap 兜底 ----
+
+    @Configuration
     @ConditionalOnClass(Caffeine.class)
-    @ConditionalOnMissingBean(Cache.class)
-    public Cache<Object> globalCache() {
-        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
-        return new CaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs());
+    static class CaffeineDefaults {
+        @Bean
+        @ConditionalOnMissingBean(Cache.class)
+        public Cache<Object> globalCache(CacheProperties props) {
+            var cfg = props.getCaffeineCfg();
+            return new CaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs());
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(CacheManager.class)
+        public CacheManager cacheManager(Cache<Object> globalCache, CacheProperties props) {
+            var cfg = props.getCaffeineCfg();
+            return new CaffeineCacheManager(globalCache, cfg.getCacheSize(), cfg.getStaleGraceMs());
+        }
     }
 
-    @Bean
-    @ConditionalOnMissingBean(Cache.class)
-    public Cache<Object> globalCacheFallback() {
-        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new HashMapCache<>(globalCfg.getLocalCacheSize());
-    }
+    @Configuration
+    @ConditionalOnMissingClass("com.github.benmanes.caffeine.cache.Caffeine")
+    static class HashMapDefaults {
+        @Bean
+        @ConditionalOnMissingBean(Cache.class)
+        public Cache<Object> globalCache(CacheProperties props) {
+            return new HashMapCache<>(props.getGlobalCfg().getLocalCacheSize());
+        }
 
-    @Bean
-    @ConditionalOnClass(Caffeine.class)
-    @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager cacheManager(Cache<Object> globalCache) {
-        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
-        return new CaffeineCacheManager(globalCache, cfg.getCacheSize(), cfg.getStaleGraceMs());
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager cacheManagerFallback(Cache<Object> globalCache) {
-        CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
-        return new HashMapCacheManager(globalCache, cfg.getCacheSize());
+        @Bean
+        @ConditionalOnMissingBean(CacheManager.class)
+        public CacheManager cacheManager(Cache<Object> globalCache, CacheProperties props) {
+            return new HashMapCacheManager(globalCache, props.getHashMapCacheCfg().getCacheSize());
+        }
     }
 
     @Bean
