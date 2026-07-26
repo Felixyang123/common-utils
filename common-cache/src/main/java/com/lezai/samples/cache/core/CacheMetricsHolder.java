@@ -8,6 +8,8 @@ public final class CacheMetricsHolder {
 
     private static volatile CacheMetrics metrics = NoopCacheMetrics.INSTANCE;
 
+    private static final ThreadLocal<Boolean> SUPPRESSED = ThreadLocal.withInitial(() -> false);
+
     private CacheMetricsHolder() {
     }
 
@@ -16,8 +18,26 @@ public final class CacheMetricsHolder {
         metrics = m != null ? m : NoopCacheMetrics.INSTANCE;
     }
 
-    /** 获取当前指标实现。 */
+    /** 获取当前指标实现。当处于抑制状态时返回 noop 实例。 */
     public static CacheMetrics metrics() {
+        if (SUPPRESSED.get()) {
+            return NoopCacheMetrics.INSTANCE;
+        }
         return metrics;
+    }
+
+    /** 当前线程是否处于指标抑制状态。 */
+    public static boolean isSuppressed() {
+        return SUPPRESSED.get();
+    }
+
+    /** 抑制当前线程的指标记录。 */
+    public static void suppressMetrics() {
+        SUPPRESSED.set(true);
+    }
+
+    /** 恢复当前线程的指标记录。 */
+    public static void restoreMetrics() {
+        SUPPRESSED.set(false);
     }
 }

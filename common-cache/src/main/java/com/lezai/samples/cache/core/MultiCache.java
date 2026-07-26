@@ -7,11 +7,28 @@ public interface MultiCache<T> extends Cache<T> {
     default T load(String key, Long ttl, CacheLoader<T> loader) {
         MultiCache<T> nextLevelCache = nextLevelCache();
         if (nextLevelCache != null) {
-            return nextLevelCache.loadAndCache(key, ttl, loader);
+            boolean wasSuppressed = CacheMetricsHolder.isSuppressed();
+            if (!wasSuppressed) {
+                CacheMetricsHolder.suppressMetrics();
+            }
+            try {
+                return nextLevelCache.loadAndCache(key, ttl, loader);
+            } finally {
+                if (!wasSuppressed) {
+                    CacheMetricsHolder.restoreMetrics();
+                }
+            }
         }
         // 终端：真实 DB 命中，施加护栏。多级链路中仅此处获取一次。
+        // 恢复指标记录（内层 load 可能已抑制），使 recordLoad 始终生效。
+        if (CacheMetricsHolder.isSuppressed()) {
+            CacheMetricsHolder.restoreMetrics();
+        }
         try (DegradationGuard.Permit permit = CacheDegradationSupport.guard().acquire(key)) {
-            return loader.load(key);
+            long s = System.nanoTime();
+            T data = loader.load(key);
+            CacheMetricsHolder.metrics().recordLoad(System.nanoTime() - s);
+            return data;
         }
     }
 
@@ -39,11 +56,13 @@ public interface MultiCache<T> extends Cache<T> {
         CacheWrapper<T> wrapper = innerGet(key);
 
         if (wrapper != null && !wrapper.expired()) {
+            CacheMetricsHolder.metrics().hit();
             return wrapper.getData();
         }
 
         boolean hasStale = wrapper != null;
         T stale = hasStale ? wrapper.getData() : null;
+        CacheMetricsHolder.metrics().miss();
 
         try {
             return CacheDegradationSupport.singleFlight().execute(
@@ -61,6 +80,7 @@ public interface MultiCache<T> extends Cache<T> {
                     });
         } catch (CacheDegradedException e) {
             if (hasStale) {
+                CacheMetricsHolder.metrics().staleServed();
                 return stale;
             }
             throw e;
