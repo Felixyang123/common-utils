@@ -16,21 +16,23 @@ class LockAutoConfigurationTest {
     @Test
     void fallsBackToSingleLocalLock_whenNoRedis() {
         runner.run(context -> {
-            // 无 Redis：恰好一个 Lock bean，且为本地锁
             assertThat(context).hasSingleBean(Lock.class);
-            assertThat(context.getBean(Lock.class))
-                    .isInstanceOfAny(LocalLock.class, LocalReentrantLock.class);
+            assertThat(context.getBean(Lock.class)).isInstanceOf(LocalLock.class);
             assertThat(context).doesNotHaveBean(RedisDistributeLock.class);
+            assertThat(context).doesNotHaveBean(WatchDogExecutor.class);
             assertThat(context).hasSingleBean(LockSupport.class);
         });
     }
 
     @Test
-    void usesRedisLock_whenRedisAvailable() {
+    void usesRedisLockAndWatchDog_whenRedisAvailable() {
         runner.withBean(RedisConnectionFactory.class, () -> mock(RedisConnectionFactory.class))
                 .run(context -> {
                     assertThat(context).hasSingleBean(Lock.class);
                     assertThat(context.getBean(Lock.class)).isInstanceOf(RedisDistributeLock.class);
+                    assertThat(context).hasSingleBean(WatchDogExecutor.class);
+                    // WatchDogExecutor 实现 SmartLifecycle，Spring 会调 start()
+                    assertThat(context.getBean(WatchDogExecutor.class)).isInstanceOf(WatchDogExecutor.class);
                 });
     }
 }
