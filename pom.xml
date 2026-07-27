@@ -20,7 +20,6 @@
         <module>common-token-generator</module>
         <module>common-utils-samples</module>
         <module>common-task-flow</module>
-        <module>spring-boot-samples</module>
         <module>anti-duplicate</module>
         <module>ratelimit</module>
         <module>idempotent</module>
