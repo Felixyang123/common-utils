@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: anti_duplicate
+title: 防重复提交组件（Anti-Duplicate）
+scope:
+    - anti-duplicate/
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn clean:*)",
+      "Bash(mvn compile:*)",
+      "Bash(where mvn:*)",
+      "Bash(ls -la *.xml)",
+      "Bash(./mvnw clean:*)",
+      "Bash(xargs grep *)",
+      "Bash(mvn test *)",
+      "Bash(where.exe mvn *)",
+      "Bash(ls /c/Program*/apache-maven*/bin/mvn)",
+      "Bash(ls /d/Program*/apache-maven*/bin/mvn)",
+      "Bash(./mvnw test *)",
+      "Bash(./mvnw install *)",
+      "Bash(git commit *)",
+      "Bash(iconv -f UTF-16LE -t UTF-8 D:/code/common-utils/common-thread-pool/admin-server/src/main/java/com/lezai/threadpool/controller/ApiKeyController.java)",
+      "Bash(sed 's/\\\\r$//')",
+      "Bash(mvn -f common-thread-pool/admin-server/pom.xml test -DfailIfNoTests=false)",
+      "Bash(./mvnw -f common-thread-pool/admin-server/pom.xml test -DfailIfNoTests=false)",
+      "Bash(./mvnw -DfailIfNoTests=false -Dtest=com.lezai.threadpool.controller.ApiKeyControllerTest test -pl common-thread-pool/admin-server -am)",
+      "Bash(./mvnw -DfailIfNoTests=false -Dtest=com.lezai.threadpool.controller.ApiKeyControllerTest test -pl common-thread-pool/admin-server -am -Dsurefire.failIfNoSpecifiedTests=false)",
+      "Bash(..\\\\..\\\\mvnw clean *)",
+      "Bash(./mvnw compiler:testCompile -pl common-thread-pool/admin-server)"
+    ]
+  }
+}

@@ -20,7 +20,6 @@
         <module>common-token-generator</module>
         <module>common-utils-samples</module>
         <module>common-task-flow</module>
-        <module>spring-boot-samples</module>
         <module>anti-duplicate</module>
         <module>ratelimit</module>
         <module>idempotent</module>
@@ -39,6 +38,9 @@
         <caffeine.version>3.1.6</caffeine.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
+        <okhttp.version>4.12.0</okhttp.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <jjwt.version>0.12.3</jjwt.version>
     </properties>
 
     <dependencyManagement>
@@ -86,6 +88,46 @@
                 <artifactId>guava</artifactId>
                 <version>32.1.3-jre</version>
             </dependency>
+
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>3.26.0</version>
+            </dependency>
+
+            <!-- JJWT for JWT-based admin authentication (admin-server) -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+
+            <!-- MapStruct 核心 API -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+
+            <!-- MapStruct 注解处理器（关键！用于生成实现类） -->
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+                <scope>provided</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
@@ -113,13 +155,19 @@
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
                     <compilerArgs>
-                        <arg>-parameters</arg> <!-- 保留参数名 -->
+                        <arg>-parameters</arg> <!-- 保留参数名, AOP joinPoint获取方法签名信息 -->
                     </compilerArgs>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <annotationProcessorPaths>
+                        <!-- Lombok 和 MapStruct 都是注解处理器。若不显式指定顺序，MapStruct 可能读不到 Lombok 生成的 getter/setter，导致编译失败。 -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
                         </path>
                         <path>
                             <groupId>org.springframework.boot</groupId>

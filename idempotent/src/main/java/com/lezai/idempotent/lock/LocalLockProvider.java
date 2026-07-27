@@ -1,52 +1,118 @@
 package com.lezai.idempotent.lock;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 本地锁提供者
- * 使用 Caffeine Cache + ReentrantLock 实现
+ *
+ * <p>基于 {@link ConcurrentHashMap#compute} 原子化 API 实现 per-key 互斥锁,
+ * 依赖 CHM 对同一 key 的 {@code compute} 调用串行化保证,避免"检查锁状态
+ * + 释放锁 + 删 CHM entry"非原子操作导致的竞斥击穿。</p>
+ *
+ * <p>不可变 {@link Entry}(ownerThreadId + lockCount) 在 {@code compute} lambda
+ * 内整体替换,调用者永远看不到 lockCount 与 ownerThreadId 撕裂的中间态。
+ * unlock 时 lockCount 减至 0 直接 {@code return null},CHM 自动原子删除 entry,
+ * 无需独立 clean 方法。参见 ADR-0001。</p>
  */
 @Slf4j
 public class LocalLockProvider implements IdempotentLockProvider {
-    
-    private final Cache<String, ReentrantLock> lockCache;
-    
-    public LocalLockProvider() {
-        this.lockCache = Caffeine.newBuilder()
-                .maximumSize(10000)
-                .expireAfterAccess(1, TimeUnit.HOURS)
-                .build();
-    }
-    
-    @Override
-    public boolean tryLock(String key, long expireSeconds) {
-        ReentrantLock lock = lockCache.get(key, k -> new ReentrantLock());
-        try {
-            return lock != null && lock.tryLock(expireSeconds, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.warn("Lock acquisition interrupted for key: {}", key);
-            return false;
+
+    /**
+     * 不可变锁记录。每次状态迁移通过 {@code new Entry(ownerThreadId, lockCount)}
+     * 生成新实例并在 CHM.compute lambda 内整体写回,保证"ownerThreadId + lockCount"
+     * 永远作为原子单元对外可见。
+     */
+    private static final class Entry {
+        static final long NONE = -1L;
+
+        final long ownerThreadId;
+        final int lockCount;
+
+        Entry(long ownerThreadId, int lockCount) {
+            this.ownerThreadId = ownerThreadId;
+            this.lockCount = lockCount;
         }
     }
-    
+
+    private final ConcurrentHashMap<String, Entry> lockMap = new ConcurrentHashMap<>();
+
+    /**
+     * 尝试获取指定 key 的非阻塞互斥锁。
+     *
+     * <p>校验与加锁在同一 CHM.compute lambda 内原子完成,不存在"看到空闲 → 被抢占
+     * → 以为持有"的时间窗口(key hash 级串行化保证)。同一 ownerThreadId 重入时
+     * lockCount + 1。</p>
+     *
+     * @param key                 锁键
+     * @param waitTimeoutSeconds  本实现忽略此参数,等效 tryLock = 立即返回
+     * @return 是否成功获取锁(包括重入)
+     */
+    @Override
+    public boolean tryLock(String key, long waitTimeoutSeconds) {
+        final long tid = Thread.currentThread().getId();
+        final boolean[] acquired = {false};
+
+        lockMap.compute(key, (k, existing) -> {
+            // key 首次出现 —— 直接占用
+            if (existing == null) {
+                acquired[0] = true;
+                return new Entry(tid, 1);
+            }
+            // 已被当前线程持有 —— 重入
+            if (existing.lockCount > 0 && existing.ownerThreadId == tid) {
+                acquired[0] = true;
+                return new Entry(tid, existing.lockCount + 1);
+            }
+            // 空闲(owner 已释放但未清理) —— 再次占用
+            if (existing.lockCount == 0 && existing.ownerThreadId == Entry.NONE) {
+                acquired[0] = true;
+                return new Entry(tid, 1);
+            }
+            // 被他人持有 —— 不修改,caller 视作 false
+            return existing;
+        });
+        return acquired[0];
+    }
+
+    /**
+     * 释放锁并将 lockCount - 1。
+     *
+     * <p>当且仅当调用线程是当前 owner 时才允许递减;lockCount 归零时通过
+     * {@code compute} lambda 直接 {@code return null},CHM 原子清除该 key,
+     * 后续请求会看到一个全新的 Entry(等价于"锁从未存在")。</p>
+     */
     @Override
     public void unlock(String key) {
-        ReentrantLock lock = lockCache.getIfPresent(key);
-        if (lock != null && lock.isHeldByCurrentThread()) {
-            lock.unlock();
-            log.debug("Lock released for key: {}", key);
-        }
+        final long tid = Thread.currentThread().getId();
+
+        lockMap.compute(key, (k, existing) -> {
+            if (existing == null) {
+                return null;                         // 已清理
+            }
+            if (existing.ownerThreadId != tid) {
+                return existing;                     // 非当前线程持有,忽略
+            }
+            int newCount = existing.lockCount - 1;
+            if (newCount == 0) {
+                return null;                         // ★ 原子清除 entry = clean
+            }
+            return new Entry(tid, newCount);          // 仍持有,递减
+        });
     }
-    
+
+    /**
+     * 判断当前线程是否持有指定 key 的锁(重入也视为持有)。
+     *
+     * <p>读路径走 CHM.get,与 compute 路径 no happens-before 保证,但
+     * heldByCurrentThread 仅用于 finally 兜底;如果 Entry 已被 unlock 清除,
+     * get 返回 null → 返回 false,语义正确(已解锁)。</p>
+     */
     @Override
     public boolean heldByCurrentThread(String key) {
-        ReentrantLock lock = lockCache.getIfPresent(key);
-        return lock != null && lock.isHeldByCurrentThread();
+        final long tid = Thread.currentThread().getId();
+        Entry e = lockMap.get(key);
+        return e != null && e.lockCount > 0 && e.ownerThreadId == tid;
     }
 }

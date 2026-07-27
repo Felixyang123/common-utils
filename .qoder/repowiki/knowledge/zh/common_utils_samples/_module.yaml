@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: common_utils_samples
+title: common_utils_samples
+scope:
+    - common-utils-samples/
+source_files: []
+depends_on: []
+related_to: []

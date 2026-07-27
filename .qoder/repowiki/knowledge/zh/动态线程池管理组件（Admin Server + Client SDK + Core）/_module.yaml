@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: common_thread_pool
+title: 动态线程池管理组件（Admin Server + Client SDK + Core）
+scope:
+    - common-thread-pool/
+source_files: []
+depends_on: []
+related_to: []
