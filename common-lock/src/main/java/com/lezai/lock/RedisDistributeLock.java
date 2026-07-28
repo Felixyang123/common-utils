@@ -86,4 +86,21 @@ public class RedisDistributeLock implements Lock {
         String val = redisTemplate.opsForValue().get(key);
         return StringUtils.equals(val, instanceId + ":" + Thread.currentThread().threadId());
     }
+
+    /**
+     * 判断锁 key 是否存在（被任意实例/线程持有）。
+     * 用于幂等组件的"锁即租约"语义：锁不存在 = 执行者已崩溃。
+     *
+     * @param key 锁键
+     * @return 锁存在返回 true，不存在返回 false
+     */
+    public boolean isLocked(String key) {
+        Boolean exists = redisTemplate.hasKey(key);
+        if (exists == null) {
+            // hasKey 返回 null 通常出现在 pipeline 模式或连接异常
+            log.warn("Redis hasKey returned null for lock existence check, key: {}", key);
+            return false;
+        }
+        return exists;
+    }
 }

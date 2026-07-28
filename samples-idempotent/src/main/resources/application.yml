@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: samples-idempotent
+
+idempotent:
+  enabled: true
+  storage: local
+  lock: local
+  expire-time: 300
+  max-fail-retry-count: 3
+  security:
+    result-type-whitelist:
+      - "com.lezai.samples."
+    anonymous-strategy: ALLOW
+  cleanup:
+    enabled: false
+
+logging:
+  level:
+    com.lezai.idempotent: debug
