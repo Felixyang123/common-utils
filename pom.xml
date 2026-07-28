@@ -24,7 +24,6 @@
         <module>anti-duplicate</module>
         <module>ratelimit</module>
         <module>idempotent</module>
-        <module>samples-idempotent</module>
     </modules>
     <scm>
         <connection/>

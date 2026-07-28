@@ -10,42 +10,12 @@
     </parent>
 
     <artifactId>common-utils-samples</artifactId>
+    <packaging>pom</packaging>
+    <name>common-utils-samples</name>
+    <description>通用工具集示例（聚合模块）</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lezai</groupId>
-            <artifactId>common-cache</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lezai</groupId>
-            <artifactId>common-task-flow</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lezai</groupId>
-            <artifactId>anti-duplicate</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.lezai</groupId>
-            <artifactId>ratelimit</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-
-    </dependencies>
+    <modules>
+        <module>samples-core</module>
+        <module>samples-idempotent</module>
+    </modules>
 </project>
