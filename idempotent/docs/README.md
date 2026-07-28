@@ -111,8 +111,8 @@ public class OrderService {
 
 ## 参考
 
-- [ADR-0001: LocalLockProvider 原子化设计](../../docs/adr/0001-local-lock-entry-compute-atomicity.md)
-- [ADR-0002: IdempotentStorage 接口契约](../../docs/adr/0002-idempotent-storage-explicit-semantics-contract.md)
-- [ADR-0003: 部署形态与默认配置](../../docs/adr/0003-deployment-form-default-config.md)
-- [ADR-0004: 锁即租约崩溃接管](../../docs/adr/0004-lock-as-lease-crash-recovery.md)
-- [ADR-0005: FAILED 冷却与 DDL 版本迁移](../../docs/adr/0005-fail-cooldown-ddl-migration.md)
+- [ADR-0001: LocalLockProvider 原子化设计](../../../docs/adr/0001-local-lock-entry-compute-atomicity.md)
+- [ADR-0002: IdempotentStorage 接口契约](adr/0002-idempotent-storage-explicit-semantics-contract.md)
+- [ADR-0003: 部署形态与默认配置](adr/0003-deployment-form-default-config.md)
+- [ADR-0004: 锁即租约崩溃接管](adr/0004-lock-as-lease-crash-recovery.md)
+- [ADR-0005: FAILED 冷却与 DDL 版本迁移](adr/0005-fail-cooldown-ddl-migration.md)

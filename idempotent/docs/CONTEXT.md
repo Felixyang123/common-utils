@@ -1,7 +1,7 @@
 # CONTEXT — idempotent 幂等组件词表
 
 > 本文件只是词表（glossary）。不记录实现细节、不作为规格说明。
-> 相关决策见 `docs/adr/`。
+> 相关决策见 `adr/`。
 
 ## 部署与形态
 
