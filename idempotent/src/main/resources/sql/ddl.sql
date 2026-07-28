@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS idempotent_record (
     result_type VARCHAR(255) COMMENT '结果类型',
     error_message TEXT COMMENT '错误信息',
     duration BIGINT COMMENT '执行耗时（毫秒）',
+    fail_count INT NOT NULL DEFAULT 0 COMMENT '失败次数',
+    request_id VARCHAR(64) COMMENT '请求ID（用于追踪）',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     expire_time DATETIME NOT NULL COMMENT '过期时间',

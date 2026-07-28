@@ -15,9 +15,11 @@ import com.lezai.idempotent.storage.LocalIdempotentStorage;
 import com.lezai.idempotent.storage.RedisIdempotentStorage;
 import com.lezai.lock.RedisDistributeLock;
 import com.lezai.lock.annotation.EnableLock;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -30,19 +32,34 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import javax.sql.DataSource;
 
 /**
- * 幂等性自动配置
+ * 幂等性自动配置（Spring Boot 3 标准自动装配）
+ * <p>
+ * 通过 META-INF/spring/AutoConfiguration.imports 注册，
+ * 由 idempotent.enabled（默认 true）门控。
+ * </p>
  */
 @Slf4j
 @Configuration
 @EnableAspectJAutoProxy
+@EnableScheduling
 @EnableConfigurationProperties(IdempotentProperties.class)
-@EnableLock
 @ConditionalOnBooleanProperty(name = "idempotent.enabled", matchIfMissing = true)
 public class IdempotentAutoConfiguration {
+
+    // ==================== @EnableLock 条件导入（仅 REDIS 锁时需要） ====================
+
+    @Configuration
+    @ConditionalOnProperty(name = "idempotent.lock", havingValue = "redis", matchIfMissing = true)
+    @EnableLock
+    static class RedisLockImportConfiguration {
+    }
 
     // ==================== 幂等键生成器 ====================
 
@@ -53,12 +70,16 @@ public class IdempotentAutoConfiguration {
     }
 
     @Bean
-    public UserIdKeyGenerator userIdKeyGenerator() {
-        log.info("Initializing user id key generator");
-        return new UserIdKeyGenerator();
+    @ConditionalOnClass(RequestContextHolder.class)
+    public UserIdKeyGenerator userIdKeyGenerator(IdempotentProperties properties) {
+        boolean rejectAnonymous = "REJECT".equalsIgnoreCase(properties.getSecurity().getAnonymousStrategy());
+        log.info("Initializing user id key generator, anonymousStrategy: {}",
+                 properties.getSecurity().getAnonymousStrategy());
+        return new UserIdKeyGenerator(rejectAnonymous);
     }
 
     @Bean
+    @ConditionalOnClass(RequestContextHolder.class)
     public SessionIdKeyGenerator sessionIdKeyGenerator() {
         log.info("Initializing session id key generator");
         return new SessionIdKeyGenerator();
@@ -67,29 +88,33 @@ public class IdempotentAutoConfiguration {
     // ==================== 存储策略 ====================
 
     @Bean
+    @ConditionalOnClass(RedisConnectionFactory.class)
     @ConditionalOnMissingBean(name = "idempotentRedisTemplate")
     public StringRedisTemplate idempotentRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         return new StringRedisTemplate(redisConnectionFactory);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "REDIS")
+    @ConditionalOnClass(RedisConnectionFactory.class)
+    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "redis", matchIfMissing = true)
     public IdempotentStorage redisIdempotentStorage(StringRedisTemplate idempotentRedisTemplate, IdempotentProperties properties) {
         log.info("Initializing Redis idempotent storage");
         return new RedisIdempotentStorage(properties.getRedis().getKeyPrefix(), idempotentRedisTemplate);
     }
 
     @Bean
-    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "JDBC")
+    @ConditionalOnClass(DataSource.class)
+    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "jdbc")
     public IdempotentStorage jdbcIdempotentStorage(JdbcTemplate jdbcTemplate, IdempotentProperties properties) {
         log.info("Initializing JDBC idempotent storage");
         return new JdbcIdempotentStorage(properties.getJdbc().getTableName(), jdbcTemplate);
     }
 
     @Bean
+    @ConditionalOnClass(com.github.benmanes.caffeine.cache.Caffeine.class)
     @ConditionalOnMissingBean(IdempotentStorage.class)
     public IdempotentStorage localIdempotentStorage(IdempotentProperties properties) {
-        log.info("Initializing local idempotent storage");
+        log.warn("回退到本地存储（Local）。Local 仅适用于单实例/测试，多实例部署下不保证幂等");
         return new LocalIdempotentStorage(
                 properties.getLocal().getMaxSize(),
                 properties.getExpireTime()
@@ -99,7 +124,8 @@ public class IdempotentAutoConfiguration {
     // ==================== 锁提供者 ====================
 
     @Bean
-    @ConditionalOnProperty(name = "idempotent.lock", havingValue = "REDIS")
+    @ConditionalOnClass(RedisDistributeLock.class)
+    @ConditionalOnProperty(name = "idempotent.lock", havingValue = "redis", matchIfMissing = true)
     public IdempotentLockProvider redisLockProvider(RedisDistributeLock redisDistributeLock) {
         log.info("Initializing Redis lock provider");
         return new RedisLockProvider(redisDistributeLock);
@@ -108,7 +134,7 @@ public class IdempotentAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(IdempotentLockProvider.class)
     public IdempotentLockProvider localLockProvider() {
-        log.info("Initializing local lock provider");
+        log.warn("回退到本地锁（LocalLock）。Local 仅适用于单实例/测试，多实例部署下不保证幂等");
         return new LocalLockProvider();
     }
 
@@ -139,7 +165,8 @@ public class IdempotentAutoConfiguration {
     // ==================== 表初始化器 ====================
 
     @Bean
-    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "JDBC")
+    @ConditionalOnClass(DataSource.class)
+    @ConditionalOnProperty(name = "idempotent.storage", havingValue = "jdbc")
     public IdempotentTableInitializer idempotentTableInitializer(
             DataSource dataSource,
             JdbcTemplate jdbcTemplate,
@@ -148,10 +175,6 @@ public class IdempotentAutoConfiguration {
         return new IdempotentTableInitializer(dataSource, jdbcTemplate, properties);
     }
 
-    /**
-     * 初始化幂等表
-     * 在 Spring Boot 启动完成后执行
-     */
     @Bean
     @ConditionalOnBean(IdempotentTableInitializer.class)
     public ApplicationListener<ApplicationReadyEvent> idempotentTableInitializationListener(
@@ -161,5 +184,57 @@ public class IdempotentAutoConfiguration {
             initializer.initialize();
             log.info("Idempotent table initialization completed");
         };
+    }
+
+    // ==================== 过期记录定时清理 ====================
+
+    @Bean
+    @ConditionalOnBean(IdempotentTableInitializer.class)
+    public IdempotentCleanupScheduler idempotentCleanupScheduler(
+            IdempotentTableInitializer initializer, IdempotentProperties properties) {
+        return new IdempotentCleanupScheduler(initializer, properties);
+    }
+
+    /**
+     * JDBC 过期记录定时清理调度器
+     */
+    public static class IdempotentCleanupScheduler {
+        private final IdempotentTableInitializer initializer;
+        private final IdempotentProperties properties;
+
+        public IdempotentCleanupScheduler(IdempotentTableInitializer initializer, IdempotentProperties properties) {
+            this.initializer = initializer;
+            this.properties = properties;
+        }
+
+        @Scheduled(fixedDelayString = "#{${idempotent.cleanup.interval-seconds:1800} * 1000}")
+        public void cleanExpiredRecords() {
+            if (!properties.getCleanup().isEnabled()) {
+                return;
+            }
+            try {
+                int cleaned = initializer.cleanExpiredRecords();
+                if (cleaned > 0) {
+                    log.info("定时清理过期幂等记录: {} 条", cleaned);
+                }
+            } catch (Exception e) {
+                log.error("定时清理过期幂等记录失败", e);
+            }
+        }
+    }
+
+    // ==================== 可观测 ====================
+
+    @Bean
+    @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
+    public IdempotentMetrics idempotentMetrics(
+            org.springframework.beans.factory.ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistry) {
+        return new IdempotentMetrics(meterRegistry.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.web.bind.annotation.ControllerAdvice")
+    public IdempotentExceptionHandler idempotentExceptionHandler() {
+        return new IdempotentExceptionHandler();
     }
 }

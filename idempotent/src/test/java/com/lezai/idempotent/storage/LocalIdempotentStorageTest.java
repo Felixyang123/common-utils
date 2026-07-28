@@ -114,6 +114,9 @@ class LocalIdempotentStorageTest {
         assertDoesNotThrow(() -> storage.remove("non-existent-key"));
     }
 
+    // 注意:LocalIdempotentStorage 不再做防御性 null 校验 —— 参数由调用方保证(参见 ADR-0002)
+    // 删除 testGetWithNullKeyThrowsException / testSaveWithNullRecordThrowsException
+
     // ==================== 辅助方法 ====================
 
     private IdempotentRecord createTestRecord(String key, IdempotentStatus status) {

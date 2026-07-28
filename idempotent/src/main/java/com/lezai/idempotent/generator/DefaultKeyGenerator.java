@@ -30,7 +30,7 @@ public class DefaultKeyGenerator implements IdempotentKeyGenerator {
         if (args == null || args.length == 0) {
             return "noargs";
         }
-        String argsStr = Arrays.toString(args);
-        return DigestUtils.md5DigestAsHex(argsStr.getBytes(StandardCharsets.UTF_8)).substring(0, 8);
+        String argsStr = Arrays.deepToString(args);
+        return DigestUtils.md5DigestAsHex(argsStr.getBytes(StandardCharsets.UTF_8));
     }
 }

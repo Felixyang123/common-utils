@@ -64,7 +64,7 @@ public class WatchDogExecutor implements SmartLifecycle {
 
     @Override
     public boolean isRunning() {
-        return isShutdown.get();
+        return !isShutdown.get();
     }
 
     public static class LeaseTask implements Runnable, Delayed {
