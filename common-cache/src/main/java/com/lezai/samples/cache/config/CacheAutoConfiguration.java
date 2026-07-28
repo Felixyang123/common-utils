@@ -1,7 +1,6 @@
 package com.lezai.samples.cache.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.lezai.lock.annotation.EnableLock;
 import com.lezai.samples.cache.core.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import com.lezai.samples.cache.impl.CaffeineCache;
@@ -30,7 +29,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 @EnableAspectJAutoProxy
 @EnableConfigurationProperties({CacheProperties.class, DegradationProperties.class, CacheSerializerProperties.class})
-@EnableLock
 public class CacheAutoConfiguration {
     @Autowired
     private CacheProperties cacheProperties;

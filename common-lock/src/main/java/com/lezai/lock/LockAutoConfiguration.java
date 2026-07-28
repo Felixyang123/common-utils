@@ -1,6 +1,5 @@
 package com.lezai.lock;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -14,33 +13,36 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class LockAutoConfiguration {
 
     // ---- Redis 路径：仅当 RedisConnectionFactory 存在时 ----
+    // 嵌套 @Configuration + 类级 @ConditionalOnBean 是可靠的条件判断
+    // （方法级 @ConditionalOnBean 不可靠，Spring 官方不推荐）
 
-    @Bean
+    @Configuration
     @ConditionalOnBean(RedisConnectionFactory.class)
-    @ConditionalOnMissingBean(name = "lockRedisTemplate")
-    public StringRedisTemplate lockRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
-        return new StringRedisTemplate(redisConnectionFactory);
+    static class RedisLockConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(name = "lockRedisTemplate")
+        public StringRedisTemplate lockRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+            return new StringRedisTemplate(redisConnectionFactory);
+        }
+
+        @Bean
+        public WatchDogExecutor watchDogExecutor(StringRedisTemplate lockRedisTemplate) {
+            return new WatchDogExecutor(lockRedisTemplate);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(Lock.class)
+        public Lock redisLock(StringRedisTemplate lockRedisTemplate, WatchDogExecutor watchDogExecutor) {
+            return new RedisDistributeLock(lockRedisTemplate, watchDogExecutor);
+        }
     }
 
-    @Bean
-    @ConditionalOnBean(RedisConnectionFactory.class)
-    public WatchDogExecutor watchDogExecutor(StringRedisTemplate lockRedisTemplate) {
-        return new WatchDogExecutor(lockRedisTemplate);
-    }
-
-    // ---- Lock bean：有 Redis 用分布式锁，否则单个本地锁 ----
-    // 用 ObjectProvider 在方法内判定，避免 @ConditionalOnBean 放在 @Bean 方法上时
-    // 因 bean 处理顺序导致的不可靠判定（Spring 官方不推荐在 @Bean 方法上用 @ConditionalOnBean）。
+    // ---- 本地路径：仅当无任何 Lock bean 时 ----
 
     @Bean
     @ConditionalOnMissingBean(Lock.class)
-    public Lock lock(ObjectProvider<StringRedisTemplate> lockRedisTemplateProvider,
-                     ObjectProvider<WatchDogExecutor> watchDogExecutorProvider) {
-        StringRedisTemplate template = lockRedisTemplateProvider.getIfAvailable();
-        WatchDogExecutor executor = watchDogExecutorProvider.getIfAvailable();
-        if (template != null && executor != null) {
-            return new RedisDistributeLock(template, executor);
-        }
+    public Lock localLock() {
         return new LocalLock();
     }
 
