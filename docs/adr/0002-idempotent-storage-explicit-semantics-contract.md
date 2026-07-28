@@ -39,3 +39,29 @@ accepted (2026-07-19)
 - `idempotent/src/main/java/com/lezai/idempotent/storage/JdbcIdempotentStorage.java`
 - `idempotent/src/main/java/com/lezai/idempotent/storage/LocalIdempotentStorage.java`
 - `idempotent/src/main/java/com/lezai/idempotent/core/IdempotentExecutionManager.java` (加 try-catch 兜底)
+
+---
+
+## 增补：可选 fail-open 逃生口 (2026-07-26)
+
+### 背景
+
+原始决策坚持「一致性优先于可用性」（fail-close），存储异常一律 503。在实践中，部分高可用服务在 Redis 短暂抖动时更倾向于放行请求（接受极端窗口下的重复执行风险）而非全局 503。
+
+### 增补决策
+
+保留 fail-close 为**默认策略**（遵守原决策），新增 `idempotent.storage-fail-open=false` 配置项作为可选逃生口：
+
+- `false`（默认）：存储异常 → `IdempotentStorageException` → 503 + Retry-After（原行为）
+- `true`：存储异常 → `log.error` + 放行请求（`record = null`，走首次执行路径）
+
+### 影响
+
+- 不推翻原决策——默认行为不变，fail-open 需显式开启
+- fail-open 时业务方法会被执行，但幂等记录未写入——相同请求在存储恢复前可能重复执行
+- 仅建议在「可用性绝对优先 + 业务自身有独立幂等保障（如数据库唯一约束）」的场景下启用
+
+### 相关文件
+
+- `idempotent/src/main/java/com/lezai/idempotent/config/IdempotentProperties.java`（新增属性，待实现）
+- `idempotent/src/main/java/com/lezai/idempotent/core/IdempotentExecutionManager.java`（execute 方法 catch 分支，待实现）
