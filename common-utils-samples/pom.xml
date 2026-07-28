@@ -15,7 +15,6 @@
     <description>通用工具集示例（聚合模块）</description>
 
     <modules>
-        <module>samples-core</module>
         <module>samples-idempotent</module>
     </modules>
 </project>
