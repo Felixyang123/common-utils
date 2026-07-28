@@ -4,6 +4,7 @@ import com.lezai.lock.LocalLock;
 import com.lezai.lock.LockSupport;
 import com.lezai.samples.cache.core.CacheAdapter;
 import com.lezai.samples.cache.core.CacheManager;
+import com.lezai.samples.cache.core.CacheWrapper;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
@@ -142,6 +143,33 @@ public class CacheTest {
         order = orderCache.safetyGet("No10001", 1000);
         Assertions.assertNotNull(order);
         Assertions.assertEquals("No10001", order.orderId);
+    }
+
+    @Test
+    void cacheTemplate_setWithTtl_shouldStoreRawValue() {
+        HashMapCache<Object> cache = new HashMapCache<>(1000);
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
+        com.lezai.samples.cache.core.CacheTemplate template = new com.lezai.samples.cache.core.CacheTemplate(cacheManager);
+
+        template.set("TEST", "key1", "value1", 5000L);
+        Object value = template.get("TEST", "key1");
+        org.junit.jupiter.api.Assertions.assertEquals("value1", value, "Should return raw value, not CacheWrapper");
+
+        // Verify TTL was set in the wrapper (use the same cache category)
+        CacheWrapper<?> wrapper = cacheManager.getCache("TEST").innerGet("TEST:key1");
+        org.junit.jupiter.api.Assertions.assertNotNull(wrapper);
+        org.junit.jupiter.api.Assertions.assertNotNull(wrapper.getExpireTime(), "TTL should be set in CacheWrapper");
+    }
+
+    @Test
+    void cacheTemplate_setWithoutTtl_shouldReturnRawValue() {
+        HashMapCache<Object> cache = new HashMapCache<>(1000);
+        CacheManager cacheManager = new HashMapCacheManager(cache, 1000);
+        com.lezai.samples.cache.core.CacheTemplate template = new com.lezai.samples.cache.core.CacheTemplate(cacheManager);
+
+        template.set("TEST", "key1", "value1");
+        Object value = template.get("TEST", "key1");
+        org.junit.jupiter.api.Assertions.assertEquals("value1", value, "Should return raw value, not CacheWrapper");
     }
 
     @Test

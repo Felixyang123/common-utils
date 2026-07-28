@@ -7,7 +7,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 public class CacheMessageSyncProperties {
     private RedisPubSub redisPubSub = new RedisPubSub();
-    private ExecutorCfg executor = new ExecutorCfg();
 
 
     @Data
@@ -18,12 +17,5 @@ public class CacheMessageSyncProperties {
         private boolean enabled = true;
 
         private String channel = "cache-sync-channel";
-    }
-
-    @Data
-    public static class ExecutorCfg {
-        private int corePoolSize = 4;
-        private int maxPoolSize = 20;
-        private int queueCapacity = 1000;
     }
 }

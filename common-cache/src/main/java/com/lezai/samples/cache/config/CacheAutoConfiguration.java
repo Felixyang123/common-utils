@@ -1,17 +1,22 @@
 package com.lezai.samples.cache.config;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lezai.lock.annotation.EnableLock;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.lezai.samples.cache.core.*;
+import io.micrometer.core.instrument.MeterRegistry;
+import com.lezai.samples.cache.impl.CaffeineCache;
+import com.lezai.samples.cache.impl.CaffeineCacheManager;
 import com.lezai.samples.cache.impl.HashMapCache;
 import com.lezai.samples.cache.impl.HashMapCacheManager;
+import com.lezai.samples.cache.impl.MultiCaffeineCache;
 import com.lezai.samples.cache.impl.MultiHashMapCache;
 import com.lezai.samples.cache.impl.MultiRemoteRedisCache;
+import com.lezai.samples.cache.serializer.CachePayloadRedisSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,62 +24,77 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 @EnableAspectJAutoProxy
-@EnableConfigurationProperties({CacheProperties.class})
-@EnableLock
+@EnableConfigurationProperties({CacheProperties.class, DegradationProperties.class, CacheSerializerProperties.class})
 public class CacheAutoConfiguration {
     @Autowired
     private CacheProperties cacheProperties;
 
-    @Bean
-    @ConditionalOnMissingBean(Cache.class)
-    public Cache<Object> globalCache() {
-        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new HashMapCache<>(globalCfg.getLocalCacheSize());
+    // ---- 默认 Cache/CacheManager: Caffeine 优先，无 Caffeine 时 HashMap 兜底 ----
+
+    @Configuration
+    @ConditionalOnClass(Caffeine.class)
+    static class CaffeineDefaults {
+        @Bean
+        @ConditionalOnMissingBean(Cache.class)
+        public Cache<Object> globalCache(CacheProperties props) {
+            var cfg = props.getCaffeineCfg();
+            return new CaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs());
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(CacheManager.class)
+        public CacheManager cacheManager(Cache<Object> globalCache, CacheProperties props) {
+            var cfg = props.getCaffeineCfg();
+            return new CaffeineCacheManager(globalCache, cfg.getCacheSize(), cfg.getStaleGraceMs());
+        }
     }
 
-    @Bean
-    @ConditionalOnMissingBean(CacheManager.class)
-    public CacheManager cacheManager(Cache<Object> globalCache) {
-        CacheProperties.HashMapCacheCfg cfg = cacheProperties.getHashMapCacheCfg();
-        return new HashMapCacheManager(globalCache, cfg.getCacheSize());
+    @Configuration
+    @ConditionalOnMissingClass("com.github.benmanes.caffeine.cache.Caffeine")
+    static class HashMapDefaults {
+        @Bean
+        @ConditionalOnMissingBean(Cache.class)
+        public Cache<Object> globalCache(CacheProperties props) {
+            return new HashMapCache<>(props.getGlobalCfg().getLocalCacheSize());
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(CacheManager.class)
+        public CacheManager cacheManager(Cache<Object> globalCache, CacheProperties props) {
+            return new HashMapCacheManager(globalCache, props.getHashMapCacheCfg().getCacheSize());
+        }
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "cacheRedisTemplate")
-    public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory) {
+    @ConditionalOnClass(RedisConnectionFactory.class)
+    @ConditionalOnBean(RedisConnectionFactory.class)
+    public RedisTemplate<String, Object> cacheRedisTemplate(RedisConnectionFactory factory,
+                                                        CacheSerializerProperties serializerProperties) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
-
-        // 使用Jackson2JsonRedisSerializer来序列化和反序列化redis的value值
-        ObjectMapper mapper = new ObjectMapper();
-        // 取消Javabean转换
-//        mapper.deactivateDefaultTyping();
-        // 打开Javabean转换
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(mapper, Object.class);
-
-        // 设置value的序列化规则和key的序列化规则
-        template.setValueSerializer(serializer);
+        template.setValueSerializer(new CachePayloadRedisSerializer(serializerProperties));
         template.setKeySerializer(new StringRedisSerializer());
         template.afterPropertiesSet();
         return template;
     }
 
     @Bean(name = "l1Cache")
-    public MultiCache<Object> multiHashMapCache(@Qualifier(value = "l2Cache") MultiCache<Object> multiCache) {
-        CacheProperties.GlobalCfg globalCfg = cacheProperties.getGlobalCfg();
-        return new MultiHashMapCache<>(globalCfg.getLocalCacheSize(), multiCache);
+    @ConditionalOnBean(name = "l2Cache")
+    @ConditionalOnClass(Caffeine.class)
+    public MultiCache<Object> multiCaffeineCache(@Qualifier(value = "l2Cache") MultiCache<Object> l2) {
+        CacheProperties.CaffeineCfg cfg = cacheProperties.getCaffeineCfg();
+        return new MultiCaffeineCache<>(cfg.getCacheSize(), cfg.getStaleGraceMs(), l2);
     }
 
     @Primary
     @Bean(name = "l2Cache")
+    @ConditionalOnClass(RedisConnectionFactory.class)
+    @ConditionalOnBean(name = "cacheRedisTemplate")
     public MultiCache<Object> multiRemoteRedisCache(RedisTemplate<String, Object> cacheRedisTemplate) {
         return new MultiRemoteRedisCache<>(cacheRedisTemplate);
     }
@@ -88,5 +108,27 @@ public class CacheAutoConfiguration {
     @ConditionalOnMissingBean(CacheTemplate.class)
     public CacheTemplate cacheTemplate(CacheManager cacheManager) {
         return new CacheTemplate(cacheManager);
+    }
+
+    @Bean
+    public DegradationGuard degradationGuard(DegradationProperties degradationProperties) {
+        DegradationGuard guard = degradationProperties.isEnabled()
+                ? DegradationGuard.of(
+                        degradationProperties.getPermitsPerSecond(),
+                        degradationProperties.getBulkheadPermits(),
+                        degradationProperties.getBulkheadWaitMs())
+                : DegradationGuard.disabled();
+        CacheDegradationSupport.init(guard, degradationProperties.getSingleFlightWaitMs());
+        return guard;
+    }
+
+    @Bean
+    @ConditionalOnClass(MeterRegistry.class)
+    @ConditionalOnBean(MeterRegistry.class)
+    @ConditionalOnMissingBean(CacheMetrics.class)
+    public CacheMetrics micrometerCacheMetrics(MeterRegistry meterRegistry) {
+        CacheMetrics metrics = new MicrometerCacheMetrics(meterRegistry);
+        CacheMetricsHolder.init(metrics);
+        return metrics;
     }
 }

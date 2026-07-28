@@ -1,9 +1,5 @@
 package com.lezai.samples.cache.core;
 
-import com.lezai.lock.LockSupport;
-
-import java.util.Optional;
-
 public interface Cache<T> {
 
     default void set(String key, T value) {
@@ -15,7 +11,11 @@ public interface Cache<T> {
     }
 
     default T get(String key) {
-        return Optional.ofNullable(innerGet(key)).map(CacheWrapper::getData).orElse(null);
+        CacheWrapper<T> wrapper = innerGet(key);
+        if (wrapper == null || wrapper.expired()) {
+            return null;
+        }
+        return wrapper.getData();
     }
 
     void remove(String key);
@@ -25,34 +25,45 @@ public interface Cache<T> {
     CacheWrapper<T> innerGet(String key);
 
     default T loadAndCache(String key, Long ttl, CacheLoader<T> loader) {
-        CacheWrapper<T> cacheWrapper = innerGet(key);
-        if (cacheWrapper == null) {
-            // 加锁预防缓存击穿
-            return LockSupport.lockAndExecuteOnce("CACHE_REFRESH_LOCK_" + key, () -> {
-                T data = loader.load(key);
-                set(key, data, ttl);
-                return data;
-            });
+        CacheWrapper<T> wrapper = innerGet(key);
+
+        // 新鲜命中（含缓存空值的穿透保护）
+        if (wrapper != null && !wrapper.expired()) {
+            CacheMetricsHolder.metrics().hit();
+            return wrapper.getData();
         }
 
-        // 预防缓存穿透
-        T data = cacheWrapper.getData();
-        if (data == null) {
-            return null;
-        }
+        // 需要回源：记录过期旧值用于 serve-stale
+        boolean hasStale = wrapper != null;
+        T stale = hasStale ? wrapper.getData() : null;
+        CacheMetricsHolder.metrics().miss();
 
-        if (cacheWrapper.expired()) {
-            if (LockSupport.getLock().tryLock("CACHE_REFRESH_LOCK_" + key, 60000)) {
-                try {
-                    T newData = loader.load(key);
-                    set(key, data, ttl);
-                    return newData;
-                } finally {
-                    LockSupport.getLock().release("CACHE_REFRESH_LOCK_" + key);
-                }
+        try {
+            return CacheDegradationSupport.singleFlight().execute(
+                    key,
+                    CacheDegradationSupport.singleFlightWaitMs(),
+                    () -> {
+                        // DCL：成为领导者后复查，可能已被其他线程加载
+                        CacheWrapper<T> recheck = innerGet(key);
+                        if (recheck != null && !recheck.expired()) {
+                            return recheck.getData();
+                        }
+                        try (DegradationGuard.Permit permit =
+                                     CacheDegradationSupport.guard().acquire(key)) {
+                            long s = System.nanoTime();
+                            T data = loader.load(key);
+                            CacheMetricsHolder.metrics().recordLoad(System.nanoTime() - s);
+                            innerSet(key, CacheWrapper.of(data, ttl));
+                            return data;
+                        }
+                    });
+        } catch (CacheDegradedException e) {
+            if (hasStale) {
+                CacheMetricsHolder.metrics().staleServed();
+                return stale; // serve-stale：降级/限流时返回过期旧值
             }
+            throw e;
         }
-        return data;
     }
 
 }

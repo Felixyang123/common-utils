@@ -2,79 +2,50 @@ package com.lezai.samples.cache.sync;
 
 import com.lezai.samples.cache.core.Cache;
 import com.lezai.samples.cache.core.CacheManager;
+import com.lezai.samples.cache.core.CacheMetricsHolder;
 import com.lezai.samples.cache.core.CacheWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
-import org.springframework.util.Assert;
 
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-
+/**
+ * 缓存同步消息监听器。仅负责消息处理；订阅生命周期（连接、重连、停止）由
+ * RedisMessageListenerContainer 托管（见 SyncMessageAutoConfiguration）。
+ */
 @Slf4j
-public class RedisCacheMessageSub implements CacheMessageSub {
+public class RedisCacheMessageSub implements MessageListener {
     private final RedisTemplate<String, Object> redisTemplate;
-    private final String channel;
     private final CacheManager cacheManager;
-    private final MessageListener messageListener;
 
-    private final AtomicBoolean running = new AtomicBoolean(false);
-
-    public RedisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager cacheManager, String channel) {
+    public RedisCacheMessageSub(RedisTemplate<String, Object> redisTemplate, CacheManager cacheManager) {
         this.redisTemplate = redisTemplate;
-        this.channel = channel;
         this.cacheManager = cacheManager;
-        this.messageListener = (message, pattern) -> {
-            try {
-                // 获取消息序列化器
-                RedisSerializer<?> valueSerializer = redisTemplate.getValueSerializer();
-                // 反序列化消息
-                Object messageObj = valueSerializer.deserialize(message.getBody());
-                Assert.notNull(messageObj, "Cache sync message cannot be null");
-                log.debug("Received cache sync message: {}", messageObj);
-                if (messageObj instanceof CacheSyncMessageImpl cacheSyncMessage) {
-                    try {
-                        process(cacheSyncMessage);
-                        log.debug("Processed cache sync message: {}", cacheSyncMessage);
-                    } catch (Exception e) {
-                        log.error("Failed to process cache sync message: {}", cacheSyncMessage, e);
-                    }
-                } else {
-                    log.warn("Received unexpected message type: {}", messageObj.getClass());
-                }
-            } catch (Exception e) {
-                log.error("Failed to handle redis message", e);
+    }
+
+    @Override
+    public void onMessage(Message message, byte[] pattern) {
+        try {
+            RedisSerializer<?> valueSerializer = redisTemplate.getValueSerializer();
+            Object messageObj = valueSerializer.deserialize(message.getBody());
+            if (messageObj instanceof CacheSyncMessageImpl m) {
+                process(m);
+                CacheMetricsHolder.metrics().syncReceived();
+            } else {
+                log.warn("unexpected cache sync message type: {}", messageObj == null ? "null" : messageObj.getClass());
             }
-        };
-        running.set(true);
-        log.info("RedisCacheMessageSub init");
-    }
-
-    @Override
-    public void subscribe() {
-        Optional.ofNullable(redisTemplate.getConnectionFactory())
-                .ifPresentOrElse(connectionFactory -> {
-                    try {
-                        connectionFactory.getConnection().subscribe(messageListener, channel.getBytes());
-                        log.info("Subscribed to channel: {}", channel);
-                    } catch (Exception e) {
-                        log.error("Failed to subscribe to channel: {}", channel, e);
-                    }
-                }, () -> {
-                    throw new RuntimeException("Redis connection factory is null");
-                });
-    }
-
-    @Override
-    public void stop() {
-        this.running.set(false);
+        } catch (Exception e) {
+            CacheMetricsHolder.metrics().syncError();
+            // 错误隔离：单条坏消息不杀死监听循环
+            log.error("failed to handle cache sync message", e);
+        }
     }
 
     private void process(CacheSyncMessageImpl message) {
         if (StringUtils.equalsIgnoreCase(message.uniqueId(), message.getSourceId())) {
-            log.debug("Ignoring cache sync message from self: {}", message);
+            log.debug("ignoring self cache sync message: {}", message);
             return;
         }
         Object data = redisTemplate.opsForValue().get(message.getKey());
@@ -83,13 +54,9 @@ public class RedisCacheMessageSub implements CacheMessageSub {
             cache.remove(message.getKey());
             return;
         }
-
-        CacheWrapper<Object> cacheWrapper;
-        if (data instanceof CacheWrapper cacheData) {
-            cacheWrapper = cacheData;
-        } else {
-            cacheWrapper = new CacheWrapper<>(data, message.getExpireTime());
-        }
+        CacheWrapper<Object> cacheWrapper = data instanceof CacheWrapper cw
+                ? cw
+                : new CacheWrapper<>(data, message.getExpireTime());
         cache.innerSet(message.getKey(), cacheWrapper);
     }
 }

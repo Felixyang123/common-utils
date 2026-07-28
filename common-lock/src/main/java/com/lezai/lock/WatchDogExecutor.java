@@ -3,19 +3,19 @@ package com.lezai.lock;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.SmartLifecycle;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class WatchDogExecutor implements SmartLifecycle {
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
     private final DelayQueue<LeaseTask> leaseTaskQueue;
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final ConcurrentMap<String, LeaseTask> leaseTaskMap = new ConcurrentHashMap<>();
 
-    public WatchDogExecutor(RedisTemplate<String, Object> redisTemplate) {
+    public WatchDogExecutor(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
         this.leaseTaskQueue = new DelayQueue<>();
     }
@@ -68,7 +68,7 @@ public class WatchDogExecutor implements SmartLifecycle {
     }
 
     public static class LeaseTask implements Runnable, Delayed {
-        private final RedisTemplate<String, Object> redisTemplate;
+        private final StringRedisTemplate redisTemplate;
         private final DelayQueue<LeaseTask> leaseTaskQueue;
         private final String key;
         private final String lockVal;
@@ -76,7 +76,7 @@ public class WatchDogExecutor implements SmartLifecycle {
         private final AtomicBoolean isRunning;
         private long nextExecTime;
 
-        public LeaseTask(RedisTemplate<String, Object> redisTemplate,
+        public LeaseTask(StringRedisTemplate redisTemplate,
                          DelayQueue<LeaseTask> leaseTaskQueue,
                          String key, String lockVal, long leaseTime) {
             this.redisTemplate = redisTemplate;
@@ -90,8 +90,8 @@ public class WatchDogExecutor implements SmartLifecycle {
 
         @Override
         public void run() {
-            Object value = redisTemplate.opsForValue().get(key);
-            if (isRunning.get() && StringUtils.equals(lockVal, String.valueOf(value))) {
+            String value = redisTemplate.opsForValue().get(key);
+            if (isRunning.get() && StringUtils.equals(lockVal, value)) {
                 redisTemplate.expire(key, leaseTime, TimeUnit.MILLISECONDS);
                 log.info("WatchDogExecutor refresh lock, key: {}, lockVal: {}", key, lockVal);
                 this.nextExecTime = System.currentTimeMillis() + leaseTime / 3;

@@ -1,0 +1,2 @@
+com.lezai.samples.cache.config.CacheAutoConfiguration
+com.lezai.samples.cache.config.SyncMessageAutoConfiguration
