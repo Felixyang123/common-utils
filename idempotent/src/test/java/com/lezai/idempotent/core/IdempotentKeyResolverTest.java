@@ -45,13 +45,12 @@ class IdempotentKeyResolverTest {
     }
 
     @Test
-    @DisplayName("使用默认键生成器 - 空 key 表达式")
+    @DisplayName("使用默认键生成器 - 空 key 表达式（key 非空时跳过默认生成器）")
     void testResolveWithEmptyKeyExpression() {
         Idempotent idempotent = createIdempotentMock("", "default:", DefaultKeyGenerator.class);
         setupJoinPointMock(new Object[]{"v1", "v2"});
 
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
-
+        // key 为空 + 默认生成器 → buildDefaultKey（不调用 generator bean）
         String result = keyResolver.resolve(joinPoint, idempotent);
 
         assertNotNull(result);
@@ -65,8 +64,6 @@ class IdempotentKeyResolverTest {
         Idempotent idempotent = createIdempotentMock("", "custom_prefix:", DefaultKeyGenerator.class);
         setupJoinPointMock(new Object[]{"v1", "v2"});
 
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
-
         String result = keyResolver.resolve(joinPoint, idempotent);
 
         assertNotNull(result);
@@ -74,29 +71,26 @@ class IdempotentKeyResolverTest {
     }
 
     @Test
-    @DisplayName("SpEL 表达式 - 简单参数引用")
+    @DisplayName("SpEL 表达式 - 简单参数引用（key 非空跳过默认生成器）")
     void testResolveSpelSimpleParameter() {
         Idempotent idempotent = createIdempotentMock("#userId", "user:", DefaultKeyGenerator.class);
-        setupSpelJoinPointMock(new Object[]{"user123"}, new String[]{"userId"});
+        setupSpelCustomJoinPointMock(new Object[]{"user123"}, new String[]{"userId"});
 
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
-
+        // key 非空 + 默认生成器 → 只用 SpEL 结果，不追加生成器输出
         String result = keyResolver.resolve(joinPoint, idempotent);
 
-        assertTrue(result.startsWith("user:user123"));
+        assertEquals("user:user123", result);
     }
 
     @Test
     @DisplayName("SpEL 表达式 - 多个参数组合")
     void testResolveSpelMultipleParameters() {
         Idempotent idempotent = createIdempotentMock("#orderId + ':' + #userId", "order:", DefaultKeyGenerator.class);
-        setupSpelJoinPointMock(new Object[]{"user123", "orderId123"}, new String[]{"userId", "orderId"});
-
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
+        setupSpelCustomJoinPointMock(new Object[]{"user123", "orderId123"}, new String[]{"userId", "orderId"});
 
         String result = keyResolver.resolve(joinPoint, idempotent);
 
-        assertTrue(result.startsWith("order:orderId123:user123"));
+        assertEquals("order:orderId123:user123", result);
     }
 
     @Test
@@ -105,43 +99,37 @@ class IdempotentKeyResolverTest {
         Idempotent idempotent = createIdempotentMock("#request.id", "req:", DefaultKeyGenerator.class);
 
         TestRequest request = new TestRequest("req123", "test data");
-        setupSpelJoinPointMock(new Object[]{request}, new String[]{"request"});
-
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
+        setupSpelCustomJoinPointMock(new Object[]{request}, new String[]{"request"});
 
         String result = keyResolver.resolve(joinPoint, idempotent);
 
-        assertTrue(result.startsWith("req:req123"));
+        assertEquals("req:req123", result);
     }
 
     @Test
     @DisplayName("SpEL 表达式 - 字符串拼接")
     void testResolveSpelStringConcatenation() {
         Idempotent idempotent = createIdempotentMock("'prefix:'+#productId", "product:", DefaultKeyGenerator.class);
-        setupSpelJoinPointMock(new Object[]{123}, new String[]{"productId"});
-
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
+        setupSpelCustomJoinPointMock(new Object[]{123}, new String[]{"productId"});
 
         String result = keyResolver.resolve(joinPoint, idempotent);
 
-        assertTrue(result.startsWith("product:prefix:123"));
+        assertEquals("product:prefix:123", result);
     }
 
     @Test
     @DisplayName("非 SpEL 表达式 - 直接返回字符串")
     void testResolveNonSpelExpression() {
         Idempotent idempotent = createIdempotentMock("static_key", "static:", DefaultKeyGenerator.class);
-        setupJoinPointMock(new Object[]{});
-
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
+        // "static_key" 不含 "#"，parseSpelExpression 直接返回字面量，不调用 joinPoint 方法
 
         String result = keyResolver.resolve(joinPoint, idempotent);
 
-        assertTrue(result.startsWith("static:static_key"));
+        assertEquals("static:static_key", result);
     }
 
     @Test
-    @DisplayName("使用自定义 KeyGenerator")
+    @DisplayName("使用自定义 KeyGenerator（非默认生成器时仍追加）")
     void testResolveWithCustomKeyGenerator() {
         Idempotent idempotent = createIdempotentMock("", "custom:", CustomKeyGenerator.class);
         setupJoinPointMock(new Object[]{});
@@ -173,25 +161,23 @@ class IdempotentKeyResolverTest {
     }
 
     @Test
-    @DisplayName("null 参数数组 - 默认 key 生成")
+    @DisplayName("null 参数数组 - 默认 key 生成（不再双拼）")
     void testResolveNullArgs() {
         Idempotent idempotent = createIdempotentMock("", "nullargs:", DefaultKeyGenerator.class);
         setupJoinPointMock(null);
 
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
-
         String result = keyResolver.resolve(joinPoint, idempotent);
 
         assertNotNull(result);
-        assertEquals("nullargs:TestClass.testMethod.noargsTestClass.testMethod.noargs", result);
+        // 修正：不再双拼（旧: noargsnoargs → 新: noargs）
+        assertEquals("nullargs:TestClass.testMethod.noargs", result);
     }
 
     @Test
     @DisplayName("默认前缀为空时使用注解默认值")
     void testResolveDefaultPrefix() {
         Idempotent idempotent = createIdempotentMockWithoutPrefix();
-        setupSpelJoinPointMock(new Object[]{"test123"}, new String[]{"id"});
-        when(applicationContext.getBean(DefaultKeyGenerator.class)).thenReturn(new DefaultKeyGenerator());
+        setupSpelCustomJoinPointMock(new Object[]{"test123"}, new String[]{"id"});
 
         String result = keyResolver.resolve(joinPoint, idempotent);
 

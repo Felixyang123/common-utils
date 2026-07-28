@@ -2,6 +2,7 @@ package com.lezai.idempotent.storage;
 
 import com.alibaba.fastjson2.JSON;
 import com.lezai.idempotent.core.IdempotentRecord;
+import com.lezai.idempotent.exception.IdempotentStorageException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -40,6 +41,9 @@ public class RedisIdempotentStorage implements IdempotentStorage {
 
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
+        if (expireSeconds <= 0) {
+            throw new IllegalArgumentException("expireSeconds must be positive, got " + expireSeconds);
+        }
         String redisKey = keyPrefix + record.getKey();
         redisTemplate.opsForValue().set(redisKey, JSON.toJSONString(record), expireSeconds, TimeUnit.SECONDS);
         log.debug("Record saved to Redis, key: {}, expire: {}s", redisKey, expireSeconds);
@@ -55,6 +59,11 @@ public class RedisIdempotentStorage implements IdempotentStorage {
     @Override
     public boolean exists(String key) {
         // 不吞异常:Redis 连接失败上抛,由调用方 fail-fast
-        return Boolean.TRUE.equals(redisTemplate.hasKey(keyPrefix + key));
+        Boolean result = redisTemplate.hasKey(keyPrefix + key);
+        if (result == null) {
+            throw new IdempotentStorageException(
+                    "Redis hasKey returned null (pipeline/connection issue), key=" + key);
+        }
+        return result;
     }
 }

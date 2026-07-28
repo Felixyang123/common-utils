@@ -26,4 +26,13 @@ public interface IdempotentLockProvider {
      * @return 是否存在
      */
     boolean heldByCurrentThread(String key);
+
+    /**
+     * 判断指定 key 的锁是否被任意线程/实例持有。
+     * 用于判定业务执行者存活性（锁即租约语义）。
+     *
+     * @param key 锁键
+     * @return 锁被持有返回 true，未持有返回 false
+     */
+    boolean isLocked(String key);
 }

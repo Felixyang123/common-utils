@@ -39,4 +39,10 @@ public class RedisLockProvider implements IdempotentLockProvider {
         String lockKey = "lock:" + key;
         return lock.heldByCurrentThread(lockKey);
     }
+
+    @Override
+    public boolean isLocked(String key) {
+        String lockKey = "lock:" + key;
+        return lock.isLocked(lockKey);
+    }
 }

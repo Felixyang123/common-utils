@@ -116,4 +116,15 @@ public class LocalLockProvider implements IdempotentLockProvider {
         Entry e = lockMap.get(key);
         return e != null && e.lockCount > 0 && e.ownerThreadId == tid;
     }
+
+    /**
+     * 判断指定 key 的锁是否被任意线程持有。
+     *
+     * <p>仅检查 CHM 中是否存在有效 entry，不限定 owner。
+     * 与 {@link #heldByCurrentThread} 不同，此方法不区分持有者线程。</p>
+     */
+    @Override
+    public boolean isLocked(String key) {
+        return lockMap.containsKey(key);
+    }
 }

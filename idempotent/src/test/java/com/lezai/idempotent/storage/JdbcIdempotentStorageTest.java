@@ -104,11 +104,11 @@ class JdbcIdempotentStorageTest {
         
         when(jdbcTemplate.update(
             anyString(),
-            any(), any(), any(), any(), any(), any(), any()
+            any(), any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(1);
 
         assertDoesNotThrow(() -> storage.save(record, 3600));
-        
+
         verify(jdbcTemplate).update(
             contains("INSERT INTO"),
             eq("test-key"),
@@ -117,7 +117,9 @@ class JdbcIdempotentStorageTest {
             eq("java.lang.String"),
             eq(null),
             any(LocalDateTime.class),
-            eq(100L)
+            eq(100L),
+            eq(null),
+            eq(null)
         );
     }
 
@@ -202,7 +204,7 @@ class JdbcIdempotentStorageTest {
 
         when(jdbcTemplate.update(
             anyString(),
-            any(), any(), any(), any(), any(), any(), any()
+            any(), any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(1);
 
         assertDoesNotThrow(() -> storage.save(record, 3600));

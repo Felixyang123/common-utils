@@ -53,6 +53,11 @@ class IdempotentExecutionManagerTest {
     void setUp() {
         executionManager = new IdempotentExecutionManager(keyResolver, storage, lockProvider, properties);
         lenient().when(properties.getExpireTime()).thenReturn(3600L);
+        lenient().when(properties.getMaxFailRetryCount()).thenReturn(3);
+        IdempotentProperties.SecurityConfig securityConfig = new IdempotentProperties.SecurityConfig();
+        lenient().when(properties.getSecurity()).thenReturn(securityConfig);
+        // isLocked 默认返回 true（模拟锁被持有/执行者存活），避免接管路径触发无限递归
+        lenient().when(lockProvider.isLocked(anyString())).thenReturn(true);
     }
 
     @Test
@@ -97,12 +102,18 @@ class IdempotentExecutionManagerTest {
     void testDuplicateSuccessfulRequest() throws Throwable {
         // 设置已成功的记录
         IdempotentRecord successRecord = createTestRecord("success-key", IdempotentStatus.SUCCEEDED);
-        successRecord.setResult("{\"data\":\"cached\"}");
+        successRecord.setResult("\"cached-result\"");
         successRecord.setResultType("java.lang.String");
 
         when(keyResolver.resolve(joinPoint, idempotent)).thenReturn("success-key");
         when(storage.get("success-key")).thenReturn(successRecord);
         when(idempotent.returnResultOnDuplicate()).thenReturn(true);
+
+        // handleSucceededRecord 需要 joinPoint.getSignature() 返回 MethodSignature
+        org.aspectj.lang.reflect.MethodSignature ms = mock(org.aspectj.lang.reflect.MethodSignature.class);
+        when(joinPoint.getSignature()).thenReturn(ms);
+        java.lang.reflect.Method testMethod = getClass().getMethod("toString");
+        when(ms.getMethod()).thenReturn(testMethod);
 
         // 执行
         Object result = executionManager.execute(joinPoint, idempotent);

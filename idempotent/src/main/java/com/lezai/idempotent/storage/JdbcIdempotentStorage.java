@@ -57,12 +57,13 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
         String sql = "INSERT INTO " + tableName + " " +
-                "(idempotent_key, process_status, process_result, result_type, error_message, expire_time, duration) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                "(idempotent_key, process_status, process_result, result_type, error_message, expire_time, duration, fail_count, request_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                 "ON DUPLICATE KEY UPDATE " +
                 "process_status = VALUES(process_status), process_result = VALUES(process_result), " +
                 "result_type = VALUES(result_type), error_message = VALUES(error_message), " +
-                "update_time = CURRENT_TIMESTAMP, duration = VALUES(duration)";
+                "update_time = CURRENT_TIMESTAMP, duration = VALUES(duration), " +
+                "fail_count = VALUES(fail_count), request_id = VALUES(request_id)";
 
         jdbcTemplate.update(
                 sql,
@@ -72,7 +73,9 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
                 record.getResultType(),
                 record.getErrorMessage(),
                 record.getExpireTime(),
-                record.getDuration()
+                record.getDuration(),
+                record.getFailCount(),
+                record.getRequestId()
         );
 
         log.debug("Record saved to database, key: {}", record.getKey());
@@ -105,6 +108,8 @@ public class JdbcIdempotentStorage implements IdempotentStorage {
             record.setResultType(rs.getString("result_type"));
             record.setErrorMessage(rs.getString("error_message"));
             record.setDuration(rs.getLong("duration"));
+            record.setFailCount(rs.getInt("fail_count"));
+            record.setRequestId(rs.getString("request_id"));
             record.setCreateTime(rs.getTimestamp("create_time").toLocalDateTime());
             record.setUpdateTime(rs.getTimestamp("update_time").toLocalDateTime());
             record.setExpireTime(rs.getTimestamp("expire_time").toLocalDateTime());

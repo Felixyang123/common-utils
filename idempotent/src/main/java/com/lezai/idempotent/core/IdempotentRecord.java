@@ -62,6 +62,11 @@ public class IdempotentRecord implements Serializable {
     private Long duration;
 
     /**
+     * 失败次数（用于 FAILED 冷却，超过 maxFailRetryCount 后不再重执行）
+     */
+    private Integer failCount;
+
+    /**
      * 请求ID（用于追踪）
      */
     private String requestId;

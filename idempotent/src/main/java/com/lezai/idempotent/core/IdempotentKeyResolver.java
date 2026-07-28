@@ -1,6 +1,7 @@
 package com.lezai.idempotent.core;
 
 import com.lezai.idempotent.annotation.Idempotent;
+import com.lezai.idempotent.generator.DefaultKeyGenerator;
 import com.lezai.idempotent.generator.IdempotentKeyGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,22 +38,26 @@ public class IdempotentKeyResolver {
         String keyExpression = idempotent.key();
         String parsedKey;
 
-        // 如果 key 不为空，使用 SpEL 解析
+        // 1. 解析 key
         if (StringUtils.hasText(keyExpression)) {
             parsedKey = parseSpelExpression(joinPoint, keyExpression);
+            // SpEL 结果为 null 时 fallback
+            if (parsedKey == null) {
+                log.warn("SpEL expression '{}' evaluated to null, falling back to default key", keyExpression);
+                parsedKey = buildDefaultKey(joinPoint);
+            }
         } else {
             parsedKey = buildDefaultKey(joinPoint);
         }
 
-        // 使用自定义生成器
+        // 2. 仅当显式指定非默认生成器时才追加（消除默认双 key 拼接）
         Class<? extends IdempotentKeyGenerator> generatorClass = idempotent.keyGenerator();
-        if (generatorClass != null) {
+        if (generatorClass != null && generatorClass != DefaultKeyGenerator.class) {
             IdempotentKeyGenerator generator = applicationContext.getBean(generatorClass);
             String generatedKey = generator.generate(joinPoint);
             parsedKey += generatedKey;
         }
 
-        // 默认生成规则
         return prefix + parsedKey;
     }
 
@@ -100,7 +105,7 @@ public class IdempotentKeyResolver {
         if (args == null || args.length == 0) {
             return "noargs";
         }
-        String argsStr = Arrays.toString(args);
-        return DigestUtils.md5DigestAsHex(argsStr.getBytes(StandardCharsets.UTF_8)).substring(0, 8);
+        String argsStr = Arrays.deepToString(args);
+        return DigestUtils.md5DigestAsHex(argsStr.getBytes(StandardCharsets.UTF_8));
     }
 }

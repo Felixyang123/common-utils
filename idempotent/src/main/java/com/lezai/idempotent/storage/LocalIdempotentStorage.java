@@ -33,6 +33,8 @@ public class LocalIdempotentStorage implements IdempotentStorage {
 
     @Override
     public void save(IdempotentRecord record, long expireSeconds) {
+        // Caffeine 不支持 per-entry TTL，使用构造期的全局 expireAfterWrite。
+        // expireSeconds 参数在此实现中被忽略，TTL 从 put 时起算（rolling 语义）。
         cache.put(record.getKey(), record);
         log.debug("Record saved for key: {}", record.getKey());
     }
